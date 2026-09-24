@@ -183,13 +183,20 @@ def _section_board(data: BriefData) -> str:
 
 
 def _questions(data: BriefData) -> str:
-    if not data.questions:
-        return ""
-    items = "".join(f"<li>{esc(q)}</li>" for q in data.questions)
-    return (
-        '<section class="card"><h2>Open questions</h2>'
-        f'<ul class="questions">{items}</ul></section>'
-    )
+    blocks = []
+    if data.not_on_list:
+        items = "".join(f"<li>{esc(n)}</li>" for n in data.not_on_list)
+        blocks.append(
+            '<section class="card"><h2>Not on the list, deliberately</h2>'
+            f'<ul class="questions">{items}</ul></section>'
+        )
+    if data.questions:
+        items = "".join(f"<li>{esc(q)}</li>" for q in data.questions)
+        blocks.append(
+            '<section class="card"><h2>Open questions</h2>'
+            f'<ul class="questions">{items}</ul></section>'
+        )
+    return "".join(blocks)
 
 
 def render(data: BriefData) -> str:

@@ -144,6 +144,7 @@ class BriefData:
     board_live: list[BoardRow]
     board_closed: list[BoardRow]
     board_note: str
+    not_on_list: list[str]
     questions: list[str]
     delivery: Delivery
     closing: ClosingLine
@@ -205,6 +206,7 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         board_live=state.live_board,
         board_closed=state.closed_board,
         board_note=state.board_note or _board_note(state.live_board, folder.today),
+        not_on_list=state.not_on_list,
         questions=state.questions,
         delivery=delivery,
         closing=_closing_line(folder, delivery),

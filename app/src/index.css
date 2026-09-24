@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* shadcn's convention: everything is a CSS variable, so a full re-theme is one block.
+   The palette is deliberately unbranded — D1 is not final and nothing here is product copy. */
+@theme {
+  --color-canvas: #f6f5f3;
+  --color-surface: #fffefc;
+  --color-ink: #1c1b19;
+  --color-ink-soft: #5d5a55;
+  --color-ink-faint: #8b877f;
+  --color-line: #e3e0da;
+  --color-accent: #2f4858;
+  --color-warn: #8a4b2a;
+  --color-wait: #6b7f9e;
+  --color-chase: #b1663c;
+  --radius-card: 14px;
+}
+
+@layer base {
+  :root { color-scheme: light dark; }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-canvas: #14151a;
+      --color-surface: #1c1e24;
+      --color-ink: #ecebe8;
+      --color-ink-soft: #a7a49e;
+      --color-ink-faint: #74716b;
+      --color-line: #2b2e36;
+      --color-accent: #9fc0d4;
+      --color-warn: #d79a70;
+      --color-wait: #8ba3c2;
+      --color-chase: #d08a5e;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --color-canvas: #14151a;
+    --color-surface: #1c1e24;
+    --color-ink: #ecebe8;
+    --color-ink-soft: #a7a49e;
+    --color-ink-faint: #74716b;
+    --color-line: #2b2e36;
+    --color-accent: #9fc0d4;
+    --color-warn: #d79a70;
+    --color-wait: #8ba3c2;
+    --color-chase: #d08a5e;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}

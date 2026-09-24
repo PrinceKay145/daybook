@@ -87,6 +87,7 @@ class DayState:
     three_reason: str = ""
     done_for_you: str = ""
     finished: list[FinishedThing] = field(default_factory=list)
+    not_on_list: list[str] = field(default_factory=list)
     questions: list[str] = field(default_factory=list)
     board: list[BoardRow] = field(default_factory=list)
     metrics: list[Metric] = field(default_factory=list)
@@ -144,8 +145,11 @@ def _parse_finished(section: md.Section | None, state: DayState) -> None:
         detail = md.strip_markup(item)
         if DONE_MARKER.search(item):
             state.finished.append(FinishedThing(label=label, detail=detail))
-        elif "question" in detail.lower():
-            state.questions.append(detail)
+        else:
+            # Kept off the list on purpose — a law 12 conversion, or a decision already
+            # taken. Not a question: the "Open questions" section is where the crisp
+            # form lives, and collecting both puts the same item on screen twice.
+            state.not_on_list.append(detail)
 
 
 def _parse_board(section: md.Section | None, state: DayState) -> None:
