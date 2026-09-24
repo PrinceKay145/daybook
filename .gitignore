@@ -20,10 +20,13 @@ appdata/
 # that looks like one is assumed to be real and is refused. See CLAUDE.md rule 1.
 /secretary/
 /Secretary/
-*-folder/
-!fixtures/sample-folder/
+/*-folder/
 scratch/
 tmp/
+# NOTE: these patterns are anchored to the repo root on purpose, so that
+# fixtures/sample-folder/ is never caught and never needs a "!" re-include.
+# Git cannot re-include a file whose parent directory is excluded, so a
+# negation here would be load-bearing and would fail silently.
 
 # --- Python ------------------------------------------------------------------
 __pycache__/

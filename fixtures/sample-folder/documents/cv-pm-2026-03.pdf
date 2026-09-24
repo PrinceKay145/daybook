@@ -1,0 +1,76 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1140 >>
+stream
+BT
+/F1 18 Tf
+1 0 0 1 72 760 Tm
+(Sam Whitfield) Tj
+/F1 10 Tf
+1 0 0 1 72 738 Tm
+(Technical writer  |  Bristol, UK  |  sam@example.invalid) Tj
+/F1 13 Tf
+1 0 0 1 72 706 Tm
+(Target: product manager, mid-size software company) Tj
+/F1 11 Tf
+1 0 0 1 72 676 Tm
+(Experience) Tj
+/F1 9 Tf
+1 0 0 1 72 658 Tm
+(Merrivale  -  Senior technical writer  -  3 years 2 months) Tj
+/F1 9 Tf
+1 0 0 1 72 644 Tm
+(   \(See CORRECTIONS.md 2026-02-09: three years and two months, not four.) Tj
+/F1 9 Tf
+1 0 0 1 72 630 Tm
+(    The document is the source, not the recollection.\)) Tj
+/F1 9 Tf
+1 0 0 1 72 612 Tm
+(Independent  -  Documentation consultant  -  2024 to present) Tj
+/F1 9 Tf
+1 0 0 1 72 594 Tm
+(   Three retained clients. Style guides, API reference, handover docs.) Tj
+/F1 11 Tf
+1 0 0 1 72 564 Tm
+(Selected work) Tj
+/F1 9 Tf
+1 0 0 1 72 546 Tm
+(Plainly Put  -  a newsletter on documentation and product, weekly) Tj
+/F1 9 Tf
+1 0 0 1 72 532 Tm
+(Handover documentation programme, chapters 1-3 delivered March 2026) Tj
+/F1 11 Tf
+1 0 0 1 72 502 Tm
+(Note) Tj
+/F1 9 Tf
+1 0 0 1 72 484 Tm
+(This is a FIXTURE. Sam Whitfield does not exist. See fixtures/README.md.) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000001438 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1535
+%%EOF

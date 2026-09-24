@@ -132,6 +132,8 @@
 
   "scope": {
     "root": "~/Secretary",
+    "_path_convention": "Paths recorded anywhere in the folder — action targets in reminders.json, source_precedence entries here, references in the markdown — are resolved against THIS root, not against the machine's real home directory. A path is resolved by, in order: (1) strip a leading 'scope.root' prefix if present, (2) strip a leading './', (3) join what is left onto the actual folder the runner was pointed at. So '~/Secretary/documents/x.md', 'documents/x.md' and './documents/x.md' all name the same file, and the fixture folder works unchanged whatever it is copied to. A resolved path that escapes the root is a scope violation and is refused, not clamped.",
+    "_path_convention_why": "The folder is portable by design — copy it, sync it, restore it from a backup under a different name — so a stored absolute path would be wrong the moment it moved. Recording scope.root as the alias keeps the files readable by a human ('~/Secretary/...' says where it lives) without making them true only on one machine. It is also what lets BRIEF-SPEC V5 mean anything: an assertion that every referenced path exists needs one definition of where paths point.",
     "allow_outside_root": false,
     "shell_actions_enabled": false,
     "_why": "The runner is scoped to this folder by path prefix and nothing else. shell_actions stays false in v1: the agent writes reminders.json, so 'shell commands come only from the user's own config' would otherwise be a laundering path from injected content straight to execution."

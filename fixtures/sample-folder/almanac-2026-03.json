@@ -1,0 +1,235 @@
+{
+  "_schema_version": 1,
+  "_note": "Fixture almanac. Invented, like everything else in this folder. See fixtures/README.md.",
+  "_why": "RANK-1 SOURCE for config.json's daily_schedule_module — the 'transcribed authoritative timetable' that beats the API and the computed fallback. It exists so V5 (every referenced path is asserted to exist) can pass, and so the source-precedence path is exercised offline. Values are anchored to DAY-STATE.md's stated figures for 2026-03-10 (first light 06:14, sunset 18:02) and carried across the month from a solar computation for the location below. first_light/last_light are a local convention of 25 minutes either side, not civil twilight.",
+  "kind": "light_schedule",
+  "label": "Daylight",
+  "location": {
+    "label": "Bristol",
+    "lat": 51.4545,
+    "lon": -2.5879
+  },
+  "timezone": "Europe/London",
+  "month": "2026-03",
+  "transcribed_on": "2026-02-27",
+  "_transcribed_on_why": "Month-end reminder to load the next month's table fires on the last day of the month — see reminders.json 'invoice-clients' for the day:-1 shape.",
+  "days": [
+    {
+      "date": "2026-03-01",
+      "first_light": "06:34",
+      "sunrise": "06:59",
+      "sunset": "17:47",
+      "last_light": "18:12"
+    },
+    {
+      "date": "2026-03-02",
+      "first_light": "06:32",
+      "sunrise": "06:57",
+      "sunset": "17:48",
+      "last_light": "18:13"
+    },
+    {
+      "date": "2026-03-03",
+      "first_light": "06:30",
+      "sunrise": "06:55",
+      "sunset": "17:50",
+      "last_light": "18:15"
+    },
+    {
+      "date": "2026-03-04",
+      "first_light": "06:28",
+      "sunrise": "06:53",
+      "sunset": "17:52",
+      "last_light": "18:17"
+    },
+    {
+      "date": "2026-03-05",
+      "first_light": "06:25",
+      "sunrise": "06:50",
+      "sunset": "17:53",
+      "last_light": "18:18"
+    },
+    {
+      "date": "2026-03-06",
+      "first_light": "06:23",
+      "sunrise": "06:48",
+      "sunset": "17:55",
+      "last_light": "18:20"
+    },
+    {
+      "date": "2026-03-07",
+      "first_light": "06:21",
+      "sunrise": "06:46",
+      "sunset": "17:57",
+      "last_light": "18:22"
+    },
+    {
+      "date": "2026-03-08",
+      "first_light": "06:19",
+      "sunrise": "06:44",
+      "sunset": "17:59",
+      "last_light": "18:24"
+    },
+    {
+      "date": "2026-03-09",
+      "first_light": "06:17",
+      "sunrise": "06:42",
+      "sunset": "18:00",
+      "last_light": "18:25"
+    },
+    {
+      "date": "2026-03-10",
+      "first_light": "06:14",
+      "sunrise": "06:39",
+      "sunset": "18:02",
+      "last_light": "18:27"
+    },
+    {
+      "date": "2026-03-11",
+      "first_light": "06:12",
+      "sunrise": "06:37",
+      "sunset": "18:04",
+      "last_light": "18:29"
+    },
+    {
+      "date": "2026-03-12",
+      "first_light": "06:10",
+      "sunrise": "06:35",
+      "sunset": "18:06",
+      "last_light": "18:31"
+    },
+    {
+      "date": "2026-03-13",
+      "first_light": "06:07",
+      "sunrise": "06:32",
+      "sunset": "18:07",
+      "last_light": "18:32"
+    },
+    {
+      "date": "2026-03-14",
+      "first_light": "06:05",
+      "sunrise": "06:30",
+      "sunset": "18:09",
+      "last_light": "18:34"
+    },
+    {
+      "date": "2026-03-15",
+      "first_light": "06:03",
+      "sunrise": "06:28",
+      "sunset": "18:11",
+      "last_light": "18:36"
+    },
+    {
+      "date": "2026-03-16",
+      "first_light": "06:01",
+      "sunrise": "06:26",
+      "sunset": "18:12",
+      "last_light": "18:37"
+    },
+    {
+      "date": "2026-03-17",
+      "first_light": "05:58",
+      "sunrise": "06:23",
+      "sunset": "18:14",
+      "last_light": "18:39"
+    },
+    {
+      "date": "2026-03-18",
+      "first_light": "05:56",
+      "sunrise": "06:21",
+      "sunset": "18:16",
+      "last_light": "18:41"
+    },
+    {
+      "date": "2026-03-19",
+      "first_light": "05:54",
+      "sunrise": "06:19",
+      "sunset": "18:17",
+      "last_light": "18:42"
+    },
+    {
+      "date": "2026-03-20",
+      "first_light": "05:51",
+      "sunrise": "06:16",
+      "sunset": "18:19",
+      "last_light": "18:44"
+    },
+    {
+      "date": "2026-03-21",
+      "first_light": "05:49",
+      "sunrise": "06:14",
+      "sunset": "18:21",
+      "last_light": "18:46"
+    },
+    {
+      "date": "2026-03-22",
+      "first_light": "05:47",
+      "sunrise": "06:12",
+      "sunset": "18:22",
+      "last_light": "18:47"
+    },
+    {
+      "date": "2026-03-23",
+      "first_light": "05:45",
+      "sunrise": "06:10",
+      "sunset": "18:24",
+      "last_light": "18:49"
+    },
+    {
+      "date": "2026-03-24",
+      "first_light": "05:42",
+      "sunrise": "06:07",
+      "sunset": "18:26",
+      "last_light": "18:51"
+    },
+    {
+      "date": "2026-03-25",
+      "first_light": "05:40",
+      "sunrise": "06:05",
+      "sunset": "18:27",
+      "last_light": "18:52"
+    },
+    {
+      "date": "2026-03-26",
+      "first_light": "05:38",
+      "sunrise": "06:03",
+      "sunset": "18:29",
+      "last_light": "18:54"
+    },
+    {
+      "date": "2026-03-27",
+      "first_light": "05:35",
+      "sunrise": "06:00",
+      "sunset": "18:31",
+      "last_light": "18:56"
+    },
+    {
+      "date": "2026-03-28",
+      "first_light": "05:33",
+      "sunrise": "05:58",
+      "sunset": "18:32",
+      "last_light": "18:57"
+    },
+    {
+      "date": "2026-03-29",
+      "first_light": "05:31",
+      "sunrise": "05:56",
+      "sunset": "18:34",
+      "last_light": "18:59"
+    },
+    {
+      "date": "2026-03-30",
+      "first_light": "05:29",
+      "sunrise": "05:54",
+      "sunset": "18:36",
+      "last_light": "19:01"
+    },
+    {
+      "date": "2026-03-31",
+      "first_light": "05:26",
+      "sunrise": "05:51",
+      "sunset": "18:37",
+      "last_light": "19:02"
+    }
+  ]
+}

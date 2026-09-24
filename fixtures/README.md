@@ -45,7 +45,23 @@ Tests inject that as the clock. Without a frozen clock, half the assertions here
 | `CORRECTIONS.md` | The never-pruned record of what the system got wrong |
 | `SETUP-BACKLOG.md` | NOW / NEXT / LATER tiers and a DONE section |
 | `reminders.json` | Every repeat type, lead minutes, actions, a mute, the `_why` convention |
-| `config.json` | Owner config, lanes, the optional daily-shifting schedule, frozen clock |
+| `config.json` | Owner config, lanes, the optional daily-shifting schedule, frozen clock, the path convention |
+| `.agent-heartbeat.json` | Delivery evidence — V11, invariant 5, law 14. Carries the macOS alert style, not just the fire count |
+| `almanac-2026-03.json` | Rank-1 source for the daily-shifting schedule. Anchored to DAY-STATE's stated figures for 10 March |
+| `documents/` | Every file the other fixtures point at, so V5 has something to assert against |
+| `briefs/`, `archive/` | Where generated briefs and rolled-off history land |
+
+### Paths, and how they resolve
+
+Paths appear two ways in this folder — `~/Secretary/documents/x.md` in `reminders.json`,
+`documents/x.md` in the markdown. **Both mean the same file.** A leading `scope.root` prefix is
+stripped and what remains is joined onto whatever folder the runner was actually pointed at, so
+the fixture works unchanged wherever it is copied. A resolved path that escapes the root is a
+scope violation and is refused. The full rule is `config.json` → `scope._path_convention`.
+
+⚠️ **`briefs/latest.html` is the one referenced path that does not exist until a brief is
+generated.** V5 counts a path as present if it exists on disk **or** the run being verified is
+about to write it — otherwise a fresh folder could never pass its own first brief.
 
 ---
 

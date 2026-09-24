@@ -1,0 +1,18 @@
+{
+  "_note": "Fixture heartbeat, frozen at the clock in config.json. Invented, like everything else here.",
+  "_why": "BRIEF-SPEC V11 asserts the heartbeat was checked and its result reflected. Without this file there is nothing to check, and the brief cannot tell 'the user ignored it' from 'nothing ever reached them' — invariant 5 and law 14. Fields match PRODUCT-SPEC 5.2, plus alert_style per ARCHITECTURE 9.1.",
+
+  "last_tick": "2026-03-10T07:59:31",
+  "last_tick_readable": "Tuesday 10 March 2026, 07:59 local",
+  "timezone_offset": "+0000",
+  "schedule_source": "local_table",
+  "_schedule_source_why": "Rank 1 of config.json's source_precedence: almanac-2026-03.json. Law 5 — say which source.",
+
+  "fired_this_tick": 0,
+  "total_fired": 1184,
+  "last_fired_at": "2026-03-10T07:00:12",
+  "_last_fired_why": "morning-walk, 07:00 daily.",
+
+  "alert_style": "alerts",
+  "_alert_style_why": "ARCHITECTURE 9.1: under the macOS default of 'banners', 0 of 3 action buttons are reachable, and a body click returns @ACTIONCLICKED, which does not identify the action. A brief whose buttons were never reachable is an undelivered instruction under law 14, so the heartbeat carries the alert style and not just the fire count. Set this to 'banners' and the brief must report delivery as degraded."
+}
