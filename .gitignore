@@ -54,3 +54,5 @@ app/.vite/
 # --- Unrelated local tooling -------------------------------------------------
 .qodo/
 .vscode/
+briefs/*.html
+!fixtures/sample-folder/briefs/README.md
