@@ -1,0 +1,249 @@
+{
+  "_schema_version": 3,
+  "_note": "Fixture schedule for Sam Whitfield. Frozen clock: 2026-03-10T08:00:00. Exercises every repeat type, both mute shapes, and all three action target kinds.",
+  "config": {
+    "timezone": "Europe/London",
+    "default_lead_minutes": 10,
+    "catchup_window_minutes": 20,
+    "quiet_hours": { "start": "22:00", "end": "06:30" }
+  },
+  "reminders": [
+    {
+      "id": "school-run",
+      "title": "🎒 School run",
+      "message": "Leave now. Ada's bag is by the door.",
+      "time": "08:20",
+      "repeat": "weekdays",
+      "lead_minutes": 10,
+      "enabled": true,
+      "actions": [{ "label": "Open the route", "url": "https://example.invalid/route" }],
+      "_why": "Non-negotiable in MASTER-PLAN. Added 2026-01-06 at setup."
+    },
+    {
+      "id": "standup-prep",
+      "title": "📋 Client standup prep",
+      "message": "Open the Aldridge notes and write your three lines before the call.",
+      "time": "08:12",
+      "repeat": "weekdays",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [{ "label": "Open Aldridge notes", "path": "~/Secretary/documents/aldridge-notes.md" }],
+      "_why": "CATCH-UP TEST: due 08:12, frozen clock is 08:00. Advance the clock to 08:25 and this must fire labelled '13 min ago'. Advance to 08:45 and it must be marked fired and dropped silently."
+    },
+    {
+      "id": "deep-work-start",
+      "title": "🧠 Deep work — lane 1 or 2 only",
+      "message": "One thing. Close the inbox.",
+      "time": "09:00",
+      "repeat": "weekdays",
+      "lead_minutes": 5,
+      "enabled": true,
+      "actions": [{ "label": "Open today's brief", "path": "~/Secretary/briefs/latest.html" }],
+      "_why": "Day shape block start. Added 2026-01-06."
+    },
+    {
+      "id": "school-pickup",
+      "title": "🚸 School pickup",
+      "message": "Leave now.",
+      "time": "16:15",
+      "repeat": "weekdays",
+      "lead_minutes": 15,
+      "enabled": true,
+      "actions": [{ "label": "Open the route", "url": "https://example.invalid/route" }],
+      "_why": "Non-negotiable. Lead is 15 not 10 — 10 was not enough twice in January."
+    },
+    {
+      "id": "inbox-zero",
+      "title": "📥 Inbox to zero",
+      "message": "Twenty minutes, then stop whether it's clear or not.",
+      "time": "21:30",
+      "repeat": "daily",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Habit, tracked not graded. Added 2026-01-18."
+    },
+    {
+      "id": "newsletter-send",
+      "title": "📨 Plainly Put — send it",
+      "message": "Open the draft, read it once aloud, send. Don't reopen it after.",
+      "time": "19:30",
+      "repeat": "weekly",
+      "days": ["thu"],
+      "lead_minutes": 30,
+      "enabled": true,
+      "actions": [
+        { "label": "Open the draft", "path": "~/Secretary/documents/newsletter/next.md" },
+        { "label": "Open the sender", "url": "https://example.invalid/newsletter" }
+      ],
+      "_why": "Lane 3. Missed 2026-03-05 — first miss since January. Left enabled deliberately."
+    },
+    {
+      "id": "swimming",
+      "title": "🏊 Ada's swimming",
+      "message": "Out the door. Towel is in the hall cupboard.",
+      "time": "18:00",
+      "repeat": "weekly",
+      "days": ["thu"],
+      "lead_minutes": 20,
+      "enabled": true,
+      "actions": [],
+      "_why": "Non-negotiable. Never reschedule this to fit anything — see CORRECTIONS 2026-02-19."
+    },
+    {
+      "id": "weekly-review",
+      "title": "🔍 Weekly review",
+      "message": "What moved, what rotted, what to chase Monday. Fifteen minutes.",
+      "time": "17:00",
+      "repeat": "weekly",
+      "days": ["fri"],
+      "lead_minutes": 10,
+      "enabled": true,
+      "actions": [{ "label": "Open the log", "path": "~/Secretary/LOG.md" }],
+      "_why": "Added 2026-02-07 after three weeks where nothing was ever formally closed."
+    },
+    {
+      "id": "invoice-clients",
+      "title": "💷 Invoice all clients",
+      "message": "Drafts are already in documents/invoices/. Check the hours, then send all three.",
+      "time": "10:00",
+      "repeat": "monthly",
+      "day": -1,
+      "lead_minutes": 60,
+      "enabled": true,
+      "actions": [{ "label": "Open the invoice folder", "path": "~/Secretary/documents/invoices" }],
+      "_why": "MONTH-END TEST: day -1 must fire on the 28th in Feb 2026 (non-leap), the 31st in March, the 30th in April. Added 2026-01-06 — being paid late twice was the whole reason."
+    },
+    {
+      "id": "pension-check",
+      "title": "📊 Quarterly pension check",
+      "message": "Fifteen minutes. Look, don't tinker.",
+      "time": "11:00",
+      "repeat": "monthly",
+      "day": 15,
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Fixed-day monthly, contrast case against day -1 above."
+    },
+    {
+      "id": "tessellate-deadline",
+      "title": "⏰ Tessellate PM role closes today",
+      "message": "Open the posting and answer the three screening questions. Forty minutes.",
+      "datetime": "2026-03-13T09:00",
+      "repeat": "once",
+      "lead_minutes": 60,
+      "enabled": true,
+      "actions": [
+        { "label": "Open the posting", "url": "https://example.invalid/jobs/tessellate-pm" },
+        { "label": "Open the CV", "path": "~/Secretary/documents/cv-pm-2026-03.pdf" }
+      ],
+      "_why": "Dated deadline. One-off — the close deletes it once spent. Buttons land on the exact posting and the exact file, never a hub page."
+    },
+    {
+      "id": "chase-priya",
+      "title": "📮 Chase Priya — Aldridge handover scope",
+      "message": "If she still hasn't replied, send one line. Not a whole email.",
+      "datetime": "2026-03-12T14:00",
+      "repeat": "once",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Board item, CHASE with a date. Law 11 — every open item is wait or chase, and it carries a date at the moment it is logged."
+    },
+    {
+      "id": "marcus-followup",
+      "title": "📮 Marcus Ellery — one follow-up, then let it go",
+      "message": "Second and final. If nothing comes back, close it and move on.",
+      "datetime": "2026-03-13T10:00",
+      "repeat": "once",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Law 12 — this is prompt two of two. There is no third. After this it becomes a yes/no."
+    },
+    {
+      "id": "backer-signoff",
+      "title": "✅ Bäcker & Söhne — sign-off due",
+      "message": "They have had the style guide for two days. Check, then chase if silent.",
+      "datetime": "2026-03-16T11:00",
+      "repeat": "once",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [{ "label": "Open the style guide", "path": "~/Secretary/documents/backer-styleguide-v3.md" }],
+      "_why": "UNICODE TEST: umlauts in the title must survive JSON, the notifier and the brief."
+    },
+    {
+      "id": "morning-walk",
+      "title": "🚶 Morning walk",
+      "message": "Twenty minutes. Phone stays in your pocket.",
+      "time": "07:00",
+      "repeat": "daily",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Habit. Counted, never scored — no streak on this, a missed day is just a missed day."
+    },
+    {
+      "id": "read-pages",
+      "title": "📖 Twenty pages",
+      "message": "Whatever's on the nightstand.",
+      "time": "22:15",
+      "repeat": "daily",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Habit. Running 2 of 7 — shown as a count, never as a failure."
+    },
+    {
+      "id": "gym-evening",
+      "title": "🏋️ Gym",
+      "message": "Forty-five minutes.",
+      "time": "20:00",
+      "repeat": "weekly",
+      "days": ["tue", "sat"],
+      "lead_minutes": 15,
+      "enabled": false,
+      "_paused": "2026-03-01",
+      "_unmute": {
+        "date": "2026-04-06",
+        "reminder_id": "unmute-gym-evening"
+      },
+      "_why": "VALID MUTE. Shoulder needs six weeks. Disabled with a dated companion that turns it back on — this is the shape law 24 requires."
+    },
+    {
+      "id": "unmute-gym-evening",
+      "title": "🔔 Turn the gym reminder back on",
+      "message": "Six weeks is up. Re-enable gym-evening, or decide out loud that you're not going back.",
+      "datetime": "2026-04-06T09:00",
+      "repeat": "once",
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [{ "label": "Open the schedule", "path": "~/Secretary/reminders.json" }],
+      "_why": "The companion action that makes the mute above a real mute rather than a quiet deletion."
+    },
+    {
+      "id": "deep-work-block",
+      "title": "🧠 Afternoon deep work",
+      "message": "Second block. Lane 2 only.",
+      "time": "14:00",
+      "repeat": "weekdays",
+      "lead_minutes": 10,
+      "enabled": false,
+      "_paused": "2026-02-10",
+      "_why": "🔴 INVALID MUTE — DELIBERATE TEST CASE. Disabled with no dated un-mute and no companion reminder. Nothing in the system will ever turn this back on. It has been off for a month and Sam believes it is running. The validator must flag this; a config write that creates this shape must be rejected."
+    },
+    {
+      "id": "sunday-off",
+      "title": "🌤️ Sunday — off",
+      "message": "No client work, no applications, no newsletter. That's the whole reminder.",
+      "time": "09:00",
+      "repeat": "weekly",
+      "days": ["sun"],
+      "lead_minutes": 0,
+      "enabled": true,
+      "actions": [],
+      "_why": "Non-negotiable made visible. Added after two consecutive worked Sundays in January."
+    }
+  ]
+}

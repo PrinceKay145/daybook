@@ -1,0 +1,144 @@
+{
+  "_schema_version": 3,
+  "_note": "Fixture config. Everything here is invented. See fixtures/README.md.",
+
+  "fixture_now": "2026-03-10T08:00:00",
+  "_fixture_now_why": "Tests inject this as the clock. Without a frozen clock the catch-up window, the month-end reminder, the two-prompts rule and the overdue board items all drift into passing or failing depending on the day the suite runs.",
+
+  "owner": {
+    "name": "Sam Whitfield",
+    "address_as": "Sam",
+    "timezone": "Europe/London",
+    "locale": "en-GB",
+    "folder": "~/Secretary"
+  },
+
+  "lanes": [
+    { "id": "client-work", "label": "Client work", "priority": 1 },
+    { "id": "pm-transition", "label": "PM transition", "priority": 2 },
+    { "id": "newsletter", "label": "The newsletter", "priority": 3 },
+    { "id": "family", "label": "Family", "priority": 4, "protected": true }
+  ],
+
+  "lane_separation": [
+    {
+      "never_mix": ["client-work", "newsletter"],
+      "_why": "Clients are not newsletter material and no client is ever named in a post. Raised twice, same answer both times. The product needs a general mechanism for 'these two contexts never touch'."
+    }
+  ],
+
+  "day_shape": [
+    { "block": "Sleep",                  "start": "23:00", "end": "06:30" },
+    { "block": "Morning / school run",   "start": "06:30", "end": "09:00" },
+    { "block": "Deep work",              "start": "09:00", "end": "12:30" },
+    { "block": "Lunch and walk",         "start": "12:30", "end": "13:30" },
+    { "block": "Client work",            "start": "13:30", "end": "16:00" },
+    { "block": "Pickup and family",      "start": "16:00", "end": "19:30" },
+    { "block": "Admin / applications",   "start": "19:30", "end": "22:00" },
+    { "block": "Wind down",              "start": "22:00", "end": "23:00" }
+  ],
+  "_day_shape_why": "CONTIGUITY TEST: these blocks must cover 00:00-24:00 with no gap and no overlap, asserted at build time. Delete any one block and the brief's dial silently produces a 'current block' of nothing — which is exactly the bug the assertion exists to catch.",
+
+  "non_negotiables": [
+    { "label": "School run",        "time": "08:20", "days": ["mon","tue","wed","thu","fri"] },
+    { "label": "School pickup",     "time": "16:15", "days": ["mon","tue","wed","thu","fri"] },
+    { "label": "Ada's swimming",    "start": "18:00", "end": "19:30", "days": ["thu"] },
+    { "label": "Sleep",             "start": "23:00", "end": "06:30", "days": ["all"] },
+    { "label": "Sunday off",        "days": ["sun"] }
+  ],
+  "_non_negotiables_why": "These tick OUTSIDE the dial ring, never inside it — they are not blocks that can be moved or shortened. They are also not inputs to any scheduling optimiser: see CORRECTIONS 2026-02-19.",
+
+  "metrics": [
+    { "id": "applications_sent",      "label": "Applications sent",   "cadence": "weekly", "tracking": true },
+    { "id": "conversations_had",      "label": "Conversations",       "cadence": "weekly", "tracking": true },
+    { "id": "invoices_outstanding",   "label": "Outstanding",         "cadence": "live",   "tracking": true, "format": "currency_gbp" },
+    { "id": "newsletter_subscribers", "label": "Subscribers",         "cadence": "weekly", "tracking": true },
+    {
+      "id": "words_shipped",
+      "label": "Words shipped",
+      "cadence": "weekly",
+      "tracking": false,
+      "stopped_on": "2026-02-14",
+      "stopped_reason": "Measured effort rather than outcome, and made bad weeks look productive.",
+      "_why": "DROPPED-METRIC TEST: must render as a dash with the reason, and must never be silently re-added. See CORRECTIONS 2026-02-14."
+    }
+  ],
+
+  "habits": [
+    { "id": "morning_walk", "label": "Morning walk" },
+    { "id": "read_pages",   "label": "Read 20 pages" },
+    { "id": "inbox_zero",   "label": "Inbox to zero before 22:00" }
+  ],
+  "_habits_why": "SHOW-NEVER-GRADE TEST: render as counts out of 7. No streak counter, no score, no 'you broke a run'. Law 18.",
+
+  "daily_schedule_module": {
+    "enabled": true,
+    "kind": "light_schedule",
+    "label": "Daylight",
+    "_why": "This is the GENERALISED form of the observance module — a daily-shifting, location-dependent schedule with source precedence. Deliberately a secular one in the fixture, so the code path is exercised without any fixture carrying religious data. The same machinery must serve a prayer timetable, tide times, or shift rotas.",
+    "entries": ["first_light", "sunrise", "sunset", "last_light"],
+    "location": { "label": "Bristol", "lat": 51.4545, "lon": -2.5879 },
+    "source_precedence": [
+      { "rank": 1, "kind": "local_table", "path": "~/Secretary/almanac-2026-03.json" },
+      { "rank": 2, "kind": "api",         "url": "https://example.invalid/almanac" },
+      { "rank": 3, "kind": "computed",    "note": "Local astronomical computation. Always available offline." }
+    ],
+    "location_override": {
+      "active": false,
+      "_shape_example": {
+        "label": "Lisbon",
+        "lat": 38.7223,
+        "lon": -9.1393,
+        "from": "2026-04-02",
+        "until": "2026-04-09"
+      },
+      "_why": "A dated location override beats ALL THREE sources while in force. This was a real production bug: the authoritative local table was consulted before the travel override, and home-city times fired abroad for five days. The table is authoritative for home and nowhere else."
+    },
+    "rules": [
+      "Never show yesterday's times. They shift daily and a wrong time is worse than no time.",
+      "Check the date the API echoes back against the date requested; fall through to computed maths on mismatch.",
+      "Warn once per day — not silently, not repeatedly — when running on the computed fallback.",
+      "Convert from the source location's own clock using the machine's LIVE UTC offset, so the shift collapses to zero by itself when the machine clock is corrected."
+    ]
+  },
+
+  "providers": [
+    {
+      "id": "claude-cli",
+      "label": "Claude Code",
+      "authKind": "local_cli",
+      "binary": "claude",
+      "detected": true,
+      "_why": "LOCAL-CLI PATH: the user installed and authenticated this themselves. The product invokes it as a subprocess and never sees the credential."
+    },
+    {
+      "id": "openai-api",
+      "label": "OpenAI",
+      "authKind": "api_key",
+      "keychain_ref": "pk-secretary/openai",
+      "detected": false,
+      "_why": "API-KEY PATH: key lives in the OS keychain, never in this file. Both paths must work — building only the CLI path bets the product on another company's policy."
+    }
+  ],
+  "_providers_why": "authKind is DATA, never an assumption baked into the schema. This surface moved three times in 2026.",
+
+  "budget": {
+    "max_turns_per_run": 25,
+    "max_tokens_per_run": 400000,
+    "monthly_ceiling_usd": 20,
+    "on_ceiling": "notify_and_pause",
+    "_why": "A meter is a rear-view mirror; this is the brake. And per law 14, a run that fails because the key is out of credit is a SYSTEM FAILURE TO REPORT, not a silent skip."
+  },
+
+  "scope": {
+    "root": "~/Secretary",
+    "allow_outside_root": false,
+    "shell_actions_enabled": false,
+    "_why": "The runner is scoped to this folder by path prefix and nothing else. shell_actions stays false in v1: the agent writes reminders.json, so 'shell commands come only from the user's own config' would otherwise be a laundering path from injected content straight to execution."
+  },
+
+  "tone": {
+    "style": "warm_direct",
+    "notes": "Name what slipped plainly, then ask what happened and adjust. No guilt, no cushioning, no cheerleading. Motivate by naming the specific real thing they did. If the day was bad, say so."
+  }
+}

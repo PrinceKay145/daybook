@@ -1,0 +1,53 @@
+# --- Secrets and local state -------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Logs --------------------------------------------------------------------
+*.log
+logs/
+
+# --- App data (never in the repo; SQLite, locks and logs live here) ----------
+appdata/
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Anything that could hold a real person's folder -------------------------
+# The ONLY state folder in this repo is fixtures/sample-folder. Everything else
+# that looks like one is assumed to be real and is refused. See CLAUDE.md rule 1.
+/secretary/
+/Secretary/
+*-folder/
+!fixtures/sample-folder/
+scratch/
+tmp/
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / frontend ---------------------------------------------------------
+node_modules/
+app/dist/
+app/.vite/
+*.tsbuildinfo
+
+# --- macOS -------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+
+# --- Editors -----------------------------------------------------------------
+.idea/
+*.swp
+
+# --- Unrelated local tooling -------------------------------------------------
+.qodo/
+.vscode/
