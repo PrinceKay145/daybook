@@ -27,6 +27,12 @@ def atomic_write_text(target: Path, text: str) -> Path:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
+        # mkstemp creates 0600. These are the user's own files, sitting next to files
+        # they made in a text editor, and they open them from Finder and from synced
+        # copies — so give them the mode an ordinary write would have produced.
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(temp, 0o666 & ~umask)
         os.replace(temp, target)
     except BaseException:
         temp.unlink(missing_ok=True)
