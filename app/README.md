@@ -1,48 +1,117 @@
 # The app
 
-React + TypeScript + Vite + Tailwind + shadcn-style components. Three screens —
-**Brief · Board · Settings**. Nothing else.
+Electron shell + React 19 + TypeScript + Vite + Tailwind 4 (shadcn-style components,
+copied into the repo, not installed). The current build is the **onboarding stage from
+the owner's drawing** (`docs/design/onboarding-flow.png`):
 
-**It talks to `127.0.0.1` and nothing else.** No bundle-specific APIs anywhere in here.
-That is what keeps it runnable in a plain browser now and wrappable in Tauri in week 7
-with the React code unchanged — and it is the one rule in this directory worth protecting.
+```
+Login / Sign-up  →  Connect a folder  →  Connect your AI provider  →  Setup questions  →  Scoreboard
+   (Supabase)        (the secretary's      (key → OS keychain,          (answers written        (home screen;
+                      whole world)         or a detected local CLI)     into the folder)        sample data for now)
+```
+
+Subsequent launches go straight to the scoreboard.
+
+**The renderer never imports Electron or Node APIs.** It talks to `127.0.0.1` and to the
+small `window.daybook` bridge (`electron/preload.cjs`), and it still runs in a plain
+browser tab with graceful fallbacks (`src/lib/daybook.ts`). That boundary is the one rule
+in this directory worth protecting: it is what keeps the shell swappable.
 
 ## Running it
 
-Two processes, in two terminals:
-
 ```bash
-# 1. the runner
-cd runner && python3 -m daybook serve --folder ../fixtures/sample-folder
-
-# 2. the app
-cd app && npm install && npm run dev      # http://127.0.0.1:5173
+cd app
+nvm use        # Node 22 — the pinned Electron needs it for install (see .nvmrc)
+npm install
+npm run dev    # Vite on 127.0.0.1:5173 + the Electron window
 ```
 
-`VITE_RUNNER_URL` overrides where the runner is. It defaults to `http://127.0.0.1:8787`.
+- `npm run dev:web` runs the UI in a plain browser tab (folder, keychain and outbound
+  links refuse politely — they need the shell).
+- `npm run build && npm run app:start` runs the production renderer inside Electron.
+- `npm run typecheck` is the fast correctness gate.
 
-Screens are addressable: `#brief`, `#board`, `#settings`.
+## Accounts (Supabase)
 
-## The Brief screen shows the runner's HTML, not a React copy
+The account is for **identity and licensing only**. No life data is ever sent — the
+folder is the only place that knows anything about the user's week, and its contents
+never leave it.
 
-The brief is *one self-contained HTML file*, and the same file the runner writes into the
-folder is what this screen displays. A React reimplementation of the seven sections would
-be a second renderer that drifts from the artefact the user actually opens out of their
-folder, and the eleven verification assertions would only ever cover one of the two.
+1. Create a free project at [supabase.com](https://supabase.com).
+2. **Google provider** — Authentication → Sign In / Providers → Google, then either:
+   - switch on **"Use Supabase-managed client"** if your project offers it — done; or
+   - create your own OAuth client at [console.cloud.google.com](https://console.cloud.google.com)
+     (type **Web application**) with:
+     - JavaScript origin: `https://YOUR-PROJECT-REF.supabase.co`
+     - Redirect URI: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
+     - (`YOUR-PROJECT-REF` = the subdomain of your Supabase URL)
+   and paste the Client ID + Secret into Supabase.
+3. **URL Configuration → Redirect URLs: add `daybook://auth`.** Without it the browser
+   sign-in cannot hand the session back to the Mac app.
+4. **Email** provider: enable. "Confirm email" can stay ON — sign-up then ends with a
+   "check your inbox" notice and the first sign-in happens after clicking the mail link.
+5. Copy Project URL + anon key into `app/.env` (see `.env.example`). Both values are
+   public by design; the auth rules live in the Supabase project, not in secrecy.
+6. Restart `npm run dev`.
 
-If verification fails, the screen says the brief was withheld and lists which assertions
-failed. It does not fall back to showing it anyway.
+Without a `.env`, the app runs in **developer mode**: the flow works end to end,
+nothing is checked, and the login screen says so.
 
-## shadcn, copied not installed
+Google sign-in opens the system browser and returns via the `daybook://auth` protocol
+(registered by the app on launch; in dev it points at your local Electron binary).
 
-`src/components/ui/` is ours. The components were written into the repo rather than
-pulled from a package, so they can be restyled freely and no upgrade can break them.
-Radix sits underneath the tabs, which is where the keyboard and screen-reader behaviour
-comes from.
+## What is real vs sample
 
-Every colour is a CSS variable in `src/index.css`. A full re-theme is that one block.
+- **Real:** sign-up/sign-in, folder choice (persisted in app data), API-key storage
+  (`safeStorage` → the macOS keychain), local CLI detection (PATH scan only — nothing
+  is executed), setup answers written into the chosen folder as plain files
+  (`config.json` is merged, never clobbered; markdown seeds are only created if absent).
+- **Sample:** everything on the scoreboard below the warning banner. The morning-brief
+  pipeline that fills it for real is the next stage, owner-decided.
 
-## Not here yet
+## Troubleshooting the Google round-trip
 
-Onboarding, the folder picker, writing anything back, notifications, the Tauri shell.
-Week 1 is read-only: a window, on screen, showing today's brief from the fixture folder.
+The chain is: app → browser → Google consent → Supabase callback → `daybook://auth` →
+macOS → app. Each hop fails differently:
+
+- **The browser opened but Google shows "Access blocked"** — the OAuth client is in
+  Testing mode and your Google account is not on its test-user list (Google Cloud
+  Console → Google Auth Platform → Audience → Test users).
+- **Consent completed, then a dead browser tab** — the `daybook://auth` redirect is not
+  saved in Supabase (URL Configuration → Redirect URLs), so Supabase fell back to the
+  Site URL.
+- **Consent completed, browser silent, nothing in the app** — the OS→app hop. Run
+  `open 'daybook://auth?ping=1'` in a terminal while the app is open:
+  - If the app shows *"the daybook:// handler works — the link carried no sign-in"*,
+    delivery is fine and the earlier failure was at consent.
+  - If nothing happens at all, macOS has no handler bound. Restart `npm run dev` (the
+    app registers `daybook://` on launch and prints the registration result to its
+    terminal), then check what the OS thinks: the app's diagnostics call
+    `app.getApplicationNameForProtocol('daybook://auth')`.
+- The app terminal logs every callback it receives (`auth callback via open-url: …`).
+
+## Layout
+
+```
+electron/main.cjs      window, IPC: folder picker, atomic writes, keychain, CLI scan,
+                       daybook://auth delivery, https-only outbound links
+electron/preload.cjs   the single doorway (contextBridge) — reviewable in one screen
+src/lib/daybook.ts     typed bridge + browser fallbacks
+src/lib/auth.ts        Supabase client; dev-mode fallback; daybook://auth completion
+src/screens/*          Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
+```
+
+`src/lib/api.ts` and `src/types.ts` still mirror the runner's brief payload — unused in
+this stage, kept for the brief pipeline that comes next.
+
+## Notes carried forward
+
+- **Renderer stays shell-agnostic.** No `require('electron')` outside `electron/`. If the
+  shell ever changes (Tauri remains a documented option), `src/` is untouched.
+- **Atomic writes, always.** Every file the app writes (app data and the user's folder)
+  goes through temp-file + rename.
+- **No shell actions, no model-authored targets.** Nothing here runs a command on the
+  user's behalf; CLI detection checks presence on PATH and nothing else.
+- **Packaging milestone:** electron-builder + notarization, a strict CSP (the dev warning
+  in the console disappears at that point), and the `daybook stop` / process contract —
+  all still ahead of us.
