@@ -56,3 +56,4 @@ app/.vite/
 .vscode/
 briefs/*.html
 !fixtures/sample-folder/briefs/README.md
+.zcode/
