@@ -20,7 +20,7 @@ Renaming after the first commit is painful; after the first user it is worse.
 
 **Shortlist:** Daybook · Adjutant · Sentry · Almanac · Majordomo · Steward · Cairn · Reveille · Understudy · Deputy · Firstlight · Plumb · (or keep PK Secretary)
 
-**ANSWER:** ⬜ ______________________
+**ANSWER:** ⬜ Daybook
 
 **Also fix at the same time:**
 - Domain: ⬜ ______________________ *(check availability before committing to the name)*
