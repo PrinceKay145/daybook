@@ -1,125 +1,187 @@
-import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+/* The v1 flow, from the owner's drawing: login → connect a folder → connect an AI
+   provider → setup questions → scoreboard. Subsequent launches go straight to the
+   scoreboard. The folder choice and provider live in app data (the app's own state),
+   the answers live in the user's folder, and the account holds an email — nothing else. */
 
-import { fetchBrief, runnerOrigin } from "@/lib/api";
-import type { Payload } from "@/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BriefScreen } from "@/screens/Brief";
-import { BoardScreen } from "@/screens/Board";
-import { SettingsScreen } from "@/screens/Settings";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getAccount, handleAuthRedirect, onAuthChange, signOut, type Account } from "@/lib/auth";
+import { daybook, isDesktop, type AppSettings, type ProviderRecord } from "@/lib/daybook";
+import { LoginScreen } from "@/screens/Login";
+import { ConnectFolderScreen } from "@/screens/ConnectFolder";
+import { ConnectProviderScreen } from "@/screens/ConnectProvider";
+import { SetupQuestionsScreen } from "@/screens/SetupQuestions";
+import { ScoreboardScreen } from "@/screens/Scoreboard";
 
-/* Three screens — Brief · Board · Settings. Nothing else. A thin UI was settled by
-   convergence and the brief holds the home position: the product answers "what is true
-   today?", not "what can AI chat about?" */
+type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home";
 
-const SCREENS = ["brief", "board", "settings"] as const;
-type Screen = (typeof SCREENS)[number];
-
-function screenFromHash(): Screen {
-  const hash = window.location.hash.replace("#", "");
-  return (SCREENS as readonly string[]).includes(hash) ? (hash as Screen) : "brief";
+/* settings is optional-and-null-tolerant by design: it arrives from three async paths
+   (init, save, the Google callback) and none of them may crash the flow on a bad value. */
+function nextStage(settings?: AppSettings | null): Stage {
+  const s = settings ?? {};
+  if (!s.folderPath) return "folder";
+  if (!s.provider) return "provider";
+  if (!s.setupCompleted) return "setup";
+  return "home";
 }
 
 export default function App() {
-  const [payload, setPayload] = useState<Payload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [screen, setScreen] = useState<Screen>(screenFromHash);
+  const [stage, setStage] = useState<Stage>("loading");
+  const [account, setAccount] = useState<Account | null>(null);
+  const [settings, setSettings] = useState<AppSettings>({});
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    try {
-      setPayload(await fetchBrief(signal));
-      setError(null);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") return;
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
+  // The Google callback lands after onboarding may already have changed settings;
+  // read the fresh value through a ref instead of closing over state.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  // First paint: restore the session and the app's own state, then land where the
+  // user actually is in the flow. getAccount() carries its own timeout, so this
+  // always lands somewhere — the breadcrumbs land in the app's terminal.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      console.log("[daybook] init: reading settings and account");
+      const [loaded, acct] = await Promise.all([
+        daybook.loadSettings().catch((err: unknown) => {
+          console.warn("[daybook] init: settings failed:", err);
+          return {} as AppSettings;
+        }),
+        getAccount().catch((err: unknown) => {
+          console.warn("[daybook] init: account check failed:", err);
+          return null;
+        }),
+      ]);
+      if (cancelled) return;
+      console.log(`[daybook] init: done — ${acct ? `signed in as ${acct.email}` : "signed out"}`);
+      setSettings(loaded ?? {});
+      setAccount(acct);
+      setStage(acct ? nextStage(loaded) : "login");
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Google's browser round-trip arrives here via the OS (daybook://auth) in the
+  // desktop app; the browser-dev path redirects the page instead. A callback that
+  // carries no tokens (e.g. a daybook://auth?ping=1 test) is itself diagnostic —
+  // it proves the OS→app hop works and the failure is upstream, at consent.
   useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, [load]);
-
-  // The screen lives in the URL so a link can open one, and so the window comes back to
-  // where it was. No storage — the folder is the only state.
-  useEffect(() => {
-    const sync = () => setScreen(screenFromHash());
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
+    if (!isDesktop) return;
+    daybook.onAuthCallback((url) => {
+      (async () => {
+        try {
+          const carriedTokens = await handleAuthRedirect(url);
+          const acct = await getAccount();
+          if (acct) {
+            setAccount(acct);
+            setAuthNotice(null);
+            setStage(nextStage(settingsRef.current));
+          } else if (carriedTokens) {
+            setAuthNotice(
+              "The link arrived and carried tokens, but no session came of it. Check that Google and Supabase agree on the client credentials.",
+            );
+          } else {
+            setAuthNotice(
+              "Good news, partly: the daybook:// handler works — the app received the link, but it carried no sign-in. So Google consent is the step that didn't complete (an 'Access blocked' page in the browser, usually).",
+            );
+          }
+        } catch (err) {
+          setAuthNotice((err as Error).message);
+        }
+      })();
+    });
   }, []);
 
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {payload?.brief.true_for ?? "daybook"}
-          </h1>
-          <p className="text-xs text-[var(--color-ink-faint)]">
-            {payload
-              ? `${payload.brief.owner_name} · ${payload.folder}`
-              : `waiting for the runner on ${runnerOrigin}`}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)] transition-colors hover:text-[var(--color-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
-        >
-          <RefreshCw className={loading ? "size-3.5 animate-spin" : "size-3.5"} />
-          Re-read the folder
-        </button>
-      </header>
+  // Password sessions can be signed out elsewhere; keep in step.
+  useEffect(() => {
+    return onAuthChange((acct) => {
+      if (!acct) {
+        setAccount(null);
+        setStage("login");
+      }
+    });
+  }, []);
 
-      {error && (
-        <div className="mb-5 flex gap-3 rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 bg-[var(--color-surface)] p-5">
-          <AlertTriangle className="size-5 shrink-0 text-[var(--color-warn)]" />
-          <div className="text-sm">
-            <p className="font-medium text-[var(--color-warn)]">The runner did not answer.</p>
-            <p className="mt-1 text-[var(--color-ink-soft)]">{error}</p>
-            <p className="mt-2 text-xs text-[var(--color-ink-faint)]">
-              Start it with{" "}
-              <code className="rounded bg-[var(--color-canvas)] px-1 py-0.5">
-                cd runner && python3 -m daybook serve --folder ../fixtures/sample-folder
-              </code>
-            </p>
-          </div>
-        </div>
-      )}
+  const save = useCallback(async (patch: Partial<AppSettings>) => {
+    const next = (await daybook.saveSettings(patch)) ?? {};
+    setSettings(next);
+    return next;
+  }, []);
 
-      {!payload && !error && (
-        <p className="text-sm text-[var(--color-ink-faint)]">Reading the folder…</p>
-      )}
-
-      {payload && (
-        <Tabs
-          value={screen}
-          onValueChange={(value) => {
-            setScreen(value as Screen);
-            window.location.hash = value;
-          }}
-        >
-          <TabsList>
-            <TabsTrigger value="brief">Brief</TabsTrigger>
-            <TabsTrigger value="board">Board</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
-          <TabsContent value="brief">
-            <BriefScreen payload={payload} />
-          </TabsContent>
-          <TabsContent value="board">
-            <BoardScreen payload={payload} />
-          </TabsContent>
-          <TabsContent value="settings">
-            <SettingsScreen payload={payload} />
-          </TabsContent>
-        </Tabs>
-      )}
-    </div>
+  const advance = useCallback(
+    (patch: Partial<AppSettings>) => {
+      void save(patch).then((next) => setStage(nextStage(next)));
+    },
+    [save],
   );
+
+  async function handleSignOut() {
+    await signOut();
+    setAccount(null);
+    setStage("login");
+  }
+
+  if (stage === "loading") {
+    return <p className="mx-auto max-w-md px-4 py-16 text-sm text-[var(--color-ink-faint)]">Opening…</p>;
+  }
+
+  if (stage === "login" || !account) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        {authNotice && (
+          <p className="mx-auto mb-4 max-w-md rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
+            {authNotice}
+          </p>
+        )}
+        <LoginScreen
+          onSignedIn={(acct) => {
+            setAccount(acct);
+            setAuthNotice(null);
+            void save({ accountEmail: acct.email }).then((next) => setStage(nextStage(next)));
+          }}
+        />
+      </div>
+    );
+  }
+
+  switch (stage) {
+    case "folder":
+      return (
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <ConnectFolderScreen
+            initialFolder={settings.folderPath}
+            onConnected={(folder) => advance({ folderPath: folder })}
+          />
+        </div>
+      );
+    case "provider":
+      return (
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <ConnectProviderScreen onConnected={(provider: ProviderRecord) => advance({ provider })} />
+        </div>
+      );
+    case "setup":
+      return (
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <SetupQuestionsScreen
+            folder={settings.folderPath ?? ""}
+            onDone={(briefTime) => advance({ setupCompleted: true, briefTime })}
+          />
+        </div>
+      );
+    case "home":
+      return (
+        <ScoreboardScreen
+          accountEmail={account.email}
+          folder={settings.folderPath ?? ""}
+          provider={settings.provider ?? null}
+          briefTime={settings.briefTime ?? "09:00"}
+          onSignOut={() => void handleSignOut()}
+        />
+      );
+    default:
+      return null;
+  }
 }
