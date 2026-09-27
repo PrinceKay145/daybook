@@ -74,7 +74,14 @@ export async function signInWithPassword(email: string, password: string): Promi
     return;
   }
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (/invalid login credentials/i.test(error.message)) {
+      throw new Error(
+        "That email and password didn't match. If this account usually signs in with Google, use Continue with Google instead.",
+      );
+    }
+    throw new Error(error.message);
+  }
 }
 
 /** Returns a message to show when the account needs email confirmation before the
@@ -85,7 +92,16 @@ export async function signUpWithPassword(email: string, password: string): Promi
     return "";
   }
   const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // One human, one account: an email that already exists (by password or via a
+    // linked Google identity) must never silently become a second identity.
+    if (/already registered|already exists/i.test(error.message)) {
+      throw new Error(
+        "An account with this email already exists. Sign in instead — or, if you created it with Google, use Continue with Google.",
+      );
+    }
+    throw new Error(error.message);
+  }
   return data.session ? "" : "Check your inbox — your account needs confirming before the first sign-in.";
 }
 

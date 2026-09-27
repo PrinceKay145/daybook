@@ -15,6 +15,8 @@ export interface AppSettings {
   provider?: ProviderRecord | null;
   setupCompleted?: boolean;
   accountEmail?: string;
+  /** The account that completed setup — any other account walks onboarding again. */
+  onboardedFor?: string;
   /** Display copy of the user's chosen brief time; config.json in the folder is authoritative. */
   briefTime?: string;
 }

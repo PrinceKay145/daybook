@@ -122,6 +122,13 @@ user be harmed? The answer must stay no. Email confirmation stays ON. Account de
 the alpha is manual (Supabase dashboard → Authentication → Users); a self-serve deletion
 flow is a later-stage requirement, not a v1 one.
 
+**One human, one account.** Supabase automatically links identities sharing a *verified*
+email into a single user — which only holds while email confirmation stays on, so it does.
+Signing up with an email that already exists is an error with a path forward ("sign in, or
+use Google"), never a silent second identity. Deleting the user server-side means the next
+sign-in walks the full onboarding again: onboarding progress is remembered **per account**,
+not per machine.
+
 ---
 
 ## Non-goals for v1

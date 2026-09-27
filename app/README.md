@@ -60,6 +60,15 @@ nothing is checked, and the login screen says so.
 Google sign-in opens the system browser and returns via the `daybook://auth` protocol
 (registered by the app on launch; in dev it points at your local Electron binary).
 
+**Keep "Confirm email" ON.** Supabase links identities sharing a *verified* email into one
+user — with confirmation off, the same person can become two users (one via password, one
+via Google), and nothing upstream prevents it. A duplicate sign-up attempt surfaces as
+"An account with this email already exists" in the app.
+
+**Fresh-account test:** delete the user in the dashboard (Authentication → Users → ⋯ →
+Delete), then sign up again in the app — confirmation link first, and the full onboarding
+again. Onboarding progress is remembered per account, not per machine.
+
 ## What is real vs sample
 
 - **Real:** sign-up/sign-in, folder choice (persisted in app data), API-key storage

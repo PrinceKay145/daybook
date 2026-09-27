@@ -15,9 +15,12 @@ import { ScoreboardScreen } from "@/screens/Scoreboard";
 type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home";
 
 /* settings is optional-and-null-tolerant by design: it arrives from three async paths
-   (init, save, the Google callback) and none of them may crash the flow on a bad value. */
-function nextStage(settings?: AppSettings | null): Stage {
+   (init, save, the Google callback) and none of them may crash the flow on a bad value.
+   Onboarding is per account: the machine remembers what was finished, but only for the
+   account that finished it — a fresh or different identity walks the whole setup again. */
+function nextStage(settings?: AppSettings | null, account?: Account | null): Stage {
   const s = settings ?? {};
+  if (account && s.onboardedFor && s.onboardedFor !== account.email) return "folder";
   if (!s.folderPath) return "folder";
   if (!s.provider) return "provider";
   if (!s.setupCompleted) return "setup";
@@ -31,9 +34,11 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   // The Google callback lands after onboarding may already have changed settings;
-  // read the fresh value through a ref instead of closing over state.
+  // read the fresh values through refs instead of closing over state.
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const accountRef = useRef(account);
+  accountRef.current = account;
 
   // First paint: restore the session and the app's own state, then land where the
   // user actually is in the flow. getAccount() carries its own timeout, so this
@@ -56,7 +61,7 @@ export default function App() {
       console.log(`[daybook] init: done — ${acct ? `signed in as ${acct.email}` : "signed out"}`);
       setSettings(loaded ?? {});
       setAccount(acct);
-      setStage(acct ? nextStage(loaded) : "login");
+      setStage(acct ? nextStage(loaded, acct) : "login");
     })();
     return () => {
       cancelled = true;
@@ -77,7 +82,7 @@ export default function App() {
           if (acct) {
             setAccount(acct);
             setAuthNotice(null);
-            setStage(nextStage(settingsRef.current));
+            setStage(nextStage(settingsRef.current, acct));
           } else if (carriedTokens) {
             setAuthNotice(
               "The link arrived and carried tokens, but no session came of it. Check that Google and Supabase agree on the client credentials.",
@@ -112,7 +117,7 @@ export default function App() {
 
   const advance = useCallback(
     (patch: Partial<AppSettings>) => {
-      void save(patch).then((next) => setStage(nextStage(next)));
+      void save(patch).then((next) => setStage(nextStage(next, accountRef.current)));
     },
     [save],
   );
@@ -167,7 +172,13 @@ export default function App() {
         <div className="mx-auto max-w-4xl px-4 py-8">
           <SetupQuestionsScreen
             folder={settings.folderPath ?? ""}
-            onDone={(briefTime) => advance({ setupCompleted: true, briefTime })}
+            onDone={(briefTime) =>
+              advance({
+                setupCompleted: true,
+                onboardedFor: account.email,
+                briefTime,
+              })
+            }
           />
         </div>
       );
