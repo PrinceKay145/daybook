@@ -3,20 +3,25 @@
    browser can honestly do (settings in localStorage) and refuse what it cannot
    (folder access, keychain, outbound links) instead of pretending. */
 
-export interface ProviderRecord {
+export interface Connection {
   id: string;
   label: string;
-  authKind: "api_key" | "local_cli";
+  authKind: "local_cli" | "api_key";
   cliBinary?: string;
+  /** The model the secretary uses through this connection (alias or full ID). */
+  model?: string;
 }
 
 export interface AppSettings {
   folderPath?: string;
-  provider?: ProviderRecord | null;
+  connections?: Connection[];
+  activeConnectionId?: string;
+  /** Legacy single-provider record from before connections existed; promoted on load. */
+  provider?: Connection | null;
   setupCompleted?: boolean;
-  accountEmail?: string;
   /** The account that completed setup — any other account walks onboarding again. */
   onboardedFor?: string;
+  accountEmail?: string;
   /** Display copy of the user's chosen brief time; config.json in the folder is authoritative. */
   briefTime?: string;
 }
@@ -31,7 +36,13 @@ export interface SetupPayload {
   goals: string[];
   nonNegotiables: string[];
   inFlight: string[];
+  /** The active connection, written into the folder's config.json providers block.
+      Null-tolerant: the flow guarantees it, the writer tolerates its absence. */
+  connection: Connection | null;
 }
+
+/** Providers whose model list can be fetched live with the stored key. */
+export type ListableModelProvider = "anthropic" | "openai";
 
 interface DaybookBridge {
   pickFolder(): Promise<string | null>;
@@ -43,6 +54,8 @@ interface DaybookBridge {
   deleteSecret(name: string): Promise<boolean>;
   detectCli(): Promise<string[]>;
   openExternal(url: string): Promise<boolean>;
+  /** Model IDs the stored key can call. Only for listable providers. */
+  listModels(provider: ListableModelProvider, connectionId: string): Promise<string[]>;
   /** Name/path the OS reports as the daybook:// handler; empty when none. */
   protocolHandler(): Promise<string>;
   onAuthCallback(callback: (url: string) => void): void;
@@ -86,6 +99,7 @@ export const daybook: DaybookBridge = bridge ?? {
     window.open(url, "_blank", "noopener");
     return Promise.resolve(true);
   },
+  listModels: () => refuse("Listing a provider's models"),
   protocolHandler: async () => "",
   onAuthCallback: () => {
     /* In a browser, Supabase handles the redirect itself. */

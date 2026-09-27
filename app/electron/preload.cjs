@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("daybook", {
   deleteSecret: (name) => ipcRenderer.invoke("secret:delete", { name }),
   detectCli: () => ipcRenderer.invoke("cli:detect"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  listModels: (provider, connectionId) =>
+    ipcRenderer.invoke("connections:listModels", { provider, connectionId }),
   protocolHandler: () => ipcRenderer.invoke("protocol:handler"),
   onAuthCallback: (callback) => {
     ipcRenderer.on("daybook:auth-callback", (_event, url) => callback(url));

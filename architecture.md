@@ -78,11 +78,21 @@ harmed? The answer must stay no. Billing is out of v1.
 ## AI providers (built: storage; ⏳ invocation)
 
 `authKind: "local_cli" | "api_key"` is **data on the provider record** — the surface moved
-three times in 2026, so a path is disabled by editing data, not code. API keys go into the
+three times in 2026, so a path is disabled by editing data, not logic. API keys go into the
 keychain; local CLIs are invoked as subprocesses the user authenticated themselves. 🔴 No
 hosted proxy of anyone's subscription, ever (S4). 🔴 No shell actions in v1 (S6): the agent
 writes the config, so a model-authored action target is a laundering path — an action is
 `{"label", and exactly one of "url" | "path"}` and nothing may originate from model output.
+
+**Connections and models (built: storage and selection).** The app keeps a list of
+connections with one active and a per-connection model. Model selection sources:
+API-key connections list models live through the `connections:listModels` IPC — the main
+process reads the key from the keychain and calls the provider's `/v1/models`, so the key
+never enters the renderer; CLI connections surface documented aliases (`claude -p --model
+opus|sonnet|haiku`; `codex exec -m gpt-5-codex …`) plus any full model ID, since CLIs
+expose no model-list API. The active connection and model are written into the folder's
+`config.json` `providers` block at setup and passed straight through at invocation time.
+Switching happens from the scoreboard ("AI: … — change"), which reopens the connect step.
 
 ## The three ship gates (⏳ enforced from the brief stage on)
 

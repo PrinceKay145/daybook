@@ -188,6 +188,20 @@ function seedConfig(existing, payload) {
     allow_outside_root: false,
     shell_actions_enabled: false,
   };
+  if (payload.connection) {
+    // The active connection leads; other provider records the folder already had stay behind it.
+    const c = payload.connection;
+    const record = {
+      id: c.id,
+      label: c.label,
+      authKind: c.authKind,
+      ...(c.cliBinary ? { binary: c.cliBinary } : {}),
+      ...(c.model ? { model: c.model } : {}),
+      ...(c.authKind === "api_key" ? { keychain_ref: `provider/${c.id}` } : {}),
+    };
+    const existingProviders = Array.isArray(existing?.providers) ? existing.providers : [];
+    next.providers = [record, ...existingProviders.filter((p) => p && p.id !== c.id)];
+  }
   return next;
 }
 
@@ -305,19 +319,59 @@ ipcMain.handle("secret:store", async (_event, { name, value }) => {
   return true;
 });
 
-ipcMain.handle("secret:load", async (_event, { name }) => {
+async function secretValue(name) {
   const secrets = await readSecrets();
   const blob = secrets[name];
-  if (!blob) return null;
-  if (!safeStorage.isEncryptionAvailable()) return null;
+  if (!blob || !safeStorage.isEncryptionAvailable()) return null;
   return safeStorage.decryptString(Buffer.from(blob, "base64"));
-});
+}
+
+ipcMain.handle("secret:load", async (_event, { name }) => secretValue(name));
 
 ipcMain.handle("secret:delete", async (_event, { name }) => {
   const secrets = await readSecrets();
   delete secrets[name];
   await writeJsonAtomic(secretsPath(), secrets);
   return true;
+});
+
+/* ---------- IPC: model listing for API-key connections ----------
+   The key never leaves the main process: this fetches the provider's own
+   /v1/models with the stored key and returns plain model IDs. */
+
+const MODEL_ENDPOINTS = {
+  anthropic: {
+    url: "https://api.anthropic.com/v1/models",
+    headers: (key) => ({ "x-api-key": key, "anthropic-version": "2023-06-01" }),
+  },
+  openai: {
+    url: "https://api.openai.com/v1/models",
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
+};
+
+ipcMain.handle("connections:listModels", async (_event, { provider, connectionId }) => {
+  const endpoint = MODEL_ENDPOINTS[provider];
+  if (!endpoint) {
+    throw new Error(`Live model listing is not available for ${provider} — type a model ID instead.`);
+  }
+  const key = await secretValue(`provider/${connectionId}`);
+  if (!key) {
+    throw new Error("This connection's key is no longer in the keychain — reconnect it first.");
+  }
+  const response = await fetch(endpoint.url, { headers: endpoint.headers(key) });
+  if (!response.ok) {
+    throw new Error(
+      response.status === 401
+        ? "The provider rejected the stored key — reconnect with a fresh key."
+        : `The provider answered ${response.status}. Try again later, or type a model ID.`,
+    );
+  }
+  const body = await response.json();
+  const ids = (body.data ?? body.models ?? [])
+    .map((m) => m.id ?? m.name)
+    .filter((id) => typeof id === "string");
+  return ids.sort();
 });
 
 /* ---------- IPC: local CLI detection (never executed — presence only) ---------- */

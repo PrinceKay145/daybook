@@ -7,7 +7,7 @@ import { FolderOpen, KeyRound, LogOut } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { ProviderRecord } from "@/lib/daybook";
+import type { Connection } from "@/lib/daybook";
 
 const SAMPLE_PLANS = [
   { time: "09:00 – 12:30", title: "Deep work — draft the Hartley proposal", note: "First move: open the brief and write the opening section" },
@@ -29,14 +29,16 @@ const SAMPLE_ACTIONS = [
 export function ScoreboardScreen({
   accountEmail,
   folder,
-  provider,
+  connection,
   briefTime,
+  onChangeAI,
   onSignOut,
 }: {
   accountEmail: string;
   folder: string;
-  provider: ProviderRecord | null;
+  connection: Connection | null;
   briefTime: string;
+  onChangeAI: () => void;
   onSignOut: () => void;
 }) {
   return (
@@ -50,16 +52,20 @@ export function ScoreboardScreen({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {provider && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)]">
-              {provider.authKind === "api_key" ? (
-                <KeyRound className="size-3" />
-              ) : (
-                <FolderOpen className="size-3" />
-              )}
-              {provider.label}
-            </span>
-          )}
+          <button
+            type="button"
+            onClick={onChangeAI}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)] transition-colors hover:border-[var(--color-ink-faint)]"
+          >
+            {connection?.authKind === "api_key" ? (
+              <KeyRound className="size-3" />
+            ) : (
+              <FolderOpen className="size-3" />
+            )}
+            {connection
+              ? `AI: ${connection.label}${connection.model ? ` · ${connection.model}` : ""} — change`
+              : "AI: not connected — connect"}
+          </button>
           <Button variant="ghost" onClick={onSignOut}>
             <LogOut className="size-3.5" />
             Sign out

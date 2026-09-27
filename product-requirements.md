@@ -62,9 +62,14 @@ confined to it by path-prefix enforcement (not convention). Accept: relaunching 
 same folder resumes instead of re-onboarding; sync-hosted folders trigger the documented
 warning.
 
-**Connect your AI provider.** BYO credential: API key (OS keychain, never shown again) or a
-local CLI the user authenticated themselves (presence-detected, never executed by the app).
-`authKind` is data on the provider record. 🔴 No hosted proxy of anyone's subscription, ever.
+**Connect your AI.** One or more connections — Claude Code, Codex, or an API key (into the
+OS keychain, never shown again; local CLIs are presence-detected, never executed by the
+app) — with **one active connection and a model chosen for it**: API-key connections get a
+live model list (fetched by the main process with the stored key; the key never enters the
+renderer), CLI connections offer documented aliases plus any model ID. Switching the
+active connection or model is one click from the scoreboard, and the choice is written
+into the folder's `config.json` so it outlives the app. `authKind` is data on the provider
+record. 🔴 No hosted proxy of anyone's subscription, ever.
 
 **Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
 **the user's brief time and close time**, timezone (auto-detected). Answers are written into

@@ -3,7 +3,7 @@
    config.json where the scheduler reads it. Nothing here is sent anywhere. */
 
 import { useState } from "react";
-import { daybook } from "@/lib/daybook";
+import { daybook, type Connection } from "@/lib/daybook";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
 
 const EXPECTED_FILES = [
@@ -20,9 +20,11 @@ function lines(value: string): string[] {
 
 export function SetupQuestionsScreen({
   folder,
+  connection,
   onDone,
 }: {
   folder: string;
+  connection: Connection | null;
   onDone: (briefTime: string) => void;
 }) {
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -55,6 +57,7 @@ export function SetupQuestionsScreen({
         goals: lines(goals),
         nonNegotiables: lines(nonNegotiables),
         inFlight: lines(inFlight),
+        connection,
       });
       setWritten(files);
     } catch (err) {
@@ -176,11 +179,13 @@ export function SetupQuestionsScreen({
         </Field>
 
         <p className="text-xs text-[var(--color-ink-faint)]">
-          This will create in {folder}: {EXPECTED_FILES[0]}. {EXPECTED_FILES[1]}.
+          This will create in {folder}: {EXPECTED_FILES[0]}. {EXPECTED_FILES[1]} Your AI
+          connection{connection?.model ? ` (${connection.label} · ${connection.model})` : ""} is
+          recorded in config.json too.
         </p>
 
         <ErrorNote message={error} />
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" className="w-full" disabled={busy || !connection}>
           Write my folder
         </Button>
       </form>

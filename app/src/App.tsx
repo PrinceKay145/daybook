@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAccount, handleAuthRedirect, onAuthChange, signOut, type Account } from "@/lib/auth";
-import { daybook, isDesktop, type AppSettings, type ProviderRecord } from "@/lib/daybook";
+import { daybook, isDesktop, type AppSettings, type Connection } from "@/lib/daybook";
 import { LoginScreen } from "@/screens/Login";
 import { ConnectFolderScreen } from "@/screens/ConnectFolder";
 import { ConnectProviderScreen } from "@/screens/ConnectProvider";
@@ -16,14 +16,14 @@ type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home";
 
 /* settings is optional-and-null-tolerant by design: it arrives from three async paths
    (init, save, the Google callback) and none of them may crash the flow on a bad value.
-   Onboarding is per account: the machine remembers what was finished, but only for the
-   account that finished it — a fresh or different identity walks the whole setup again. */
+   Onboarding is per account: home is reached only by the account that completed setup
+   itself (the onboardedFor stamp) — any other account, and any pre-stamp legacy state,
+   walks the full setup again. */
 function nextStage(settings?: AppSettings | null, account?: Account | null): Stage {
   const s = settings ?? {};
-  if (account && s.onboardedFor && s.onboardedFor !== account.email) return "folder";
   if (!s.folderPath) return "folder";
-  if (!s.provider) return "provider";
-  if (!s.setupCompleted) return "setup";
+  if (!s.connections || s.connections.length === 0) return "provider";
+  if (!account || !s.setupCompleted || s.onboardedFor !== account.email) return "setup";
   return "home";
 }
 
@@ -59,9 +59,32 @@ export default function App() {
       ]);
       if (cancelled) return;
       console.log(`[daybook] init: done — ${acct ? `signed in as ${acct.email}` : "signed out"}`);
-      setSettings(loaded ?? {});
+      // A single pre-connections provider record is promoted into the list form.
+      let loadedSettings: AppSettings = loaded ?? {};
+      if (!loadedSettings.connections?.length && loadedSettings.provider) {
+        const legacy = loadedSettings.provider;
+        loadedSettings = {
+          ...loadedSettings,
+          connections: [
+            {
+              id: legacy.id,
+              label: legacy.label,
+              authKind: legacy.authKind,
+              cliBinary: legacy.cliBinary,
+            },
+          ],
+          activeConnectionId: legacy.id,
+        };
+        void daybook
+          .saveSettings({
+            connections: loadedSettings.connections,
+            activeConnectionId: loadedSettings.activeConnectionId,
+          })
+          .catch((err: unknown) => console.warn("[daybook] init: promotion save failed:", err));
+      }
+      setSettings(loadedSettings);
       setAccount(acct);
-      setStage(acct ? nextStage(loaded, acct) : "login");
+      setStage(acct ? nextStage(loadedSettings, acct) : "login");
     })();
     return () => {
       cancelled = true;
@@ -128,6 +151,11 @@ export default function App() {
     setStage("login");
   }
 
+  const activeConnection: Connection | null =
+    settings.connections?.find((c) => c.id === settings.activeConnectionId) ??
+    settings.connections?.[0] ??
+    null;
+
   if (stage === "loading") {
     return <p className="mx-auto max-w-md px-4 py-16 text-sm text-[var(--color-ink-faint)]">Opening…</p>;
   }
@@ -144,7 +172,7 @@ export default function App() {
           onSignedIn={(acct) => {
             setAccount(acct);
             setAuthNotice(null);
-            void save({ accountEmail: acct.email }).then((next) => setStage(nextStage(next)));
+            void save({ accountEmail: acct.email }).then((next) => setStage(nextStage(next, acct)));
           }}
         />
       </div>
@@ -164,7 +192,13 @@ export default function App() {
     case "provider":
       return (
         <div className="mx-auto max-w-4xl px-4 py-8">
-          <ConnectProviderScreen onConnected={(provider: ProviderRecord) => advance({ provider })} />
+          <ConnectProviderScreen
+            connections={settings.connections ?? []}
+            activeId={settings.activeConnectionId}
+            onDone={(connections, activeConnectionId) =>
+              advance({ connections, activeConnectionId })
+            }
+          />
         </div>
       );
     case "setup":
@@ -172,6 +206,7 @@ export default function App() {
         <div className="mx-auto max-w-4xl px-4 py-8">
           <SetupQuestionsScreen
             folder={settings.folderPath ?? ""}
+            connection={activeConnection}
             onDone={(briefTime) =>
               advance({
                 setupCompleted: true,
@@ -187,8 +222,9 @@ export default function App() {
         <ScoreboardScreen
           accountEmail={account.email}
           folder={settings.folderPath ?? ""}
-          provider={settings.provider ?? null}
+          connection={activeConnection}
           briefTime={settings.briefTime ?? "09:00"}
+          onChangeAI={() => setStage("provider")}
           onSignOut={() => void handleSignOut()}
         />
       );
