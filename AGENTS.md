@@ -71,11 +71,11 @@ Stage 1 works: **login → connect a folder → choose a model → setup questio
 shape of the day) → scoreboard**, and the scoreboard shows **today's real brief**: the app
 starts `runner/` on 127.0.0.1, the brief is built from the folder, and it is shown only when
 all eleven assertions pass (otherwise it is withheld and the failed checks are named). The
-brief is honest on day one (`fixtures/fresh-folder`). Next, in the owner's order: the model
-writing the parts of the brief a model should write, then the launchd tick/watchdog and
-notifications via the Python sidecar (the brief arriving on its own at the user's time),
-then accounts polish and packaging — which must bundle a Python. Requirements:
-`product-requirements.md`.
+brief is honest on day one (`fixtures/fresh-folder`). Next, in the owner's order: the
+launchd tick/watchdog and notifications via the Python sidecar (the brief arriving on its
+own at the user's time), then accounts polish and packaging — which must bundle a Python.
+Not yet placed by the owner: the chosen model writing any part of the brief (today every
+word comes from the folder). Requirements: `product-requirements.md`.
 
 ## Hard constraints
 
