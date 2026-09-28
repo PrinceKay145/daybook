@@ -240,7 +240,32 @@ function seedConfig(existing, payload) {
     allow_outside_root: false,
     shell_actions_enabled: false,
   };
+  if (!coversDayOnce(payload.dayShape)) {
+    throw new Error("The day shape must cover the whole day exactly once — nothing was written.");
+  }
+  next.day_shape = payload.dayShape.map((b) => ({ block: b.block, start: b.start, end: b.end }));
   return withProvider(next, payload.connection);
+}
+
+/* The brief's dial asserts its day shape covers 00:00–24:00 contiguously (V2). The setup
+   step fills the gaps as Unplanned; this refuses anything that would still fail, before
+   it reaches the folder. A block ending at or before its start runs past midnight. */
+function coversDayOnce(shape) {
+  if (!Array.isArray(shape) || shape.length === 0) return false;
+  const minutes = (hhmm) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(String(hhmm));
+    return match && +match[1] < 24 && +match[2] < 60 ? +match[1] * 60 + +match[2] : NaN;
+  };
+  const count = new Array(1440).fill(0);
+  for (const block of shape) {
+    if (!block || typeof block.block !== "string" || !block.block.trim()) return false;
+    const start = minutes(block.start);
+    const end = minutes(block.end);
+    if (Number.isNaN(start) || Number.isNaN(end)) return false;
+    const ranges = end > start ? [[start, end]] : [[start, 1440], [0, end]];
+    for (const [from, to] of ranges) for (let m = from; m < to; m++) count[m] += 1;
+  }
+  return count.every((c) => c === 1);
 }
 
 /* A model id reaches a CLI as an argument at invocation time, so it is held to a plain
@@ -294,6 +319,10 @@ async function existingSetup(folder) {
     briefTime: config.schedule?.brief_time ? String(config.schedule.brief_time) : "09:00",
     closeTime: config.schedule?.close_time ? String(config.schedule.close_time) : "23:00",
     ...(config.owner.timezone ? { timezone: String(config.owner.timezone) } : {}),
+    // The blocks the user named; the Unplanned gaps are recomputed when they save again.
+    dayShape: (Array.isArray(config.day_shape) ? config.day_shape : [])
+      .filter((b) => b && b.block !== "Unplanned")
+      .map((b) => ({ block: String(b.block), start: String(b.start), end: String(b.end) })),
   };
 }
 

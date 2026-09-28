@@ -8,9 +8,19 @@
    never deleted). */
 
 import { useEffect, useState, type ReactNode } from "react";
+import { Plus, X } from "lucide-react";
 import { daybook, type Connection, type ExistingSetup } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
+import {
+  completeDay,
+  dayShapeProblem,
+  describeMinutes,
+  plannedMinutes,
+  UNPLANNED,
+  type DayBlock,
+} from "@/lib/dayShape";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function lines(value: string): string[] {
   return value
@@ -54,6 +64,7 @@ export function SetupQuestionsScreen({
   const [inFlight, setInFlight] = useState("");
   const [briefTime, setBriefTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("23:00");
+  const [blocks, setBlocks] = useState<DayBlock[]>([]);
   const [busy, setBusy] = useState(false);
   const [written, setWritten] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +101,7 @@ export function SetupQuestionsScreen({
     setBriefTime(setup.briefTime);
     setCloseTime(setup.closeTime);
     if (setup.timezone) setTimezone(setup.timezone);
+    setBlocks(setup.dayShape ?? []);
     setStartOver(true);
   }
 
@@ -97,6 +109,11 @@ export function SetupQuestionsScreen({
     setError(null);
     if (!ownerName.trim()) {
       setError("A name is needed — the secretary writes to you, and it needs to know whom.");
+      return;
+    }
+    const shapeProblem = dayShapeProblem(blocks);
+    if (shapeProblem) {
+      setError(`The shape of your day: ${shapeProblem}`);
       return;
     }
     setBusy(true);
@@ -113,6 +130,7 @@ export function SetupQuestionsScreen({
         inFlight: lines(inFlight),
         connection,
         startOver,
+        dayShape: completeDay(blocks),
       });
       setWritten(files);
     } catch (err) {
@@ -279,6 +297,7 @@ export function SetupQuestionsScreen({
               />
             </Field>
           </div>
+          <DayShapeEditor blocks={blocks} onChange={setBlocks} />
           <Field
             label="Time zone"
             hint="Set from this Mac's clock. Change it if you live by a different zone."
@@ -305,6 +324,85 @@ export function SetupQuestionsScreen({
           Write my folder
         </Button>
       </form>
+    </div>
+  );
+}
+
+/* The blocks of the user's day, for the brief's 24-hour dial. Optional: whatever they leave
+   out shows as Unplanned, so the dial is always complete and never claims a plan they did
+   not make. A block may run past midnight (Sleep 23:00–07:00). */
+function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (blocks: DayBlock[]) => void }) {
+  const problem = blocks.length ? dayShapeProblem(blocks) : null;
+  const planned = problem ? 0 : plannedMinutes(blocks);
+  const update = (index: number, patch: Partial<DayBlock>) =>
+    onChange(blocks.map((b, i) => (i === index ? { ...b, ...patch } : b)));
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-[var(--color-ink)]">
+        The shape of your day
+        <span className="ml-1.5 font-normal text-[var(--color-ink-faint)]">(optional)</span>
+      </p>
+      <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">
+        Add the blocks you know — the school run, deep work, the gym. Anything you leave out
+        shows as {UNPLANNED}. A block can run past midnight, like Sleep 23:00–07:00.
+      </p>
+      <div className="mt-2 space-y-2">
+        {blocks.length > 0 && (
+          <div className="flex gap-2 text-xs text-[var(--color-ink-faint)]" aria-hidden>
+            <span className="min-w-0 flex-1">Block</span>
+            <span className="w-28">From</span>
+            <span className="w-28">To</span>
+            <span className="w-4" />
+          </div>
+        )}
+        {blocks.map((block, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <input
+              className={cn(inputClass, "min-w-0 flex-1")}
+              value={block.block}
+              onChange={(event) => update(index, { block: event.target.value })}
+              aria-label="Block name"
+            />
+            <input
+              className={cn(inputClass, "w-28 shrink-0")}
+              type="time"
+              value={block.start}
+              onChange={(event) => update(index, { start: event.target.value })}
+              aria-label={`${block.block || "Block"} starts`}
+            />
+            <input
+              className={cn(inputClass, "w-28 shrink-0")}
+              type="time"
+              value={block.end}
+              onChange={(event) => update(index, { end: event.target.value })}
+              aria-label={`${block.block || "Block"} ends`}
+            />
+            <button
+              type="button"
+              aria-label={`Remove ${block.block || "this block"}`}
+              className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
+              onClick={() => onChange(blocks.filter((_, i) => i !== index))}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        ))}
+        <Button
+          variant="secondary"
+          className="px-3 py-1.5 text-xs"
+          onClick={() => onChange([...blocks, { block: "", start: "09:00", end: "10:00" }])}
+        >
+          <Plus className="size-3.5" />
+          Add a block
+        </Button>
+        <p className={`text-xs ${problem ? "text-[var(--color-warn)]" : "text-[var(--color-ink-faint)]"}`}>
+          {problem ??
+            (blocks.length
+              ? `Planned: ${describeMinutes(planned)} · ${UNPLANNED}: ${describeMinutes(1440 - planned)}`
+              : `No blocks yet — the whole day shows as ${UNPLANNED}.`)}
+        </p>
+      </div>
     </div>
   );
 }

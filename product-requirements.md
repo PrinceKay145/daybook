@@ -77,7 +77,10 @@ it outlives the app. `authKind` is data on the provider record. 🔴 No hosted p
 anyone's subscription, ever.
 
 **Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
-**the user's brief time and close time**, and time zone — defaulting to this Mac's own zone
+**the user's brief time and close time**, **the shape of their day** (optional — the blocks
+they name; every minute they leave out is written as *Unplanned*, so the dial's day shape
+always covers 00:00–24:00 exactly once and claims no plan they did not make; overlaps are
+refused with the two block names), and time zone — defaulting to this Mac's own zone
 (no location is asked for), changeable from a list of every zone with its offset. The
 questions come in three groups (about you · what you're working with · your day), each
 question in full-contrast text with its guidance and example beneath it — placeholders never

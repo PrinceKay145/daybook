@@ -3,6 +3,8 @@
    browser can honestly do (settings in localStorage) and refuse what it cannot
    (folder access, keychain, outbound links) instead of pretending. */
 
+import type { DayBlock } from "@/lib/dayShape";
+
 export interface Connection {
   id: string;
   label: string;
@@ -71,6 +73,8 @@ export interface SetupPayload {
   /** Replacing an earlier setup: its SETUP-CONTEXT.md and MASTER-PLAN.md move to
       archive/setup/ first. */
   startOver?: boolean;
+  /** The whole day, 00:00–24:00 exactly once: the user's blocks plus Unplanned gaps. */
+  dayShape: DayBlock[];
 }
 
 /** What an earlier setup interview left in a folder. */
@@ -80,6 +84,8 @@ export interface ExistingSetup {
   briefTime: string;
   closeTime: string;
   timezone?: string;
+  /** The blocks the user named (Unplanned gaps left out). */
+  dayShape?: DayBlock[];
 }
 
 /** Providers whose model list can be fetched live with the stored key. */
