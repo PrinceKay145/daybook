@@ -65,9 +65,24 @@ user — with confirmation off, the same person can become two users (one via pa
 via Google), and nothing upstream prevents it. A duplicate sign-up attempt surfaces as
 "An account with this email already exists" in the app.
 
+**The confirmation link returns to the app.** Sign-up asks Supabase to redirect the
+confirmation email to `daybook://auth`, so open the link on this Mac and the browser hands
+the session back to Daybook. (Opened elsewhere, it confirms the account; then sign in.)
+
 **Fresh-account test:** delete the user in the dashboard (Authentication → Users → ⋯ →
-Delete), then sign up again in the app — confirmation link first, and the full onboarding
-again. Onboarding progress is remembered per account, not per machine.
+Delete). The open app notices at its next launch — it lands on login with a notice that
+the account is gone. Sign up again with the same email: confirmation link first, then the
+full onboarding from step 1. Everything on this Mac is keyed by the account's user id,
+which a re-created account does not share with the deleted one.
+
+**A first run without wiping your setup:** `DAYBOOK_USER_DATA` points the app at a
+different app-data directory — session, settings and keys all live there.
+
+```bash
+VITE_DEV_SERVER_URL=http://127.0.0.1:5173 DAYBOOK_USER_DATA=/tmp/daybook-fresh npx electron .
+```
+
+(with `npm run dev:web` serving the UI on 5173).
 
 ## What is real vs sample
 

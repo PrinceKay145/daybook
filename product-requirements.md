@@ -132,8 +132,16 @@ flow is a later-stage requirement, not a v1 one.
 email into a single user — which only holds while email confirmation stays on, so it does.
 Signing up with an email that already exists is an error with a path forward ("sign in, or
 use Google"), never a silent second identity. Deleting the user server-side means the next
-sign-in walks the full onboarding again: onboarding progress is remembered **per account**,
-not per machine.
+sign-in walks the full onboarding again: onboarding progress is remembered **per account**
+(keyed by the account's user id, never its email), not per machine. Every launch asks
+Supabase whether the account still exists; a deleted account lands on login with a notice
+saying so. Offline, the saved session is trusted so the app still opens.
+
+Accept: a new account walks folder → AI → setup → scoreboard; quitting and reopening
+lands on the scoreboard; sign-out lands on login and signing back in lands on the
+scoreboard; after the account is deleted in Supabase, reopening lands on login with the
+notice; signing up again with the same email starts at step 1; opening offline while
+signed in lands where the account is.
 
 ---
 

@@ -47,8 +47,8 @@ tick within 60 seconds.
 | Tier | Where | What |
 |---|---|---|
 | **The folder** (chosen by the user) | plain files, git auto-committed | everything real: `DAY-STATE.md`, `MASTER-PLAN.md`, `LOG.md`, `CORRECTIONS.md` (append-only, never pruned), `SETUP-BACKLOG.md`, `reminders.json`, `config.json`, `briefs/` |
-| **App data** (`userData/`) | `settings.json` (folder choice, provider record), ⏳ SQLite index | app state only; SQLite is derived, deletable, rebuildable by folder rescan — and never holds the reminder schedule |
-| **OS keychain** | via `safeStorage` / `keyring` | API keys. Never a file, never a shell-side store |
+| **App data** (`userData/`) | `settings.json` (one record per account, keyed by Supabase user id: folder choice, connections, setup completion), ⏳ SQLite index | app state only; SQLite is derived, deletable, rebuildable by folder rescan — and never holds the reminder schedule |
+| **OS keychain** | via `safeStorage` / `keyring` | API keys, one entry per account and connection. Never a file, never a shell-side store |
 | **Supabase** | minimal DB | account identity, licensing, usage counters — see Accounts |
 
 Rules: every folder write is **atomic** (temp file + rename) and **git-committed**;
@@ -67,7 +67,17 @@ it via `open-url`/`second-instance`, the main process forwards it to the rendere
 localStorage. Without `.env` credentials the app runs in **developer mode** — the flow
 works, nothing is checked, the login screen says so. Malformed credentials degrade to the
 same mode with the rejection shown on the login screen; the session check is capped at 5s
-so a stalled auth call can never hang the app on its loading screen.
+so a stalled auth call can never hang the app on its loading screen. The confirmation
+email redirects to `daybook://auth` too, so it signs the app in rather than a browser tab.
+
+**Which screen shows is decided in one place** (`route` in `App.tsx`), and launch, every
+sign-in path, the browser callback and sign-out all go through it. A saved session is
+believed only after Supabase confirms its user still exists (`getUser`); a deleted or
+revoked account signs out with a notice. When Supabase cannot be reached, the saved session
+stands — the app must open offline. The account's **user id**, never its email, keys
+everything on the Mac, so an account deleted and re-created with the same email is a new
+account and walks onboarding from step 1. Sign-out always clears this Mac's session, even
+when the server cannot be told.
 
 **Accounts exist for identity and licensing only** (DECISIONS.md S9, superseding the old
 no-accounts decision S7). The server holds account identity, licensing state and usage

@@ -6,18 +6,20 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("daybook", {
   pickFolder: () => ipcRenderer.invoke("folder:pick"),
-  loadSettings: () => ipcRenderer.invoke("settings:load"),
-  saveSettings: (patch) => ipcRenderer.invoke("settings:save", patch),
+  loadSettings: (userId) => ipcRenderer.invoke("settings:load", userId),
+  saveSettings: (userId, patch) => ipcRenderer.invoke("settings:save", { userId, patch }),
   writeSetup: (payload) => ipcRenderer.invoke("folder:writeSetup", payload),
   storeSecret: (name, value) => ipcRenderer.invoke("secret:store", { name, value }),
   loadSecret: (name) => ipcRenderer.invoke("secret:load", { name }),
   deleteSecret: (name) => ipcRenderer.invoke("secret:delete", { name }),
   detectCli: () => ipcRenderer.invoke("cli:detect"),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
-  listModels: (provider, connectionId) =>
-    ipcRenderer.invoke("connections:listModels", { provider, connectionId }),
+  listModels: (provider, secret) =>
+    ipcRenderer.invoke("connections:listModels", { provider, secret }),
   protocolHandler: () => ipcRenderer.invoke("protocol:handler"),
   onAuthCallback: (callback) => {
-    ipcRenderer.on("daybook:auth-callback", (_event, url) => callback(url));
+    const listener = (_event, url) => callback(url);
+    ipcRenderer.on("daybook:auth-callback", listener);
+    return () => ipcRenderer.removeListener("daybook:auth-callback", listener);
   },
 });

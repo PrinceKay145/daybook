@@ -12,18 +12,23 @@ export interface Connection {
   model?: string;
 }
 
-export interface AppSettings {
+/** One account's state on this Mac, stored under its user id — a different account,
+    or the same email re-created as a new account, starts from nothing. */
+export interface UserSettings {
+  /** Display only; the user id is the key. */
+  email?: string;
   folderPath?: string;
   connections?: Connection[];
   activeConnectionId?: string;
-  /** Legacy single-provider record from before connections existed; promoted on load. */
-  provider?: Connection | null;
-  setupCompleted?: boolean;
-  /** The account that completed setup — any other account walks onboarding again. */
-  onboardedFor?: string;
-  accountEmail?: string;
+  /** When this account finished the setup questions (ISO time). */
+  setupCompletedAt?: string;
   /** Display copy of the user's chosen brief time; config.json in the folder is authoritative. */
   briefTime?: string;
+}
+
+/** The keychain entry for one account's API-key connection. */
+export function secretName(userId: string, connectionId: string): string {
+  return `user/${userId}/provider/${connectionId}`;
 }
 
 export interface SetupPayload {
@@ -46,8 +51,8 @@ export type ListableModelProvider = "anthropic" | "openai";
 
 interface DaybookBridge {
   pickFolder(): Promise<string | null>;
-  loadSettings(): Promise<AppSettings>;
-  saveSettings(patch: Partial<AppSettings>): Promise<AppSettings>;
+  loadSettings(userId: string): Promise<UserSettings>;
+  saveSettings(userId: string, patch: Partial<UserSettings>): Promise<UserSettings>;
   writeSetup(payload: SetupPayload): Promise<string[]>;
   storeSecret(name: string, value: string): Promise<boolean>;
   loadSecret(name: string): Promise<string | null>;
@@ -55,10 +60,11 @@ interface DaybookBridge {
   detectCli(): Promise<string[]>;
   openExternal(url: string): Promise<boolean>;
   /** Model IDs the stored key can call. Only for listable providers. */
-  listModels(provider: ListableModelProvider, connectionId: string): Promise<string[]>;
+  listModels(provider: ListableModelProvider, secret: string): Promise<string[]>;
   /** Name/path the OS reports as the daybook:// handler; empty when none. */
   protocolHandler(): Promise<string>;
-  onAuthCallback(callback: (url: string) => void): void;
+  /** Returns the unsubscribe. */
+  onAuthCallback(callback: (url: string) => void): () => void;
 }
 
 const bridge = (window as { daybook?: DaybookBridge }).daybook ?? null;
@@ -66,11 +72,11 @@ const bridge = (window as { daybook?: DaybookBridge }).daybook ?? null;
 /** True when running inside the Electron shell; false in a plain browser tab. */
 export const isDesktop = bridge !== null;
 
-const LS_KEY = "daybook.settings";
+const LS_KEY = "daybook.users";
 
-function browserSettings(): AppSettings {
+function browserUsers(): Record<string, UserSettings> {
   try {
-    return (JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") as AppSettings) ?? {};
+    return (JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") as Record<string, UserSettings>) ?? {};
   } catch {
     return {};
   }
@@ -84,10 +90,11 @@ async function refuse(what: string): Promise<never> {
 
 export const daybook: DaybookBridge = bridge ?? {
   pickFolder: () => refuse("Choosing a folder"),
-  loadSettings: async () => browserSettings(),
-  saveSettings: async (patch) => {
-    const next = { ...browserSettings(), ...patch };
-    localStorage.setItem(LS_KEY, JSON.stringify(next));
+  loadSettings: async (userId) => browserUsers()[userId] ?? {},
+  saveSettings: async (userId, patch) => {
+    const users = browserUsers();
+    const next = { ...(users[userId] ?? {}), ...patch };
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...users, [userId]: next }));
     return next;
   },
   writeSetup: () => refuse("Writing the setup files"),
@@ -101,7 +108,6 @@ export const daybook: DaybookBridge = bridge ?? {
   },
   listModels: () => refuse("Listing a provider's models"),
   protocolHandler: async () => "",
-  onAuthCallback: () => {
-    /* In a browser, Supabase handles the redirect itself. */
-  },
+  /* In a browser, Supabase handles the redirect itself. */
+  onAuthCallback: () => () => {},
 };

@@ -16,6 +16,13 @@ const PROTOCOL = "daybook";
    auth breadcrumbs are how a stalled step gets found without opening DevTools. */
 app.commandLine.appendSwitch("enable-logging");
 
+/* DAYBOOK_USER_DATA points the app at a different app-data directory — a first run
+   on a clean machine, without touching the real one. Must precede everything that
+   reads userData, including the single-instance lock. */
+if (process.env.DAYBOOK_USER_DATA) {
+  app.setPath("userData", path.resolve(process.env.DAYBOOK_USER_DATA));
+}
+
 /* ---------- app-data JSON files (atomic temp+rename, never in the user's folder) ---------- */
 
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");
@@ -76,6 +83,11 @@ function createWindow() {
 
 let pendingAuthUrl = null;
 
+/* The callback's fragment carries the session tokens; logs get everything else. */
+function loggable(rawUrl) {
+  return rawUrl.includes("#") ? `${rawUrl.split("#")[0]}#(tokens withheld)` : rawUrl;
+}
+
 function forwardAuthUrl(rawUrl) {
   if (win && !win.isDestroyed()) {
     win.webContents.send("daybook:auth-callback", rawUrl);
@@ -92,7 +104,7 @@ if (!gotLock) {
   app.on("second-instance", (_event, argv) => {
     const url = argv.find((a) => a.startsWith(`${PROTOCOL}://`));
     if (url) {
-      console.log(`[daybook] auth callback via second-instance: ${url}`);
+      console.log(`[daybook] auth callback via second-instance: ${loggable(url)}`);
       forwardAuthUrl(url);
     }
     if (win) {
@@ -103,7 +115,7 @@ if (!gotLock) {
 
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    console.log(`[daybook] auth callback via open-url: ${url}`);
+    console.log(`[daybook] auth callback via open-url: ${loggable(url)}`);
     forwardAuthUrl(url);
   });
 
@@ -134,16 +146,55 @@ app.on("window-all-closed", () => {
   app.quit();
 });
 
-/* ---------- IPC: settings (the app's own state — folder choice, provider record) ---------- */
+/* ---------- IPC: settings (the app's own state, one record per account) ----------
+   Keyed by the account's user id, never its email: an account deleted and re-created
+   with the same address is a new account and walks onboarding from the start. The
+   pre-account file (one record for the whole Mac) belongs to nobody, so it is set
+   aside on first read — every account onboards once. */
 
-ipcMain.handle("settings:load", () => readJson(settingsPath()) ?? {});
+const USER_ID = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|dev-[^\s/]+@[^\s/]+)$/i;
 
-ipcMain.handle("settings:save", async (_event, patch) => {
-  const current = (await readJson(settingsPath())) ?? {};
-  const next = { ...current, ...(patch ?? {}) };
-  await writeJsonAtomic(settingsPath(), next);
-  return next;
+function requireUserId(userId) {
+  if (typeof userId !== "string" || !USER_ID.test(userId)) {
+    throw new Error("Settings need the signed-in account's id.");
+  }
+  return userId;
+}
+
+async function readStore() {
+  const raw = await readJson(settingsPath());
+  if (raw && raw.version === 2 && raw.users && typeof raw.users === "object") return raw;
+  if (raw) {
+    console.log(
+      `[daybook] settings: setting aside the pre-account record (${Object.keys(raw).join(", ")}) — each account onboards once`,
+    );
+  }
+  return { version: 2, users: {} };
+}
+
+/* Saves are read-modify-write on one file; run them one at a time so two saves
+   landing together cannot drop each other's changes. */
+let settingsQueue = Promise.resolve();
+function serially(task) {
+  const run = settingsQueue.then(task, task);
+  settingsQueue = run.catch(() => {});
+  return run;
+}
+
+ipcMain.handle("settings:load", async (_event, userId) => {
+  const store = await readStore();
+  return store.users[requireUserId(userId)] ?? {};
 });
+
+ipcMain.handle("settings:save", (_event, { userId, patch }) =>
+  serially(async () => {
+    const id = requireUserId(userId);
+    const store = await readStore();
+    const next = { ...(store.users[id] ?? {}), ...(patch ?? {}) };
+    await writeJsonAtomic(settingsPath(), { version: 2, users: { ...store.users, [id]: next } });
+    return next;
+  }),
+);
 
 /* ---------- IPC: folder ---------- */
 
@@ -350,12 +401,12 @@ const MODEL_ENDPOINTS = {
   },
 };
 
-ipcMain.handle("connections:listModels", async (_event, { provider, connectionId }) => {
+ipcMain.handle("connections:listModels", async (_event, { provider, secret }) => {
   const endpoint = MODEL_ENDPOINTS[provider];
   if (!endpoint) {
     throw new Error(`Live model listing is not available for ${provider} — type a model ID instead.`);
   }
-  const key = await secretValue(`provider/${connectionId}`);
+  const key = await secretValue(secret);
   if (!key) {
     throw new Error("This connection's key is no longer in the keychain — reconnect it first.");
   }

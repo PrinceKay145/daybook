@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Check, KeyRound, Plus, TerminalSquare, X } from "lucide-react";
 import {
   daybook,
+  secretName,
   type Connection,
   type ListableModelProvider,
 } from "@/lib/daybook";
@@ -27,10 +28,12 @@ const CLI_MODELS: Record<string, string[]> = {
 };
 
 export function ConnectProviderScreen({
+  userId,
   connections,
   activeId,
   onDone,
 }: {
+  userId: string;
   connections: Connection[];
   activeId?: string;
   onDone: (connections: Connection[], activeConnectionId: string) => void;
@@ -82,7 +85,7 @@ export function ConnectProviderScreen({
     if (remaining.length === 0) setPanel("add");
     if (connection.authKind === "api_key") {
       try {
-        await daybook.deleteSecret(`provider/${connection.id}`);
+        await daybook.deleteSecret(secretName(userId, connection.id));
       } catch {
         /* the key may already be gone; the connection is removed either way */
       }
@@ -100,7 +103,7 @@ export function ConnectProviderScreen({
       const preset = API_PROVIDERS.find((p) => p.id === providerId);
       const label = preset ? preset.label : customLabel.trim() || "Custom provider";
       const id = preset ? preset.id : `custom-${Date.now()}`;
-      await daybook.storeSecret(`provider/${id}`, apiKey.trim());
+      await daybook.storeSecret(secretName(userId, id), apiKey.trim());
       const connection: Connection = { id, label, authKind: "api_key" };
       setDraft((list) => [...list.filter((c) => c.id !== id), connection]);
       setActive(id);
@@ -130,7 +133,10 @@ export function ConnectProviderScreen({
     setError(null);
     setFetchingModels(true);
     try {
-      const ids = await daybook.listModels(connection.id as ListableModelProvider, connection.id);
+      const ids = await daybook.listModels(
+        connection.id as ListableModelProvider,
+        secretName(userId, connection.id),
+      );
       setModels((m) => ({ ...m, [connection.id]: ids }));
     } catch (err) {
       setError((err as Error).message);

@@ -1,11 +1,18 @@
 /* The v1 flow, from the owner's drawing: login → connect a folder → connect an AI
    provider → setup questions → scoreboard. Subsequent launches go straight to the
-   scoreboard. The folder choice and provider live in app data (the app's own state),
-   the answers live in the user's folder, and the account holds an email — nothing else. */
+   scoreboard. Each account's folder choice and connections live in app data under its
+   user id, the answers live in the user's folder, and the account holds an email —
+   nothing else. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getAccount, handleAuthRedirect, onAuthChange, signOut, type Account } from "@/lib/auth";
-import { daybook, isDesktop, type AppSettings, type Connection } from "@/lib/daybook";
+import {
+  handleAuthRedirect,
+  onSignedOut,
+  signOut,
+  verifyAccount,
+  type Account,
+} from "@/lib/auth";
+import { daybook, isDesktop, type Connection, type UserSettings } from "@/lib/daybook";
 import { LoginScreen } from "@/screens/Login";
 import { ConnectFolderScreen } from "@/screens/ConnectFolder";
 import { ConnectProviderScreen } from "@/screens/ConnectProvider";
@@ -14,141 +21,117 @@ import { ScoreboardScreen } from "@/screens/Scoreboard";
 
 type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home";
 
-/* settings is optional-and-null-tolerant by design: it arrives from three async paths
-   (init, save, the Google callback) and none of them may crash the flow on a bad value.
-   Onboarding is per account: home is reached only by the account that completed setup
-   itself (the onboardedFor stamp) — any other account, and any pre-stamp legacy state,
-   walks the full setup again. */
-function nextStage(settings?: AppSettings | null, account?: Account | null): Stage {
-  const s = settings ?? {};
-  if (!s.folderPath) return "folder";
-  if (!s.connections || s.connections.length === 0) return "provider";
-  if (!account || !s.setupCompleted || s.onboardedFor !== account.email) return "setup";
+const ACCOUNT_GONE_NOTICE =
+  "Your sign-in on this Mac has ended — the account was deleted or signed out elsewhere. Sign in, or create a new account.";
+
+/* The one place that decides the screen. It sees only a verified account and that
+   account's own record, so another account's progress — or a deleted account's, under
+   the same email — can never skip a step. */
+function decideStage(account: Account | null, settings: UserSettings): Stage {
+  if (!account) return "login";
+  if (!settings.folderPath) return "folder";
+  if (!settings.connections?.length) return "provider";
+  if (!settings.setupCompletedAt) return "setup";
   return "home";
 }
 
 export default function App() {
   const [stage, setStage] = useState<Stage>("loading");
   const [account, setAccount] = useState<Account | null>(null);
-  const [settings, setSettings] = useState<AppSettings>({});
+  const [settings, setSettings] = useState<UserSettings>({});
   const [authNotice, setAuthNotice] = useState<string | null>(null);
 
-  // The Google callback lands after onboarding may already have changed settings;
-  // read the fresh values through refs instead of closing over state.
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const accountRef = useRef(account);
-  accountRef.current = account;
+  // Launch, sign-in, the browser callback and sign-out can overlap; each routing takes
+  // a ticket when it starts, and only the newest one lands.
+  const ticket = useRef(0);
 
-  // First paint: restore the session and the app's own state, then land where the
-  // user actually is in the flow. getAccount() carries its own timeout, so this
-  // always lands somewhere — the breadcrumbs land in the app's terminal.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      console.log("[daybook] init: reading settings and account");
-      const [loaded, acct] = await Promise.all([
-        daybook.loadSettings().catch((err: unknown) => {
-          console.warn("[daybook] init: settings failed:", err);
-          return {} as AppSettings;
-        }),
-        getAccount().catch((err: unknown) => {
-          console.warn("[daybook] init: account check failed:", err);
-          return null;
-        }),
-      ]);
-      if (cancelled) return;
-      console.log(`[daybook] init: done — ${acct ? `signed in as ${acct.email}` : "signed out"}`);
-      // A single pre-connections provider record is promoted into the list form.
-      let loadedSettings: AppSettings = loaded ?? {};
-      if (!loadedSettings.connections?.length && loadedSettings.provider) {
-        const legacy = loadedSettings.provider;
-        loadedSettings = {
-          ...loadedSettings,
-          connections: [
-            {
-              id: legacy.id,
-              label: legacy.label,
-              authKind: legacy.authKind,
-              cliBinary: legacy.cliBinary,
-            },
-          ],
-          activeConnectionId: legacy.id,
-        };
-        void daybook
-          .saveSettings({
-            connections: loadedSettings.connections,
-            activeConnectionId: loadedSettings.activeConnectionId,
-          })
-          .catch((err: unknown) => console.warn("[daybook] init: promotion save failed:", err));
+  /* Every path into and out of the app ends here: verify the session with the server,
+     load that account's record on this Mac, and land where the account actually is. */
+  const route = useCallback(async (why: string): Promise<Account | null> => {
+    const mine = ++ticket.current;
+    console.log(`[daybook] route (${why}): checking the account`);
+    let verified: Account | null = null;
+    try {
+      const result = await verifyAccount();
+      verified = result.account;
+      if (result.reason === "account-gone") setAuthNotice(ACCOUNT_GONE_NOTICE);
+    } catch (err) {
+      console.warn(`[daybook] route (${why}): account check failed:`, err);
+      setAuthNotice((err as Error).message);
+    }
+
+    let record: UserSettings = {};
+    if (verified) {
+      const acct = verified;
+      try {
+        record = await daybook.loadSettings(acct.id);
+        if (record.email !== acct.email) record = await daybook.saveSettings(acct.id, { email: acct.email });
+      } catch (err) {
+        console.warn(`[daybook] route (${why}): settings failed:`, err);
       }
-      setSettings(loadedSettings);
-      setAccount(acct);
-      setStage(acct ? nextStage(loadedSettings, acct) : "login");
-    })();
-    return () => {
-      cancelled = true;
-    };
+    }
+
+    if (mine !== ticket.current) return verified;
+    const next = decideStage(verified, record);
+    console.log(
+      `[daybook] route (${why}): ${verified ? `signed in as ${verified.email}` : "signed out"} → ${next}`,
+    );
+    if (verified) setAuthNotice(null);
+    setAccount(verified);
+    setSettings(record);
+    setStage(next);
+    return verified;
   }, []);
 
-  // Google's browser round-trip arrives here via the OS (daybook://auth) in the
-  // desktop app; the browser-dev path redirects the page instead. A callback that
-  // carries no tokens (e.g. a daybook://auth?ping=1 test) is itself diagnostic —
-  // it proves the OS→app hop works and the failure is upstream, at consent.
+  useEffect(() => {
+    void route("launch");
+  }, [route]);
+
+  // Google's browser round-trip and the confirmation email both arrive here via the
+  // OS (daybook://auth) in the desktop app; the browser-dev path redirects the page
+  // instead. A callback that carries no tokens (e.g. a daybook://auth?ping=1 test) is
+  // itself diagnostic — it proves the OS→app hop works and the failure is upstream.
   useEffect(() => {
     if (!isDesktop) return;
-    daybook.onAuthCallback((url) => {
+    return daybook.onAuthCallback((url) => {
       (async () => {
         try {
           const carriedTokens = await handleAuthRedirect(url);
-          const acct = await getAccount();
-          if (acct) {
-            setAccount(acct);
-            setAuthNotice(null);
-            setStage(nextStage(settingsRef.current, acct));
-          } else if (carriedTokens) {
-            setAuthNotice(
-              "The link arrived and carried tokens, but no session came of it. Check that Google and Supabase agree on the client credentials.",
-            );
-          } else {
-            setAuthNotice(
-              "Good news, partly: the daybook:// handler works — the app received the link, but it carried no sign-in. So Google consent is the step that didn't complete (an 'Access blocked' page in the browser, usually).",
-            );
-          }
+          const acct = await route("browser callback");
+          if (acct) return;
+          setAuthNotice(
+            carriedTokens
+              ? "The link arrived and carried tokens, but no session came of it. Check that Google and Supabase agree on the client credentials."
+              : "Good news, partly: the daybook:// handler works — the app received the link, but it carried no sign-in. So the browser step didn't complete (an 'Access blocked' page, usually).",
+          );
         } catch (err) {
           setAuthNotice((err as Error).message);
         }
       })();
     });
-  }, []);
+  }, [route]);
 
-  // Password sessions can be signed out elsewhere; keep in step.
-  useEffect(() => {
-    return onAuthChange((acct) => {
-      if (!acct) {
-        setAccount(null);
-        setStage("login");
-      }
-    });
-  }, []);
-
-  const save = useCallback(async (patch: Partial<AppSettings>) => {
-    const next = (await daybook.saveSettings(patch)) ?? {};
-    setSettings(next);
-    return next;
-  }, []);
+  // The session can end under the app — signed out elsewhere, or a refresh the server
+  // refused because the account is gone.
+  useEffect(() => onSignedOut(() => void route("signed out")), [route]);
 
   const advance = useCallback(
-    (patch: Partial<AppSettings>) => {
-      void save(patch).then((next) => setStage(nextStage(next, accountRef.current)));
+    (patch: Partial<UserSettings>) => {
+      if (!account) return;
+      void daybook
+        .saveSettings(account.id, patch)
+        .then((next) => {
+          setSettings(next);
+          setStage(decideStage(account, next));
+        })
+        .catch((err: unknown) => console.warn("[daybook] saving a step failed:", err));
     },
-    [save],
+    [account],
   );
 
   async function handleSignOut() {
     await signOut();
-    setAccount(null);
-    setStage("login");
+    await route("sign out");
   }
 
   const activeConnection: Connection | null =
@@ -168,13 +151,7 @@ export default function App() {
             {authNotice}
           </p>
         )}
-        <LoginScreen
-          onSignedIn={(acct) => {
-            setAccount(acct);
-            setAuthNotice(null);
-            void save({ accountEmail: acct.email }).then((next) => setStage(nextStage(next, acct)));
-          }}
-        />
+        <LoginScreen onSignedIn={() => void route("sign in")} />
       </div>
     );
   }
@@ -193,6 +170,7 @@ export default function App() {
       return (
         <div className="mx-auto max-w-4xl px-4 py-8">
           <ConnectProviderScreen
+            userId={account.id}
             connections={settings.connections ?? []}
             activeId={settings.activeConnectionId}
             onDone={(connections, activeConnectionId) =>
@@ -208,11 +186,7 @@ export default function App() {
             folder={settings.folderPath ?? ""}
             connection={activeConnection}
             onDone={(briefTime) =>
-              advance({
-                setupCompleted: true,
-                onboardedFor: account.email,
-                briefTime,
-              })
+              advance({ setupCompletedAt: new Date().toISOString(), briefTime })
             }
           />
         </div>
