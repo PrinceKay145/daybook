@@ -16,7 +16,10 @@ need this process, and making it resident costs crash resilience for nothing.
 from __future__ import annotations
 
 import json
+import os
 import re
+import threading
+import time
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime
 from enum import Enum
@@ -156,12 +159,29 @@ def make_handler(folder_path: str, clock: str | None):
     return Handler
 
 
+def _exit_with_parent(interval: float = 2.0) -> None:
+    """The runner lives exactly as long as whatever started it. A clean app quit stops it
+    directly; a crash cannot, so the runner watches for itself: when its parent is gone
+    (it has been handed to launchd), it exits rather than stay resident unseen."""
+    parent = os.getppid()
+
+    def watch() -> None:
+        while True:
+            time.sleep(interval)
+            if os.getppid() != parent:
+                print("daybook runner: the app that started it is gone — exiting", flush=True)
+                os._exit(0)
+
+    threading.Thread(target=watch, name="exit-with-parent", daemon=True).start()
+
+
 def serve(folder_path: str, clock: str | None, host: str = "127.0.0.1", port: int = 8787):
     if host not in ("127.0.0.1", "localhost", "::1"):
         raise ValueError(
             f"refusing to bind to {host!r}: the runner is loopback-only"
         )
     httpd = ThreadingHTTPServer((host, port), make_handler(folder_path, clock))
+    _exit_with_parent()
     print(f"daybook runner on http://{host}:{port}  folder={folder_path}", flush=True)
     print("  GET /api/brief   the brief as data, with verification results", flush=True)
     print("  GET /brief.html  the self-contained brief", flush=True)
