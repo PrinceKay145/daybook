@@ -239,21 +239,48 @@ function seedConfig(existing, payload) {
     allow_outside_root: false,
     shell_actions_enabled: false,
   };
-  if (payload.connection) {
-    // The active connection leads; other provider records the folder already had stay behind it.
-    const c = payload.connection;
-    const record = {
-      id: c.id,
-      label: c.label,
-      authKind: c.authKind,
-      ...(c.cliBinary ? { binary: c.cliBinary } : {}),
-      ...(c.model ? { model: c.model } : {}),
-      ...(c.authKind === "api_key" ? { keychain_ref: `provider/${c.id}` } : {}),
-    };
-    const existingProviders = Array.isArray(existing?.providers) ? existing.providers : [];
-    next.providers = [record, ...existingProviders.filter((p) => p && p.id !== c.id)];
+  return withProvider(next, payload.connection);
+}
+
+/* The active connection leads; other provider records the folder already had stay behind it. */
+function withProvider(config, connection) {
+  if (!connection) return config;
+  const c = connection;
+  const record = {
+    id: c.id,
+    label: c.label,
+    authKind: c.authKind,
+    ...(c.cliBinary ? { binary: c.cliBinary } : {}),
+    ...(c.model ? { model: c.model } : {}),
+    ...(c.authKind === "api_key" ? { keychain_ref: `provider/${c.id}` } : {}),
+  };
+  const existingProviders = Array.isArray(config.providers) ? config.providers : [];
+  return { ...config, providers: [record, ...existingProviders.filter((p) => p && p.id !== c.id)] };
+}
+
+/* A folder the user picked, as the renderer reports it: absolute, and a directory. */
+function requireFolder(folder) {
+  let usable = false;
+  try {
+    usable = typeof folder === "string" && path.isAbsolute(folder) && fs.statSync(folder).isDirectory();
+  } catch {
+    usable = false;
   }
-  return next;
+  if (!usable) throw new Error("That is not a folder Daybook can use.");
+  return folder;
+}
+
+/* What an earlier setup left in this folder, or null. An owner name in config.json is the
+   mark of a finished setup interview — the one field the interview always writes. */
+async function existingSetup(folder) {
+  const config = await readJson(path.join(folder, "config.json"));
+  if (!config?.owner?.name) return null;
+  return {
+    ownerName: String(config.owner.name),
+    addressAs: config.owner.address_as ? String(config.owner.address_as) : "",
+    briefTime: config.schedule?.brief_time ? String(config.schedule.brief_time) : "09:00",
+    closeTime: config.schedule?.close_time ? String(config.schedule.close_time) : "23:00",
+  };
 }
 
 function today() {
@@ -338,10 +365,47 @@ mistake waiting to be repeated.
   ];
 }
 
+/* Starting over replaces what the interview wrote, never what the days wrote: the previous
+   SETUP-CONTEXT.md and MASTER-PLAN.md move to archive/setup/<stamp>/ first, and
+   DAY-STATE.md, LOG.md and CORRECTIONS.md stay exactly as they are. */
+const REDONE_BY_START_OVER = ["SETUP-CONTEXT.md", "MASTER-PLAN.md"];
+
+async function archivePreviousSetup(folder) {
+  const present = REDONE_BY_START_OVER.filter((file) => fs.existsSync(path.join(folder, file)));
+  if (present.length === 0) return null;
+  const relative = `archive/setup/${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  await fsp.mkdir(path.join(folder, relative), { recursive: true });
+  for (const file of present) {
+    await fsp.rename(path.join(folder, file), path.join(folder, relative, file));
+  }
+  return { relative, files: present };
+}
+
+async function appendLine(file, line) {
+  const current = await fsp.readFile(file, "utf8");
+  await writeTextAtomic(file, `${current.replace(/\n*$/, "\n")}${line}\n`);
+}
+
+ipcMain.handle("folder:inspect", async (_event, folder) => existingSetup(requireFolder(folder)));
+
+/* "Use this setup": the folder's files stay exactly as they are; only the AI choice made in
+   this onboarding is recorded in config.json, where the runner reads it. */
+ipcMain.handle("folder:adoptSetup", async (_event, { folder, connection }) => {
+  const target = path.join(requireFolder(folder), "config.json");
+  const existing = await readJson(target);
+  if (!existing?.owner?.name) {
+    throw new Error("This folder has no setup to use — answer the questions instead.");
+  }
+  await writeTextAtomic(target, `${JSON.stringify(withProvider(existing, connection), null, 2)}\n`);
+  return ["config.json"];
+});
+
 ipcMain.handle("folder:writeSetup", async (_event, payload) => {
+  const folder = requireFolder(payload?.folder);
+  const archived = payload.startOver ? await archivePreviousSetup(folder) : null;
   const written = [];
   for (const seed of seedsFor(payload)) {
-    const target = path.join(payload.folder, seed.file);
+    const target = path.join(folder, seed.file);
     if (seed.file !== "config.json" && fs.existsSync(target) && seed.onlyIfAbsent) continue;
     if (seed.merge) {
       const existing = await readJson(target);
@@ -350,6 +414,14 @@ ipcMain.handle("folder:writeSetup", async (_event, payload) => {
       await writeTextAtomic(target, seed.text);
     }
     written.push(seed.file);
+  }
+  if (archived) {
+    const previous = archived.files.join(" and ");
+    await appendLine(
+      path.join(folder, "LOG.md"),
+      `- ${today()} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
+    );
+    written.push(`${archived.relative}/ — the previous ${previous}`);
   }
   return written;
 });

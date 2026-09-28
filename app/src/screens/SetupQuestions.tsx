@@ -1,9 +1,14 @@
 /* Secretary setup questions. The answers become plain files in the user's folder —
    readable with no app installed — and the schedule (their own brief time) lives in
-   config.json where the scheduler reads it. Nothing here is sent anywhere. */
+   config.json where the scheduler reads it. Nothing here is sent anywhere.
 
-import { useState } from "react";
-import { daybook, type Connection } from "@/lib/daybook";
+   A folder an earlier setup already filled gets a choice first, and the choice is the
+   user's: keep that setup (the default — nothing in the folder changes but the AI
+   choice), or start over (the questions again; the previous setup files are archived,
+   never deleted). */
+
+import { useEffect, useState } from "react";
+import { daybook, type Connection, type ExistingSetup } from "@/lib/daybook";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
 
 const EXPECTED_FILES = [
@@ -38,6 +43,40 @@ export function SetupQuestionsScreen({
   const [busy, setBusy] = useState(false);
   const [written, setWritten] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // undefined while the folder is being checked; null when it holds no earlier setup.
+  const [existing, setExisting] = useState<ExistingSetup | null | undefined>(undefined);
+  const [startOver, setStartOver] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    daybook
+      .inspectFolder(folder)
+      .then((found) => !cancelled && setExisting(found))
+      .catch(() => !cancelled && setExisting(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [folder]);
+
+  async function keepExisting(setup: ExistingSetup) {
+    setError(null);
+    setBusy(true);
+    try {
+      await daybook.adoptSetup(folder, connection);
+      onDone(setup.briefTime);
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  function beginStartOver(setup: ExistingSetup) {
+    setOwnerName(setup.ownerName);
+    setAddressAs(setup.addressAs);
+    setBriefTime(setup.briefTime);
+    setCloseTime(setup.closeTime);
+    setStartOver(true);
+  }
 
   async function save() {
     setError(null);
@@ -58,6 +97,7 @@ export function SetupQuestionsScreen({
         nonNegotiables: lines(nonNegotiables),
         inFlight: lines(inFlight),
         connection,
+        startOver,
       });
       setWritten(files);
     } catch (err) {
@@ -89,13 +129,56 @@ export function SetupQuestionsScreen({
     );
   }
 
+  if (existing === undefined) {
+    return <p className="mx-auto max-w-md py-16 text-sm text-[var(--color-ink-faint)]">Checking the folder…</p>;
+  }
+
+  if (existing && !startOver) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col justify-center">
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
+          Step 3 of 3
+        </p>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight">This folder already has a setup</h1>
+        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+          It was set up for {existing.ownerName} — brief at {existing.briefTime}, nightly close
+          at {existing.closeTime}. Keep it, or answer the questions again.
+        </p>
+        <div className="mt-5 space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
+          <Button className="w-full" disabled={busy} onClick={() => void keepExisting(existing)}>
+            Use this setup
+          </Button>
+          <p className="text-xs text-[var(--color-ink-faint)]">
+            Every file stays as it is. Your AI choice is recorded in config.json.
+          </p>
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={busy}
+            onClick={() => beginStartOver(existing)}
+          >
+            Start over
+          </Button>
+          <p className="text-xs text-[var(--color-ink-faint)]">
+            The questions again. The current SETUP-CONTEXT.md and MASTER-PLAN.md move to
+            archive/setup/ first — nothing is deleted. Your log, day state and corrections stay
+            as they are.
+          </p>
+          <ErrorNote message={error} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-md py-10">
       <div className="mb-6">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
           Step 3 of 3
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">A few questions</h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight">
+          {startOver ? "Starting over" : "A few questions"}
+        </h1>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
           The secretary's starting picture of your week. Answers are written to your folder,
           locally — never sent anywhere.
@@ -179,9 +262,12 @@ export function SetupQuestionsScreen({
         </Field>
 
         <p className="text-xs text-[var(--color-ink-faint)]">
-          This will create in {folder}: {EXPECTED_FILES[0]}. {EXPECTED_FILES[1]} Your AI
-          connection{connection?.model ? ` (${connection.label} · ${connection.model})` : ""} is
-          recorded in config.json too.
+          {startOver
+            ? `This will write in ${folder}: ${EXPECTED_FILES[0]}, a new SETUP-CONTEXT.md and MASTER-PLAN.md (the current ones move to archive/setup/ first). DAY-STATE.md, LOG.md and CORRECTIONS.md are kept.`
+            : `This will create in ${folder}: ${EXPECTED_FILES[0]}. ${EXPECTED_FILES[1]}`}{" "}
+          Your AI connection
+          {connection?.model ? ` (${connection.label} · ${connection.model})` : ""} is recorded
+          in config.json too.
         </p>
 
         <ErrorNote message={error} />

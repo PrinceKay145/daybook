@@ -90,6 +90,9 @@ VITE_DEV_SERVER_URL=http://127.0.0.1:5173 DAYBOOK_USER_DATA=/tmp/daybook-fresh n
   (`safeStorage` → the macOS keychain), local CLI detection (PATH scan only — nothing
   is executed), setup answers written into the chosen folder as plain files
   (`config.json` is merged, never clobbered; markdown seeds are only created if absent).
+- **A folder used before:** step 3 asks whether to **use this setup** (the default — no
+  file changes but the AI choice in `config.json`) or **start over** (the questions again;
+  the old `SETUP-CONTEXT.md` and `MASTER-PLAN.md` move to `archive/setup/<time>/` first).
 - **Sample:** everything on the scoreboard below the warning banner. The morning-brief
   pipeline that fills it for real is the next stage, owner-decided.
 

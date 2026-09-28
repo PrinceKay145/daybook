@@ -78,6 +78,14 @@ the folder as plain files: `config.json` (merged — hand edits survive), `SETUP
 `MASTER-PLAN.md`, `DAY-STATE.md`, `LOG.md`, `CORRECTIONS.md` (created only if absent).
 Every write is atomic (temp file + rename). Nothing is sent anywhere.
 
+**A folder that already has a setup** (a `config.json` with an owner) gets a choice before
+the questions, and the choice is the user's. **Use this setup** is the default: every file
+stays as it is and only the AI choice is recorded in `config.json`. **Start over** asks the
+questions again, prefilled from the old setup; the previous `SETUP-CONTEXT.md` and
+`MASTER-PLAN.md` move to `archive/setup/<time>/` first, `LOG.md` records the redo, and
+`DAY-STATE.md`, `LOG.md` and `CORRECTIONS.md` are otherwise untouched — they are what
+happened, not what was set up. Nothing is deleted either way.
+
 **Scoreboard (home).** Daily plans, metrics, actions — rendered from verified brief data
 once that stage exists. Until then: sample data behind a loud banner. A placeholder that
 pretends to be a real brief would break the only promise this product makes.

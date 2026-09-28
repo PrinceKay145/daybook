@@ -44,6 +44,17 @@ export interface SetupPayload {
   /** The active connection, written into the folder's config.json providers block.
       Null-tolerant: the flow guarantees it, the writer tolerates its absence. */
   connection: Connection | null;
+  /** Replacing an earlier setup: its SETUP-CONTEXT.md and MASTER-PLAN.md move to
+      archive/setup/ first. */
+  startOver?: boolean;
+}
+
+/** What an earlier setup interview left in a folder. */
+export interface ExistingSetup {
+  ownerName: string;
+  addressAs: string;
+  briefTime: string;
+  closeTime: string;
 }
 
 /** Providers whose model list can be fetched live with the stored key. */
@@ -54,6 +65,10 @@ interface DaybookBridge {
   loadSettings(userId: string): Promise<UserSettings>;
   saveSettings(userId: string, patch: Partial<UserSettings>): Promise<UserSettings>;
   writeSetup(payload: SetupPayload): Promise<string[]>;
+  /** The earlier setup this folder holds, or null. */
+  inspectFolder(folder: string): Promise<ExistingSetup | null>;
+  /** Keeps the folder's setup as it is; records the AI choice in its config.json. */
+  adoptSetup(folder: string, connection: Connection | null): Promise<string[]>;
   storeSecret(name: string, value: string): Promise<boolean>;
   loadSecret(name: string): Promise<string | null>;
   deleteSecret(name: string): Promise<boolean>;
@@ -98,6 +113,8 @@ export const daybook: DaybookBridge = bridge ?? {
     return next;
   },
   writeSetup: () => refuse("Writing the setup files"),
+  inspectFolder: async () => null,
+  adoptSetup: () => refuse("Writing the setup files"),
   storeSecret: () => refuse("Storing a key in the keychain"),
   loadSecret: async () => null,
   deleteSecret: async () => true,
