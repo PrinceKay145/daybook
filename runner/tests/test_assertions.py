@@ -214,9 +214,44 @@ class V10_Grading(FolderCase):
 
 
 class V11_JudgingAnUndeliveredDay(FolderCase):
-    def test_a_missing_heartbeat_is_caught(self):
+    def test_a_missing_heartbeat_is_stated_and_nothing_is_judged(self):
+        # No heartbeat is a real state (a folder set up today; a Mac without the reminder
+        # agent yet). The brief may ship only by saying so, as its closing line.
         (self.folder / ".agent-heartbeat.json").unlink()
-        self.assertAssertionFails("V11")
+        _, data, html, results = self.produce()
+        v11 = {r.id: r for r in results}["V11"]
+        self.assertTrue(v11.ok, v11.detail)
+        self.assertEqual(data.delivery.sentence(), data.closing.text)
+        self.assertIn("cannot tell whether", html)
+
+    def test_a_missing_heartbeat_the_page_leaves_out_is_caught(self):
+        from daybook.assertions import verify
+
+        (self.folder / ".agent-heartbeat.json").unlink()
+        _, data, html, _ = self.produce()
+        stripped = html.replace("There is no heartbeat file", "All is well")
+        self.assertFalse({r.id: r for r in verify(data, stripped)}["V11"].ok)
+
+    def test_a_missing_heartbeat_with_a_judging_closing_line_is_caught(self):
+        from dataclasses import replace
+
+        from daybook.assertions import verify
+
+        (self.folder / ".agent-heartbeat.json").unlink()
+        _, data, html, _ = self.produce()
+        judged = replace(data, closing=replace(data.closing, text="You skipped the gym again."))
+        self.assertFalse({r.id: r for r in verify(judged, html)}["V11"].ok)
+
+    def test_a_present_heartbeat_the_page_leaves_out_is_caught(self):
+        # "Reflected" is checked on the rendered page, not assumed from the data.
+        import html as html_mod
+
+        from daybook.assertions import verify
+
+        _, data, html, _ = self.produce()
+        sentence = html_mod.escape(data.delivery.sentence(), quote=True)
+        self.assertIn(sentence, html)
+        self.assertFalse({r.id: r for r in verify(data, html.replace(sentence, ""))}["V11"].ok)
 
     def test_the_outage_is_stated_not_swallowed(self):
         # fixtures/README.md case 7: LOG 2026-03-06 records a daemon outage. It must read

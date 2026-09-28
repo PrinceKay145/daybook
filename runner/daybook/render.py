@@ -16,6 +16,7 @@ from datetime import date
 
 from . import dial
 from .brief import BriefData
+from .folder import UNPLANNED
 
 # Muted, deliberately unbranded. Every colour is a CSS variable so a re-theme is one block.
 BLOCK_COLOURS = [
@@ -37,19 +38,38 @@ def _fmt_date(when: date) -> str:
     return when.strftime("%A %-d %B %Y")
 
 
+def _label_colours(blocks) -> dict[str, str]:
+    """One colour per label, so a block that appears twice looks like itself twice. Every
+    Unplanned stretch shares one quiet colour: it is the absence of a plan, and must not
+    read as one more block."""
+    colours: dict[str, str] = {}
+    for block in blocks:
+        if block.label in colours:
+            continue
+        colours[block.label] = (
+            "var(--unplanned)"
+            if block.label == UNPLANNED
+            else BLOCK_COLOURS[
+                sum(1 for label in colours if label != UNPLANNED) % len(BLOCK_COLOURS)
+            ]
+        )
+    return colours
+
+
 def _dial_svg(data: BriefData) -> str:
     parts: list[str] = []
     blocks = data.dial.blocks
+    colours = _label_colours(blocks)
 
-    for index, block in enumerate(blocks):
-        colour = BLOCK_COLOURS[index % len(BLOCK_COLOURS)]
+    for block in blocks:
+        colour = colours[block.label]
         for start, end in block.spans():
             if end <= start:
                 continue
             path = dial.arc_path(start, end, R_OUTER, R_INNER, CX, CY)
             live = " dial-arc-now" if block is data.dial.current else ""
             parts.append(
-                f'<path class="dial-arc{live}" d="{path}" fill="{colour}">'
+                f'<path class="dial-arc{live}" d="{path}" style="fill:{colour}">'
                 f"<title>{esc(block.label)} · {dial.to_hhmm(block.start)}"
                 f"–{dial.to_hhmm(block.end)}</title></path>"
             )
@@ -108,11 +128,9 @@ def _dial_svg(data: BriefData) -> str:
 
 def _section_three(data: BriefData) -> str:
     if not data.three:
-        return (
-            '<p class="empty">DAY-STATE lists no actions for today, and gives no reason. '
-            "This section cannot be built honestly, so it is left empty rather than filled."
-            "</p>"
-        )
+        # The reason is the brief's own (V6 asserts one exists); the page shows it rather
+        # than a second, different explanation.
+        return f'<p class="empty">— {esc(data.three_reason)}</p>'
     items = "".join(
         f'<li><span class="action-title">{esc(a.title)}</span>'
         f'<span class="action-detail">{esc(a.detail)}</span></li>'
@@ -133,6 +151,11 @@ def _section_three(data: BriefData) -> str:
 
 
 def _section_scoreboard(data: BriefData) -> str:
+    if not data.scoreboard:
+        return (
+            '<p class="empty">— No metrics yet: the day state records none. Nothing is '
+            "estimated to fill the table.</p>"
+        )
     rows = []
     for metric in data.scoreboard:
         empty = " metric-empty" if metric.is_empty else ""
@@ -157,6 +180,8 @@ def _section_ticks(data: BriefData) -> str:
             f'<p class="light">{esc(data.light_schedule_line)}'
             f'<span class="source">source: {esc(data.light_schedule_source)}</span></p>'
         )
+    if not data.habits:
+        return f'<p class="empty">— No ticks yet: the day state tracks no habits.</p>{light}'
     return f'<ul class="ticks">{rows}</ul>{light}'
 
 
@@ -227,20 +252,20 @@ def render(data: BriefData) -> str:
   color-scheme: light dark;
   --bg: #f6f5f3;  --card: #fffefc;  --ink: #1c1b19;  --ink-soft: #5d5a55;
   --ink-faint: #8b877f; --line: #e3e0da; --accent: #2f4858; --warn: #8a4b2a;
-  --pill-wait: #6b7f9e; --pill-chase: #b1663c;
+  --pill-wait: #6b7f9e; --pill-chase: #b1663c; --unplanned: #dcd8d0;
   --radius: 14px;
 }}
 @media (prefers-color-scheme: dark) {{
   :root:not([data-theme="light"]) {{
     --bg: #14151a; --card: #1c1e24; --ink: #ecebe8; --ink-soft: #a7a49e;
     --ink-faint: #74716b; --line: #2b2e36; --accent: #9fc0d4; --warn: #d79a70;
-    --pill-wait: #8ba3c2; --pill-chase: #d08a5e;
+    --pill-wait: #8ba3c2; --pill-chase: #d08a5e; --unplanned: #353841;
   }}
 }}
 :root[data-theme="dark"] {{
   --bg: #14151a; --card: #1c1e24; --ink: #ecebe8; --ink-soft: #a7a49e;
   --ink-faint: #74716b; --line: #2b2e36; --accent: #9fc0d4; --warn: #d79a70;
-  --pill-wait: #8ba3c2; --pill-chase: #d08a5e;
+  --pill-wait: #8ba3c2; --pill-chase: #d08a5e; --unplanned: #353841;
 }}
 * {{ box-sizing: border-box; }}
 body {{
@@ -370,8 +395,8 @@ footer {{ color: var(--ink-faint); font-size: .72rem; text-align: center; margin
   <h2>The day</h2>
   <div class="dial-wrap">{_dial_svg(data)}</div>
   <div class="legend">{''.join(
-      f'<span><i style="background:{BLOCK_COLOURS[i % len(BLOCK_COLOURS)]}"></i>'
-      f'{esc(b.label)}</span>' for i, b in enumerate(data.dial.blocks))}</div>
+      f'<span><i style="background:{colour}"></i>{esc(label)}</span>'
+      for label, colour in _label_colours(data.dial.blocks).items())}</div>
 </section>
 
 <section class="card">
@@ -405,7 +430,8 @@ footer {{ color: var(--ink-faint); font-size: .72rem; text-align: center; margin
 <section class="card">
   <p class="closing">{esc(data.closing.text)}</p>
   <p class="closing-source">source: {esc(data.closing.source)}</p>
-  <p class="delivery">{esc(data.delivery.sentence())}</p>
+  {'' if data.closing.text == data.delivery.sentence() else
+   f'<p class="delivery">{esc(data.delivery.sentence())}</p>'}
 </section>
 
 <footer>daybook · generated for {esc(data.generated_for.isoformat())} · no network, no storage</footer>

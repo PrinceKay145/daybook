@@ -130,8 +130,15 @@ am I doing → what am I keeping up → who am I waiting on → a human note):
 syntax · V2 day-shape contiguity · V3 dial geometry · V4 block lookup · V5 referenced paths
 exist · V6 ≤3 items · V7 nothing done re-surfaces · V8 every empty metric has a reason ·
 V9 every board row WAIT/CHASE + date · V10 no grading · V11 heartbeat reflected) run against
-`fixtures/sample-folder` on the frozen clock. They are data assertions, not view concerns —
-they survive any renderer.
+`fixtures/sample-folder` and `fixtures/fresh-folder` (day one) on the frozen clock. They are
+data assertions, not view concerns — they survive any renderer.
+
+**V11 on day one.** No heartbeat is a real state — a folder set up today, or a Mac without
+the reminder agent yet — not an error. The brief may ship then only if it says, on the page,
+that delivery cannot be established, and its closing line is that statement (it judges
+nothing). With a heartbeat, what it says must likewise be on the rendered page, checked
+there rather than assumed. (Changed 2026-09-28: V11 previously failed on any missing
+heartbeat, which would have withheld every brief until the reminder agent is bundled.)
 
 ---
 

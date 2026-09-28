@@ -161,7 +161,7 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
     minutes = folder.clock.minutes
     pending = list(pending_outputs or [])
 
-    blocks = dial.blocks_from_config(folder.config.get("day_shape", []))
+    blocks = dial.blocks_from_config(folder.day_shape())
     current = dial.current_block(blocks, minutes)
     dial_data = DialData(
         blocks=blocks,
@@ -197,7 +197,7 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         dial=dial_data,
         next_up=next_up,
         three=state.three,
-        three_reason=state.three_reason,
+        three_reason=state.three_reason or _no_three_reason(state),
         done_for_you=state.done_for_you,
         scoreboard=state.metrics,
         habits=state.habits,
@@ -214,6 +214,18 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         pending_outputs=pending,
         warnings=list(folder.warnings),
         finished_labels=[f.label for f in state.finished],
+    )
+
+
+def _no_three_reason(state) -> str:
+    """A day state that lists nothing for today — a folder set up today, before any nightly
+    close — still owes the reader a reason (V6). The reason is the fact: there is no list
+    yet. Nothing is invented to fill the gap (never manufacture an item)."""
+    if state.three:
+        return ""
+    return (
+        "Nothing is listed for today yet — the day state has no list, and nothing is "
+        "invented to fill one. The first nightly close writes it from what actually happened."
     )
 
 

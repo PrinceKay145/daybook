@@ -1,0 +1,34 @@
+{
+  "owner": {
+    "name": "Robin Hale",
+    "address_as": "Robin",
+    "timezone": "Europe/London"
+  },
+  "schedule": {
+    "brief_time": "08:30",
+    "close_time": "22:30"
+  },
+  "scope": {
+    "root": "~/Secretary",
+    "allow_outside_root": false,
+    "shell_actions_enabled": false
+  },
+  "day_shape": [
+    { "block": "Unplanned", "start": "07:00", "end": "09:00" },
+    { "block": "Deep work", "start": "09:00", "end": "12:00" },
+    { "block": "Unplanned", "start": "12:00", "end": "23:00" },
+    { "block": "Sleep", "start": "23:00", "end": "07:00" }
+  ],
+  "providers": [
+    {
+      "id": "claude-cli",
+      "label": "Claude Code",
+      "authKind": "local_cli",
+      "binary": "claude",
+      "binary_path": "/Users/robin/.local/bin/claude",
+      "model": "claude-sonnet-5",
+      "model_label": "Sonnet 5"
+    }
+  ],
+  "fixture_now": "2026-03-10T08:00:00"
+}
