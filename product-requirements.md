@@ -63,10 +63,11 @@ same folder resumes instead of re-onboarding; sync-hosted folders trigger the do
 warning.
 
 **Connect your AI.** One or more connections — Claude Code, Codex, or an API key (into the
-OS keychain, never shown again; local CLIs are presence-detected, never executed by the
-app) — with **one active connection and a model chosen for it**: API-key connections get a
-live model list (fetched by the main process with the stored key; the key never enters the
-renderer), CLI connections offer documented aliases plus any model ID. Switching the
+OS keychain, never shown again; local CLIs are found on this Mac and asked whether they are
+signed in, run only with commands fixed in Daybook's code — AGENTS.md) — with **one active
+connection and a model chosen for it**: API-key connections get a live model list
+(fetched by the main process with the stored key; the key never enters the renderer), CLI
+connections offer documented aliases plus any model ID. Switching the
 active connection or model is one click from the scoreboard, and the choice is written
 into the folder's `config.json` so it outlives the app. `authKind` is data on the provider
 record. 🔴 No hosted proxy of anyone's subscription, ever.
@@ -145,5 +146,6 @@ Every one is a good idea; every one is how a solo build becomes a nine-month one
 seems necessary, raise it — do not start it.
 
 Open decisions live in `DECISIONS.md` and are awaiting the owner: D2 repo visibility ·
-D4 `local_cli` in v1 · D5 Windows · D6 prayer-timetable preset · D7 alpha users · D8
-pricing · D9 telemetry default. Do not decide them, do not design around one option.
+D5 Windows · D6 prayer-timetable preset · D7 alpha users · D8 pricing · D9 telemetry
+default. Do not decide them, do not design around one option. D4 is settled: `local_cli`
+ships, on the conditions recorded there.

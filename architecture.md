@@ -79,7 +79,11 @@ harmed? The answer must stay no. Billing is out of v1.
 
 `authKind: "local_cli" | "api_key"` is **data on the provider record** — the surface moved
 three times in 2026, so a path is disabled by editing data, not logic. API keys go into the
-keychain; local CLIs are invoked as subprocesses the user authenticated themselves. 🔴 No
+keychain; local CLIs are invoked as subprocesses the user authenticated themselves, and only
+with commands fixed in our code — checking sign-in (`claude auth status`, `codex login
+status`), listing models (`codex app-server` → `model/list`) and invoking. No shell,
+arguments as a list, nothing from model output or folder content as an argument, and a CLI's
+own credentials are never read (D4). 🔴 No
 hosted proxy of anyone's subscription, ever (S4). 🔴 No shell actions in v1 (S6): the agent
 writes the config, so a model-authored action target is a laundering path — an action is
 `{"label", and exactly one of "url" | "path"}` and nothing may originate from model output.

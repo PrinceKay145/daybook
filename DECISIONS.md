@@ -8,7 +8,7 @@ place with an explicit answer — including *"deferred, don't decide this for me
 not decide it yourself, may not design around one option as if it were chosen, and may not ask
 again mid-build. Build the part that is common to both options and leave a seam.
 
-**Last updated:** 2026-09-24 · ⬜ = awaiting the owner
+**Last updated:** 2026-09-28 · ⬜ = awaiting the owner
 
 ---
 
@@ -76,7 +76,27 @@ See architecture §3.
 keeps the product alive if a policy moves. Three extra days for insurance against an
 externally-controlled single point of failure.
 
-**ANSWER:** ⬜ both / ⬜ api_key only / ⬜ local_cli only
+**ANSWER:** ✅ `local_cli` ships (2026-09-28), on the route Anthropic explicitly permits: the
+end user signs in to the **unmodified** `claude` binary with their own subscription, through
+Anthropic's own flow. The `api_key` path stays as built alongside it.
+
+**What this commits the build to** (Anthropic's
+[legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance), read
+2026-09-28):
+- Daybook runs `claude` exactly as published and never removes, disables or restricts any
+  sign-in method built into it.
+- Daybook never offers a Claude login of its own and never reads, stores or forwards Claude
+  credentials or session tokens (`~/.claude`, its keychain entry). Not signed in → show the
+  user `claude auth login` and let them finish in Claude Code's own flow.
+- Usage bills to the user's own plan; Daybook never pays for, resells or intermediates it (S4).
+- Daybook invokes the installed CLI directly, not through the Agent SDK — the same page tells
+  Agent SDK builders to use API keys.
+- "Claude Code" appears as plain text only — never in Daybook's name or logo, never implying
+  endorsement.
+- Codex is held to the same conditions until OpenAI states a policy of its own.
+- ⏳ **Before publishing live:** the section this permission sits under says running Claude
+  Code in a product requires agreeing to Anthropic's Commercial Terms. The owner agrees to
+  them before any public release; the friends alpha proceeds without asking Anthropic.
 
 ---
 

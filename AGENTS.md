@@ -78,6 +78,7 @@ and packaging. Requirements: `product-requirements.md`.
 | Constraint | Why |
 |---|---|
 | An action is `{"label", and exactly one of "url" \| "path"}` | The kind **is** the key; `shell` is disabled in v1 (rule 3) |
+| A local CLI runs only with commands fixed in our code | Checking sign-in, listing models, invoking: no shell, arguments as a list, the model ID pattern-checked, prompts on stdin as data. Nothing from model output or folder content becomes an argument, and a CLI's own credentials are never read (rule 3, D4) |
 | Secrets in the OS keychain (`safeStorage` / `keyring`) | Never a file on disk |
 | SQLite lives in app data, never the user's folder | Cloud-synced folders corrupt it |
 | SQLite is a derived index, deletable and rebuildable | Nothing may live only there |
