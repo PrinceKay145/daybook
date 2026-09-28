@@ -7,21 +7,31 @@
    choice), or start over (the questions again; the previous setup files are archived,
    never deleted). */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { daybook, type Connection, type ExistingSetup } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
-
-const EXPECTED_FILES = [
-  "config.json (merged — your edits to it survive)",
-  "SETUP-CONTEXT.md · MASTER-PLAN.md · DAY-STATE.md · LOG.md · CORRECTIONS.md (created only if absent)",
-];
 
 function lines(value: string): string[] {
   return value
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+/* Every time zone the system knows, labelled with its offset right now ("Europe/Lisbon —
+   GMT+1"). The Mac's own zone is the default and is always present, even on a system
+   whose list leaves it out. No location is asked for: the Mac already knows its zone. */
+function timeZoneOptions(own: string): { id: string; label: string }[] {
+  const offset = (zone: string) =>
+    new Intl.DateTimeFormat("en-GB", { timeZone: zone, timeZoneName: "shortOffset" })
+      .formatToParts(new Date())
+      .find((part) => part.type === "timeZoneName")?.value ?? "";
+  const zones = Intl.supportedValuesOf("timeZone");
+  return (zones.includes(own) ? zones : [own, ...zones]).map((zone) => ({
+    id: zone,
+    label: `${zone.replace(/_/g, " ")} — ${offset(zone)}${zone === own ? " (this Mac)" : ""}`,
+  }));
 }
 
 export function SetupQuestionsScreen({
@@ -33,7 +43,10 @@ export function SetupQuestionsScreen({
   connection: Connection | null;
   onDone: (briefTime: string) => void;
 }) {
-  const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const folderName = folder.split("/").filter(Boolean).pop() ?? folder;
+  const macTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [zones] = useState(() => timeZoneOptions(macTimeZone));
+  const [timezone, setTimezone] = useState(macTimeZone);
   const [ownerName, setOwnerName] = useState("");
   const [addressAs, setAddressAs] = useState("");
   const [goals, setGoals] = useState("");
@@ -76,6 +89,7 @@ export function SetupQuestionsScreen({
     setAddressAs(setup.addressAs);
     setBriefTime(setup.briefTime);
     setCloseTime(setup.closeTime);
+    if (setup.timezone) setTimezone(setup.timezone);
     setStartOver(true);
   }
 
@@ -91,7 +105,7 @@ export function SetupQuestionsScreen({
         folder,
         ownerName: ownerName.trim(),
         addressAs: addressAs.trim() || ownerName.trim().split(/\s+/)[0],
-        timezone: detectedTz,
+        timezone,
         briefTime,
         closeTime,
         goals: lines(goals),
@@ -187,87 +201,103 @@ export function SetupQuestionsScreen({
       </div>
 
       <form
-        className="space-y-4 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6"
+        className="space-y-6 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6"
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <div className="grid grid-cols-2 gap-3">
+        <Section title="About you">
           <Field label="Your name">
             <input
               className={inputClass}
               value={ownerName}
               onChange={(event) => setOwnerName(event.target.value)}
-              placeholder="Alex Rivera"
+              autoComplete="name"
             />
           </Field>
-          <Field label="Address you as">
+          <Field label="What should it call you?" hint="Leave empty to use your first name." optional>
             <input
               className={inputClass}
               value={addressAs}
               onChange={(event) => setAddressAs(event.target.value)}
-              placeholder="Alex"
+              autoComplete="nickname"
             />
           </Field>
-        </div>
+        </Section>
 
-        <Field label="What are you working toward?" hint="One per line. These seed the master plan.">
-          <textarea
-            className={`${inputClass} min-h-20 resize-y`}
-            value={goals}
-            onChange={(event) => setGoals(event.target.value)}
-            placeholder={"Land a product role by summer\nShip the newsletter weekly"}
-          />
-        </Field>
-
-        <Field label="Non-negotiables" hint="One per line — the school runs, the training, the standing dates.">
-          <textarea
-            className={`${inputClass} min-h-16 resize-y`}
-            value={nonNegotiables}
-            onChange={(event) => setNonNegotiables(event.target.value)}
-            placeholder={"School run 08:20 weekdays\nGym Tue/Thu 07:00"}
-          />
-        </Field>
-
-        <Field label="In flight — who are you waiting on?" hint="Optional, one per line.">
-          <textarea
-            className={`${inputClass} min-h-16 resize-y`}
-            value={inFlight}
-            onChange={(event) => setInFlight(event.target.value)}
-            placeholder={"Aldridge — contract renewal, sent 4 March"}
-          />
-        </Field>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Brief arrives at" hint="Your day, your time. Changeable later.">
-            <input
-              className={inputClass}
-              type="time"
-              value={briefTime}
-              onChange={(event) => setBriefTime(event.target.value)}
+        <Section title="What you're working with">
+          <Field
+            label="What are you working toward?"
+            hint="One goal per line — they seed your master plan. For example: Land a product role by summer."
+          >
+            <textarea
+              className={`${inputClass} min-h-20 resize-y`}
+              value={goals}
+              onChange={(event) => setGoals(event.target.value)}
             />
           </Field>
-          <Field label="Nightly close at" hint="When the day gets written down.">
-            <input
-              className={inputClass}
-              type="time"
-              value={closeTime}
-              onChange={(event) => setCloseTime(event.target.value)}
+          <Field
+            label="What's non-negotiable in your week?"
+            hint="One per line — the fixed points it plans around. For example: School run 08:20 on weekdays."
+          >
+            <textarea
+              className={`${inputClass} min-h-16 resize-y`}
+              value={nonNegotiables}
+              onChange={(event) => setNonNegotiables(event.target.value)}
             />
           </Field>
-        </div>
+          <Field
+            label="Who are you waiting on?"
+            hint="One per line — replies, decisions, invoices. For example: Contract renewal, sent 4 March."
+            optional
+          >
+            <textarea
+              className={`${inputClass} min-h-16 resize-y`}
+              value={inFlight}
+              onChange={(event) => setInFlight(event.target.value)}
+            />
+          </Field>
+        </Section>
 
-        <Field label="Timezone">
-          <input className={inputClass} value={detectedTz} disabled />
-        </Field>
+        <Section title="Your day">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Morning brief at" hint="Changeable later.">
+              <input
+                className={inputClass}
+                type="time"
+                value={briefTime}
+                onChange={(event) => setBriefTime(event.target.value)}
+              />
+            </Field>
+            <Field label="Nightly close at" hint="When the day is written down.">
+              <input
+                className={inputClass}
+                type="time"
+                value={closeTime}
+                onChange={(event) => setCloseTime(event.target.value)}
+              />
+            </Field>
+          </div>
+          <Field
+            label="Time zone"
+            hint="Set from this Mac's clock. Change it if you live by a different zone."
+          >
+            <select className={inputClass} value={timezone} onChange={(event) => setTimezone(event.target.value)}>
+              {zones.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </Section>
 
-        <p className="text-xs text-[var(--color-ink-faint)]">
+        <p className="text-xs text-[var(--color-ink-soft)]" title={folder}>
           {startOver
-            ? `This will write in ${folder}: ${EXPECTED_FILES[0]}, a new SETUP-CONTEXT.md and MASTER-PLAN.md (the current ones move to archive/setup/ first). DAY-STATE.md, LOG.md and CORRECTIONS.md are kept.`
-            : `This will create in ${folder}: ${EXPECTED_FILES[0]}. ${EXPECTED_FILES[1]}`}{" "}
-          Your model{connection ? ` (${describeChoice(connection)})` : ""} is recorded in
-          config.json too.
+            ? `Your new answers replace the old setup in “${folderName}” — the previous files move to archive/setup/ first, and your log, day state and corrections are kept.`
+            : `Your answers are saved in “${folderName}” as plain files you can open and edit — nothing already there is overwritten.`}
+          {connection ? ` Your model, ${describeChoice(connection)}, is recorded too.` : ""}
         </p>
 
         <ErrorNote message={error} />
@@ -276,5 +306,17 @@ export function SetupQuestionsScreen({
         </Button>
       </form>
     </div>
+  );
+}
+
+/* Questions come in groups so the page reads as three short steps, not eight fields. */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-4 border-t border-[var(--color-line)] pt-5 first:border-t-0 first:pt-0">
+      <h2 className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
+        {title}
+      </h2>
+      {children}
+    </section>
   );
 }

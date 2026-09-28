@@ -79,6 +79,7 @@ export interface ExistingSetup {
   addressAs: string;
   briefTime: string;
   closeTime: string;
+  timezone?: string;
 }
 
 /** Providers whose model list can be fetched live with the stored key. */

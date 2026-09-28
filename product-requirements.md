@@ -77,7 +77,11 @@ it outlives the app. `authKind` is data on the provider record. 🔴 No hosted p
 anyone's subscription, ever.
 
 **Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
-**the user's brief time and close time**, timezone (auto-detected). Answers are written into
+**the user's brief time and close time**, and time zone — defaulting to this Mac's own zone
+(no location is asked for), changeable from a list of every zone with its offset. The
+questions come in three groups (about you · what you're working with · your day), each
+question in full-contrast text with its guidance and example beneath it — placeholders never
+hold example answers. Answers are written into
 the folder as plain files: `config.json` (merged — hand edits survive), `SETUP-CONTEXT.md`,
 `MASTER-PLAN.md`, `DAY-STATE.md`, `LOG.md`, `CORRECTIONS.md` (created only if absent).
 Every write is atomic (temp file + rename). Nothing is sent anywhere.

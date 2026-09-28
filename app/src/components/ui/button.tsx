@@ -32,30 +32,40 @@ export const Button = React.forwardRef<
 ));
 Button.displayName = "Button";
 
+/* A form field reads in three weights, strongest first: the question (full ink), the
+   guidance (soft, read before typing, so it sits above the input), and the input itself.
+   Examples belong in the guidance ("For example: …"), never in a placeholder — a
+   realistic placeholder reads as an answer already given. */
 export function Field({
   label,
   hint,
+  optional,
   children,
 }: {
   label: string;
   hint?: string;
+  optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
+      <span className="block text-sm font-medium text-[var(--color-ink)]">
         {label}
+        {optional && <span className="ml-1.5 font-normal text-[var(--color-ink-faint)]">(optional)</span>}
       </span>
-      {children}
-      {hint && <span className="mt-1.5 block text-xs text-[var(--color-ink-faint)]">{hint}</span>}
+      {hint && <span className="mt-0.5 block text-xs text-[var(--color-ink-soft)]">{hint}</span>}
+      <span className="mt-2 block">{children}</span>
     </label>
   );
 }
 
+/* Inputs sit recessed in the canvas colour so they read as places to type, not as more
+   card; a placeholder is only ever a format hint, drawn fainter than any label. */
 export const inputClass =
-  "w-full rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] " +
-  "px-3 py-2 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] " +
-  "focus:border-[var(--color-accent)] focus:outline-none";
+  "w-full rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-canvas)] " +
+  "px-3 py-2 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] placeholder:opacity-60 " +
+  "focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/25 " +
+  "disabled:opacity-60";
 
 export function ErrorNote({ message }: { message: string | null }) {
   if (!message) return null;

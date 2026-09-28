@@ -293,6 +293,7 @@ async function existingSetup(folder) {
     addressAs: config.owner.address_as ? String(config.owner.address_as) : "",
     briefTime: config.schedule?.brief_time ? String(config.schedule.brief_time) : "09:00",
     closeTime: config.schedule?.close_time ? String(config.schedule.close_time) : "23:00",
+    ...(config.owner.timezone ? { timezone: String(config.owner.timezone) } : {}),
   };
 }
 
