@@ -232,6 +232,7 @@ export function SetupQuestionsScreen({
               value={ownerName}
               onChange={(event) => setOwnerName(event.target.value)}
               autoComplete="name"
+              placeholder="e.g. Alex Rivera"
             />
           </Field>
           <Field label="What should it call you?" hint="Leave empty to use your first name." optional>
@@ -240,40 +241,34 @@ export function SetupQuestionsScreen({
               value={addressAs}
               onChange={(event) => setAddressAs(event.target.value)}
               autoComplete="nickname"
+              placeholder="e.g. Alex"
             />
           </Field>
         </Section>
 
         <Section title="What you're working with">
-          <Field
-            label="What are you working toward?"
-            hint="One goal per line — they seed your master plan. For example: Land a product role by summer."
-          >
+          <Field label="What are you working toward?" hint="One goal per line — they seed your master plan.">
             <textarea
               className={`${inputClass} min-h-20 resize-y`}
               value={goals}
               onChange={(event) => setGoals(event.target.value)}
+              placeholder={"Land a product role by summer\nShip the newsletter weekly"}
             />
           </Field>
-          <Field
-            label="What's non-negotiable in your week?"
-            hint="One per line — the fixed points it plans around. For example: School run 08:20 on weekdays."
-          >
+          <Field label="What's non-negotiable in your week?" hint="One per line — the fixed points it plans around.">
             <textarea
               className={`${inputClass} min-h-16 resize-y`}
               value={nonNegotiables}
               onChange={(event) => setNonNegotiables(event.target.value)}
+              placeholder={"School run 08:20 on weekdays\nGym Tue/Thu 07:00"}
             />
           </Field>
-          <Field
-            label="Who are you waiting on?"
-            hint="One per line — replies, decisions, invoices. For example: Contract renewal, sent 4 March."
-            optional
-          >
+          <Field label="Who are you waiting on?" hint="One per line — replies, decisions, invoices." optional>
             <textarea
               className={`${inputClass} min-h-16 resize-y`}
               value={inFlight}
               onChange={(event) => setInFlight(event.target.value)}
+              placeholder={"Contract renewal — sent 4 March\nReference from a former manager"}
             />
           </Field>
         </Section>
@@ -363,6 +358,7 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
               value={block.block}
               onChange={(event) => update(index, { block: event.target.value })}
               aria-label="Block name"
+              placeholder="e.g. Deep work"
             />
             <input
               className={cn(inputClass, "w-28 shrink-0")}

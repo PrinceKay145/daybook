@@ -34,8 +34,8 @@ Button.displayName = "Button";
 
 /* A form field reads in three weights, strongest first: the question (full ink), the
    guidance (soft, read before typing, so it sits above the input), and the input itself.
-   Examples belong in the guidance ("For example: …"), never in a placeholder — a
-   realistic placeholder reads as an answer already given. */
+   An example can live in the placeholder, drawn so it never passes for an answer: italic
+   and faint, where a real answer is upright full ink — and "e.g." on a one-line field. */
 export function Field({
   label,
   hint,
@@ -60,10 +60,10 @@ export function Field({
 }
 
 /* Inputs sit recessed in the canvas colour so they read as places to type, not as more
-   card; a placeholder is only ever a format hint, drawn fainter than any label. */
+   card; placeholders are italic and faint so an example never looks typed in. */
 export const inputClass =
   "w-full rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-canvas)] " +
-  "px-3 py-2 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] placeholder:opacity-60 " +
+  "px-3 py-2 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] placeholder:italic " +
   "focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/25 " +
   "disabled:opacity-60";
 

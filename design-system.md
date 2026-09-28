@@ -66,9 +66,11 @@ no upgrade can break them. Radix sits underneath only where keyboard/ARIA behavi
   with a line border, so they read as places to type rather than more card; focus turns the
   border accent with a soft accent ring. Time inputs use the native `<input type="time">`;
   long choices (time zones) a native `<select>`, which types-to-search.
-- **Placeholders are format hints only** (`you@example.com`), drawn fainter than any label
-  (`ink-faint` at 60%). Examples go in the guidance as "For example: …" — a realistic
-  placeholder reads as an answer already given, or as a second label.
+- **Placeholders may carry examples** — the owner likes them, and they teach the shape of
+  an answer faster than guidance does. They must never pass for an answer: **italic, in
+  faint ink**, where a typed answer is upright full ink; a one-line field's example starts
+  with **"e.g."** (a bare "Alex Rivera" looks filled in); a multi-line field shows two
+  example lines. The guidance above the field then says only what the field is for.
 - **Long forms group into sections** — a micro-label heading and a line above each group
   (setup: *About you* · *What you're working with* · *Your day*).
 - **Card** (`card.tsx`) — `CardHeader` / `CardTitle` (the uppercase micro-label) /

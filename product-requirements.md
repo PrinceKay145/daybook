@@ -85,8 +85,9 @@ always covers 00:00–24:00 exactly once and claims no plan they did not make; o
 refused with the two block names), and time zone — defaulting to this Mac's own zone
 (no location is asked for), changeable from a list of every zone with its offset. The
 questions come in three groups (about you · what you're working with · your day), each
-question in full-contrast text with its guidance and example beneath it — placeholders never
-hold example answers. Answers are written into
+question in full-contrast text with its guidance beneath it, and an example in the field
+itself — italic and faint, "e.g." on one-line fields — so it never passes for an answer.
+Answers are written into
 the folder as plain files: `config.json` (merged — hand edits survive), `SETUP-CONTEXT.md`,
 `MASTER-PLAN.md`, `DAY-STATE.md`, `LOG.md`, `CORRECTIONS.md` (created only if absent).
 Every write is atomic (temp file + rename). Nothing is sent anywhere.
