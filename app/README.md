@@ -96,6 +96,19 @@ VITE_DEV_SERVER_URL=http://127.0.0.1:5173 DAYBOOK_USER_DATA=/tmp/daybook-fresh n
 - **Sample:** everything on the scoreboard below the warning banner. The morning-brief
   pipeline that fills it for real is the next stage, owner-decided.
 
+## Known gaps — fixed in the Connect-AI rebuild
+
+- **Finding Claude Code / Codex.** Detection only scans `PATH`. That works under
+  `npm run dev` (launched from a terminal) but not in a packaged app opened from the Dock,
+  which gets a minimal `PATH`. It also misses installs inside a Node version manager: an
+  `npm install -g` under nvm lands in `~/.nvm/versions/node/<version>/bin/`, and switching
+  Node versions hides it. Anthropic's native installer puts `claude` in `~/.local/bin/`;
+  Homebrew uses `/opt/homebrew/bin/` (Apple Silicon) or `/usr/local/bin/`. The rebuild
+  checks those locations and the login shell's `PATH`, and asks each CLI whether it is
+  signed in.
+- **`keychain_ref` in `config.json`** still reads `provider/<id>`; API keys are now stored
+  per account (`user/<id>/provider/<id>`). Nothing reads the field yet.
+
 ## Troubleshooting the Google round-trip
 
 The chain is: app → browser → Google consent → Supabase callback → `daybook://auth` →
