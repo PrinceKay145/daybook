@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("daybook", {
   storeSecret: (name, value) => ipcRenderer.invoke("secret:store", { name, value }),
   loadSecret: (name) => ipcRenderer.invoke("secret:load", { name }),
   deleteSecret: (name) => ipcRenderer.invoke("secret:delete", { name }),
+  brief: (folder) => ipcRenderer.invoke("brief:get", folder),
   detectCli: () => ipcRenderer.invoke("cli:detect"),
   listCliModels: (name) => ipcRenderer.invoke("cli:models", name),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),

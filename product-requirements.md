@@ -22,12 +22,14 @@ Three load-bearing ideas, everything below serves them:
 
 ---
 
-## Status — 2026-09-27
+## Status — 2026-09-28
 
-**Stage 1 is built and working: the onboarding flow and the scoreboard shell.** Real
-sign-up/sign-in (Supabase), folder connection, AI-provider credential storage, setup
-interview writing plain files into the folder. The morning-brief pipeline is the next
-stage; until it exists, the scoreboard shows clearly-labelled sample data.
+**Stage 1 is built and working, and the scoreboard shows today's real brief.** Real
+sign-up/sign-in (Supabase), folder connection, model choice (Claude Code, Codex or an API
+key), a setup interview writing plain files into the folder, and the brief built from that
+folder by the runner, verified by the eleven assertions and shown only when they pass. Not
+yet: the model writing any part of the brief, the brief arriving on its own at the user's
+time (launchd), and packaging.
 
 ---
 
@@ -97,9 +99,13 @@ questions again, prefilled from the old setup; the previous `SETUP-CONTEXT.md` a
 `DAY-STATE.md`, `LOG.md` and `CORRECTIONS.md` are otherwise untouched — they are what
 happened, not what was set up. Nothing is deleted either way.
 
-**Scoreboard (home).** Daily plans, metrics, actions — rendered from verified brief data
-once that stage exists. Until then: sample data behind a loud banner. A placeholder that
-pretends to be a real brief would break the only promise this product makes.
+**Scoreboard (home).** Today's brief, built from the folder by the runner and shown only
+when all eleven assertions pass — the runner's own self-contained page, in a sandboxed
+frame, with "Checked before it was shown: 11 of 11" above it. A brief that fails a check is
+**withheld**, and the failed checks are named; a brief that cannot be built (no Python, the
+runner failing) says why and where the log is. No sample data: a placeholder that pretends
+to be a real brief would break the only promise this product makes. The model choice
+("Sonnet 5 · Claude Code — change"), a rebuild button and sign-out sit above it.
 
 **Settings & status** (next stage, required by the process model): every running process
 with PID and purpose, log path, a working stop button (that also unloads the launchd

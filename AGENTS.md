@@ -67,11 +67,15 @@ and the shell swappable. It is the one rule in `app/` worth protecting.
 
 ## Where the build is
 
-Stage 1 works: **login → connect a folder → connect an AI provider → setup questions →
-scoreboard** (sample data behind a banner). Next, in the owner's order: the morning-brief
-pipeline (build brief data + the eleven verification assertions against the fixtures), then
-the launchd tick/watchdog and notifications via the Python sidecar, then accounts polish
-and packaging. Requirements: `product-requirements.md`.
+Stage 1 works: **login → connect a folder → choose a model → setup questions (including the
+shape of the day) → scoreboard**, and the scoreboard shows **today's real brief**: the app
+starts `runner/` on 127.0.0.1, the brief is built from the folder, and it is shown only when
+all eleven assertions pass (otherwise it is withheld and the failed checks are named). The
+brief is honest on day one (`fixtures/fresh-folder`). Next, in the owner's order: the model
+writing the parts of the brief a model should write, then the launchd tick/watchdog and
+notifications via the Python sidecar (the brief arriving on its own at the user's time),
+then accounts polish and packaging — which must bundle a Python. Requirements:
+`product-requirements.md`.
 
 ## Hard constraints
 

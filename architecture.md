@@ -34,7 +34,7 @@ swappable (Tauri remains a documented option; DECISIONS.md S8).
 | ⏳ launchd tick — 60s reminder check | runs and exits | never |
 | ⏳ launchd watchdog — brief-arrival check | hourly, exits | never |
 | ⏳ Job processes — brief, nightly close | spawned by the tick, exit | never |
-| ⏳ Python sidecar runner | spawned by the app, dies with it | only while app is open |
+| Python sidecar runner (`runner/`) | spawned by the app when the scoreboard asks for a brief (`electron/runner.cjs`: one at a time, on a free 127.0.0.1 port); stopped on quit, and exits itself if the app is gone | only while app is open |
 
 Quit the app and nothing of ours is resident; two launchd timers stay *registered* (a
 registered timer is not a running process). User-level `~/Library/LaunchAgents/` only —
@@ -137,11 +137,13 @@ marked as such and is never followed as instruction (law 23; see
 app/electron/main.cjs       window, IPC: folder picker, atomic writes, keychain,
                             per-account settings, daybook://auth, https-only links
 app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex model list
+app/electron/runner.cjs     starts/stops runner/, finds Python, fetches the verified brief
 app/electron/preload.cjs    the single doorway (contextBridge)
 app/src/lib/daybook.ts      typed bridge + plain-browser fallbacks
 app/src/lib/models.ts       the Claude Code model catalog; model-id check
+app/src/lib/dayShape.ts     the day's blocks + Unplanned gaps (covers 24h exactly once)
 app/src/lib/auth.ts         Supabase client; dev-mode fallback; callback completion
-app/src/lib/api.ts          runner brief API (unused yet — kept for the brief stage)
+app/src/lib/api.ts          a browser tab's route to a hand-started runner (127.0.0.1:8787)
 app/src/screens/*           Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
 app/src/components/ui/*     copied-in shadcn-style primitives
 runner/                     the Python runner: brief data, the eleven assertions, the HTML

@@ -4,6 +4,7 @@
    (folder access, keychain, outbound links) instead of pretending. */
 
 import type { DayBlock } from "@/lib/dayShape";
+import { fetchBriefFromRunner } from "@/lib/api";
 
 export interface Connection {
   id: string;
@@ -31,6 +32,18 @@ export interface CliStatus {
   plan?: string;
   error?: string;
 }
+
+export interface CheckResult {
+  id: string;
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** Today's brief from the runner. `html` is present only when all eleven passed. */
+export type BriefResult =
+  | { ok: true; passed: boolean; results: CheckResult[]; warnings: string[]; html: string | null; logFile?: string }
+  | { ok: false; code: string; message: string; logFile?: string };
 
 export interface ModelOption {
   id: string;
@@ -105,6 +118,8 @@ interface DaybookBridge {
   storeSecret(name: string, value: string): Promise<boolean>;
   loadSecret(name: string): Promise<string | null>;
   deleteSecret(name: string): Promise<boolean>;
+  /** Today's brief for this folder — built, verified and rendered by the runner. */
+  brief(folder: string): Promise<BriefResult>;
   /** Claude Code and Codex: found or not, and whether each is signed in. */
   detectCli(): Promise<CliStatus[]>;
   /** The models Codex's sign-in can use (Claude Code's are a catalog: models.ts). */
@@ -155,6 +170,8 @@ export const daybook: DaybookBridge = bridge ?? {
   storeSecret: () => refuse("Storing a key in the keychain"),
   loadSecret: async () => null,
   deleteSecret: async () => true,
+  // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
+  brief: () => fetchBriefFromRunner(),
   detectCli: async () => [],
   listCliModels: () => refuse("Asking Codex for its models"),
   openExternal: (url) => {

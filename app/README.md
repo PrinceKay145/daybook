@@ -26,8 +26,15 @@ npm install
 npm run dev    # Vite on 127.0.0.1:5173 + the Electron window
 ```
 
+- **The brief needs Python 3.9+.** The app starts `runner/` itself when the scoreboard
+  opens, with the first Python it finds (Homebrew, python.org, pyenv, conda, or the
+  developer tools' `/usr/bin/python3` — only when those tools are really installed, since
+  otherwise that path just opens an install dialog). Without one, the scoreboard says so.
+  Packaged builds will bundle a Python. The runner's log: `~/Library/Application
+  Support/daybook-app/logs/runner.log`.
 - `npm run dev:web` runs the UI in a plain browser tab (folder, keychain and outbound
-  links refuse politely — they need the shell).
+  links refuse politely — they need the shell). The scoreboard there reads a runner you
+  start by hand on port 8787 (`runner/README.md`).
 - `npm run build && npm run app:start` runs the production renderer inside Electron.
 - `npm run typecheck` is the fast correctness gate.
 
@@ -93,13 +100,15 @@ VITE_DEV_SERVER_URL=http://127.0.0.1:5173 DAYBOOK_USER_DATA=/tmp/daybook-fresh n
   whether they are signed in (fixed commands only — `claude auth status`, `codex login
   status`, `codex app-server` for its model list), Claude Code's model catalog, live
   model lists for API keys.
-- **Not yet:** the secretary running on the chosen model — that is the brief stage.
-  Nothing here sends a prompt anywhere.
 - **A folder used before:** step 3 asks whether to **use this setup** (the default — no
   file changes but the AI choice in `config.json`) or **start over** (the questions again;
   the old `SETUP-CONTEXT.md` and `MASTER-PLAN.md` move to `archive/setup/<time>/` first).
-- **Sample:** everything on the scoreboard below the warning banner. The morning-brief
-  pipeline that fills it for real is the next stage, owner-decided.
+- **The scoreboard is today's real brief** — built from the folder by `runner/`, shown
+  only when all eleven assertions pass, withheld (with the failed checks named) when one
+  fails. No sample data anywhere.
+- **Not yet:** the secretary running on the chosen model — nothing here sends a prompt
+  anywhere; every word of the brief comes from the folder. Nor does the brief arrive on
+  its own at the brief time yet (launchd, a later stage).
 
 ## Where Claude Code and Codex are found
 
@@ -138,15 +147,16 @@ macOS → app. Each hop fails differently:
 electron/main.cjs      window, IPC: folder picker, atomic writes, keychain, settings,
                        daybook://auth delivery, https-only outbound links
 electron/cli.cjs       Claude Code / Codex: find, sign-in state, Codex's model list
+electron/runner.cjs    starts and stops runner/ for the brief; finds Python
 electron/preload.cjs   the single doorway (contextBridge) — reviewable in one screen
 src/lib/daybook.ts     typed bridge + browser fallbacks
 src/lib/models.ts      the Claude Code model catalog (data — edit when models ship)
+src/lib/dayShape.ts    the day's blocks, with the gaps filled as Unplanned
+src/lib/api.ts         a browser tab's route to a runner started by hand
 src/lib/auth.ts        Supabase client; dev-mode fallback; daybook://auth completion
 src/screens/*          Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
 ```
 
-`src/lib/api.ts` and `src/types.ts` still mirror the runner's brief payload — unused in
-this stage, kept for the brief pipeline that comes next.
 
 ## Notes carried forward
 

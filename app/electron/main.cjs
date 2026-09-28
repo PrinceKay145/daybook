@@ -9,6 +9,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const cli = require("./cli.cjs");
+const runner = require("./runner.cjs");
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "";
 const PROTOCOL = "daybook";
@@ -146,6 +147,9 @@ if (!gotLock) {
 app.on("window-all-closed", () => {
   app.quit();
 });
+
+// The runner dies with the app — nothing of ours stays resident after a quit.
+app.on("will-quit", () => runner.stop());
 
 /* ---------- IPC: settings (the app's own state, one record per account) ----------
    Keyed by the account's user id, never its email: an account deleted and re-created
@@ -549,6 +553,19 @@ ipcMain.handle("connections:listModels", async (_event, { provider, secret }) =>
     .map((m) => ({ id: m.id ?? m.name, label: m.display_name ?? m.id ?? m.name }))
     .filter((m) => typeof m.id === "string" && !notChat.test(m.id))
     .sort((a, b) => a.label.localeCompare(b.label));
+});
+
+/* ---------- IPC: today's brief, from the runner ----------
+   Built, verified and rendered by runner/; the rendered page comes back only when all
+   eleven assertions passed. Failures come back as data the scoreboard states plainly. */
+
+ipcMain.handle("brief:get", async (_event, folder) => {
+  const logFile = path.join(app.getPath("userData"), "logs", "runner.log");
+  try {
+    return { ok: true, logFile, ...(await runner.brief(requireFolder(folder), logFile)) };
+  } catch (err) {
+    return { ok: false, logFile, code: err.code ?? "RUNNER_FAILED", message: String(err.message ?? err) };
+  }
 });
 
 /* ---------- IPC: local CLIs — found, asked whether signed in, asked for models ----------

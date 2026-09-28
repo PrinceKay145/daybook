@@ -1,31 +1,16 @@
-/* The scoreboard — the drawing's home screen: daily plans, metrics, actions.
-   The brief pipeline that fills it for real is the next stage; until then the data is
-   sample data and says so, loudly. A placeholder that pretends to be a real brief
-   would break the only promise this product makes. */
+/* The scoreboard — home. Today's brief, built, verified and rendered by the runner, and
+   shown only when all eleven assertions passed. A brief that fails a check is withheld
+   and the failed checks are named; a brief that cannot be built says why. No sample data,
+   and nothing that looks like a brief unless it is one.
 
-import { FolderOpen, KeyRound, LogOut } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+   The brief is the runner's own self-contained page, shown in a sandboxed frame: exactly
+   the page the eleven assertions checked, with its live dial, and no reach into the app. */
+
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { KeyRound, LogOut, RefreshCw, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Connection } from "@/lib/daybook";
+import { daybook, type BriefResult, type Connection } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
-
-const SAMPLE_PLANS = [
-  { time: "09:00 – 12:30", title: "Deep work — draft the Hartley proposal", note: "First move: open the brief and write the opening section" },
-  { time: "13:30 – 16:00", title: "Client work", note: "Aldridge renewal — second prompt sent 8 March; next: yes/no" },
-  { time: "19:30 – 22:00", title: "Applications", note: "Two out this week; one concrete click each" },
-];
-
-const SAMPLE_METRICS = [
-  { label: "Applications sent", value: "4", note: "this week" },
-  { label: "Conversations", value: "2", note: "this week" },
-  { label: "Outstanding", value: "£1,850", note: "across two invoices" },
-];
-
-const SAMPLE_ACTIONS = [
-  { title: "Send the Hartley proposal", detail: "Open the draft and write the first section — not 'work on Hartley'." },
-  { title: "Chase Aldridge with a yes/no", detail: "Two prompts already. A no closes it as cleanly as a yes." },
-];
 
 export function ScoreboardScreen({
   accountEmail,
@@ -42,14 +27,26 @@ export function ScoreboardScreen({
   onChangeAI: () => void;
   onSignOut: () => void;
 }) {
+  const [brief, setBrief] = useState<BriefResult | null>(null);
+
+  const load = useCallback(async () => {
+    setBrief(null);
+    setBrief(await daybook.brief(folder));
+  }, [folder]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const folderName = folder.split("/").filter(Boolean).pop() ?? folder;
+
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Daybook</h1>
-          <p className="text-xs text-[var(--color-ink-faint)]">
-            {accountEmail} · brief at {briefTime} ·{" "}
-            <code className="text-[0.7rem]">{folder}</code>
+    <div className="flex h-screen flex-col">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-3">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold tracking-tight">Daybook</h1>
+          <p className="truncate text-xs text-[var(--color-ink-faint)]" title={folder}>
+            {accountEmail} · brief at {briefTime} · {folderName}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -58,87 +55,90 @@ export function ScoreboardScreen({
             onClick={onChangeAI}
             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-ink-soft)] transition-colors hover:border-[var(--color-ink-faint)]"
           >
-            {connection?.authKind === "api_key" ? (
-              <KeyRound className="size-3" />
-            ) : (
-              <FolderOpen className="size-3" />
-            )}
+            {connection?.authKind === "api_key" ? <KeyRound className="size-3" /> : <TerminalSquare className="size-3" />}
             {connection ? `${describeChoice(connection)} — change` : "No model chosen — choose"}
           </button>
-          <Button variant="ghost" onClick={onSignOut}>
+          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void load()} disabled={brief === null}>
+            <RefreshCw className="size-3.5" />
+            Rebuild
+          </Button>
+          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={onSignOut}>
             <LogOut className="size-3.5" />
             Sign out
           </Button>
         </div>
       </header>
 
-      <div className="mb-5 rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 bg-[var(--color-surface)] p-4 text-sm">
-        <p className="font-medium text-[var(--color-warn)]">Sample data — not your day.</p>
-        <p className="mt-1 text-[var(--color-ink-soft)]">
-          Your folder is connected and your brief time is set ({briefTime}). The next stage
-          wires the morning brief to this screen; until then, everything below shows what it
-          will look like.
+      <main className="min-h-0 flex-1">
+        <BriefView brief={brief} />
+      </main>
+    </div>
+  );
+}
+
+function BriefView({ brief }: { brief: BriefResult | null }) {
+  if (brief === null) {
+    return <p className="px-5 py-10 text-center text-sm text-[var(--color-ink-faint)]">Building today's brief and checking it…</p>;
+  }
+
+  if (!brief.ok) {
+    return (
+      <Notice title={brief.code === "PYTHON_MISSING" ? "The brief can't be built on this Mac yet" : "The brief could not be built"}>
+        <p>{brief.message}</p>
+        {brief.logFile && brief.code !== "PYTHON_MISSING" && (
+          <p className="mt-2 text-xs text-[var(--color-ink-faint)]">
+            The runner's log: <code>{brief.logFile}</code>
+          </p>
+        )}
+      </Notice>
+    );
+  }
+
+  const passedCount = brief.results.filter((r) => r.ok).length;
+
+  if (!brief.passed || !brief.html) {
+    return (
+      <Notice title="Today's brief is withheld">
+        <p>
+          It failed {brief.results.length - passedCount} of its {brief.results.length} checks, so it is
+          not shown. A brief that renders wrong is read quickly, trusted and acted on — no brief is
+          better.
         </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Daily plans</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {SAMPLE_PLANS.map((plan) => (
-              <div
-                key={plan.title}
-                className="flex flex-wrap items-baseline gap-x-3 border-b border-[var(--color-line)] py-2 last:border-0"
-              >
-                <span className="w-32 shrink-0 font-mono text-xs text-[var(--color-ink-faint)]">
-                  {plan.time}
-                </span>
-                <span className="text-sm font-medium">{plan.title}</span>
-                <span className="text-xs text-[var(--color-ink-soft)]">{plan.note}</span>
-              </div>
+        <ul className="mt-3 space-y-1.5">
+          {brief.results
+            .filter((r) => !r.ok)
+            .map((r) => (
+              <li key={r.id} className="text-xs">
+                <span className="font-medium text-[var(--color-warn)]">{r.id}</span> {r.name} —{" "}
+                <span className="text-[var(--color-ink-soft)]">{r.detail}</span>
+              </li>
             ))}
-          </CardContent>
-        </Card>
+        </ul>
+      </Notice>
+    );
+  }
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Metrics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-3">
-              {SAMPLE_METRICS.map((metric) => (
-                <div key={metric.label}>
-                  <p className="text-lg font-semibold">{metric.value}</p>
-                  <p className="text-xs text-[var(--color-ink-soft)]">{metric.label}</p>
-                  <p className="text-[0.7rem] text-[var(--color-ink-faint)]">{metric.note}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+  return (
+    <div className="flex h-full flex-col">
+      <p className="px-5 py-1.5 text-center text-[0.7rem] text-[var(--color-ink-faint)]">
+        Checked before it was shown: {passedCount} of {brief.results.length} checks passed.
+      </p>
+      <iframe
+        title="Today's brief"
+        srcDoc={brief.html}
+        sandbox="allow-scripts"
+        className="min-h-0 w-full flex-1 border-0"
+      />
+    </div>
+  );
+}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Actions — today's three</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {SAMPLE_ACTIONS.map((action) => (
-              <div key={action.title} className="flex gap-3">
-                <Badge variant="neutral" className="mt-0.5 shrink-0">
-                  click
-                </Badge>
-                <span className="text-sm">
-                  <span className="font-medium">{action.title}</span>
-                  <span className="block text-xs text-[var(--color-ink-faint)]">
-                    {action.detail}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+function Notice({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mx-auto max-w-lg px-5 py-12">
+      <div className="rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 bg-[var(--color-surface)] p-5 text-sm text-[var(--color-ink-soft)]">
+        <p className="mb-2 font-medium text-[var(--color-warn)]">{title}</p>
+        {children}
       </div>
     </div>
   );
