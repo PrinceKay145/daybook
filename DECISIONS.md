@@ -42,7 +42,8 @@ the daemon are readable by strangers on day one.
 **Recommendation: start private and decide before the first public push.** Costs nothing, keeps
 every option open, and "we opened it later" is a normal story while "we closed it" is not.
 
-**ANSWER:** ⬜ ______________________
+**ANSWER:** ✅ Private for now (2026-09-28). Whether it ever opens — and under which licence —
+is decided before any public push.
 
 ---
 
