@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { daybook, type Connection, type ExistingSetup } from "@/lib/daybook";
+import { describeChoice } from "@/lib/models";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
 
 const EXPECTED_FILES = [
@@ -265,9 +266,8 @@ export function SetupQuestionsScreen({
           {startOver
             ? `This will write in ${folder}: ${EXPECTED_FILES[0]}, a new SETUP-CONTEXT.md and MASTER-PLAN.md (the current ones move to archive/setup/ first). DAY-STATE.md, LOG.md and CORRECTIONS.md are kept.`
             : `This will create in ${folder}: ${EXPECTED_FILES[0]}. ${EXPECTED_FILES[1]}`}{" "}
-          Your AI connection
-          {connection?.model ? ` (${connection.label} · ${connection.model})` : ""} is recorded
-          in config.json too.
+          Your model{connection ? ` (${describeChoice(connection)})` : ""} is recorded in
+          config.json too.
         </p>
 
         <ErrorNote message={error} />

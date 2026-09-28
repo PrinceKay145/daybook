@@ -11,10 +11,13 @@ contextBridge.exposeInMainWorld("daybook", {
   writeSetup: (payload) => ipcRenderer.invoke("folder:writeSetup", payload),
   inspectFolder: (folder) => ipcRenderer.invoke("folder:inspect", folder),
   adoptSetup: (folder, connection) => ipcRenderer.invoke("folder:adoptSetup", { folder, connection }),
+  recordConnection: (folder, connection) =>
+    ipcRenderer.invoke("folder:recordConnection", { folder, connection }),
   storeSecret: (name, value) => ipcRenderer.invoke("secret:store", { name, value }),
   loadSecret: (name) => ipcRenderer.invoke("secret:load", { name }),
   deleteSecret: (name) => ipcRenderer.invoke("secret:delete", { name }),
   detectCli: () => ipcRenderer.invoke("cli:detect"),
+  listCliModels: (name) => ipcRenderer.invoke("cli:models", name),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
   listModels: (provider, secret) =>
     ipcRenderer.invoke("connections:listModels", { provider, secret }),

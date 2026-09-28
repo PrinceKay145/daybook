@@ -8,6 +8,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
+const cli = require("./cli.cjs");
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "";
 const PROTOCOL = "daybook";
@@ -242,20 +243,32 @@ function seedConfig(existing, payload) {
   return withProvider(next, payload.connection);
 }
 
-/* The active connection leads; other provider records the folder already had stay behind it. */
+/* A model id reaches a CLI as an argument at invocation time, so it is held to a plain
+   shape here, where it enters the folder: letters, digits and . _ : / - only. */
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
+
+/* The active connection leads; other provider records the folder already had stay behind
+   it. An API key stays in the app's keychain store and is handed over at invocation, so
+   the folder records no pointer to it (and older records lose theirs). */
 function withProvider(config, connection) {
   if (!connection) return config;
   const c = connection;
+  if (c.model && !MODEL_ID.test(c.model)) {
+    throw new Error(`"${c.model}" is not a model id Daybook can pass on.`);
+  }
   const record = {
     id: c.id,
     label: c.label,
     authKind: c.authKind,
     ...(c.cliBinary ? { binary: c.cliBinary } : {}),
+    ...(c.binaryPath ? { binary_path: c.binaryPath } : {}),
     ...(c.model ? { model: c.model } : {}),
-    ...(c.authKind === "api_key" ? { keychain_ref: `provider/${c.id}` } : {}),
+    ...(c.modelLabel ? { model_label: c.modelLabel } : {}),
   };
-  const existingProviders = Array.isArray(config.providers) ? config.providers : [];
-  return { ...config, providers: [record, ...existingProviders.filter((p) => p && p.id !== c.id)] };
+  const existingProviders = (Array.isArray(config.providers) ? config.providers : [])
+    .filter((p) => p && p.id !== c.id)
+    .map(({ keychain_ref: _dropped, ...rest }) => rest);
+  return { ...config, providers: [record, ...existingProviders] };
 }
 
 /* A folder the user picked, as the renderer reports it: absolute, and a directory. */
@@ -400,6 +413,15 @@ ipcMain.handle("folder:adoptSetup", async (_event, { folder, connection }) => {
   return ["config.json"];
 });
 
+/* A model switched from the scoreboard: the folder's config.json follows, so the choice
+   outlives the app. Everything else in the file is left as it is. */
+ipcMain.handle("folder:recordConnection", async (_event, { folder, connection }) => {
+  const target = path.join(requireFolder(folder), "config.json");
+  const existing = (await readJson(target)) ?? {};
+  await writeTextAtomic(target, `${JSON.stringify(withProvider(existing, connection), null, 2)}\n`);
+  return ["config.json"];
+});
+
 ipcMain.handle("folder:writeSetup", async (_event, payload) => {
   const folder = requireFolder(payload?.folder);
   const archived = payload.startOver ? await archivePreviousSetup(folder) : null;
@@ -491,29 +513,22 @@ ipcMain.handle("connections:listModels", async (_event, { provider, secret }) =>
     );
   }
   const body = await response.json();
-  const ids = (body.data ?? body.models ?? [])
-    .map((m) => m.id ?? m.name)
-    .filter((id) => typeof id === "string");
-  return ids.sort();
+  // OpenAI's list also carries embedding, audio and image models the secretary cannot use.
+  const notChat = /embedding|whisper|tts|dall-e|moderation|audio|realtime|transcribe|image|search/i;
+  return (body.data ?? body.models ?? [])
+    .map((m) => ({ id: m.id ?? m.name, label: m.display_name ?? m.id ?? m.name }))
+    .filter((m) => typeof m.id === "string" && !notChat.test(m.id))
+    .sort((a, b) => a.label.localeCompare(b.label));
 });
 
-/* ---------- IPC: local CLI detection (never executed — presence only) ---------- */
+/* ---------- IPC: local CLIs — found, asked whether signed in, asked for models ----------
+   Everything runs through cli.cjs with fixed commands; the renderer only names the CLI. */
 
-ipcMain.handle("cli:detect", async () => {
-  const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  const found = [];
-  for (const name of ["claude", "codex"]) {
-    const hit = dirs.find((dir) => {
-      try {
-        fs.accessSync(path.join(dir, name), fs.constants.X_OK);
-        return true;
-      } catch {
-        return false;
-      }
-    });
-    if (hit) found.push(name);
-  }
-  return found;
+ipcMain.handle("cli:detect", () => cli.detect());
+
+ipcMain.handle("cli:models", (_event, name) => {
+  if (name !== "codex") throw new Error("Only Codex can list its models; Claude Code's are a fixed catalog.");
+  return cli.codexModels();
 });
 
 /* ---------- IPC: outbound links (https only — the renderer never opens targets itself) ---------- */

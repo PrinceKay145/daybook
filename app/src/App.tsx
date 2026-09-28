@@ -173,9 +173,16 @@ export default function App() {
             userId={account.id}
             connections={settings.connections ?? []}
             activeId={settings.activeConnectionId}
-            onDone={(connections, activeConnectionId) =>
-              advance({ connections, activeConnectionId })
-            }
+            onDone={(connections, activeConnectionId) => {
+              // A switch after setup: the folder's config.json follows the new choice.
+              const chosen = connections.find((c) => c.id === activeConnectionId);
+              if (settings.setupCompletedAt && settings.folderPath && chosen) {
+                void daybook
+                  .recordConnection(settings.folderPath, chosen)
+                  .catch((err: unknown) => console.warn("[daybook] recording the model failed:", err));
+              }
+              advance({ connections, activeConnectionId });
+            }}
           />
         </div>
       );

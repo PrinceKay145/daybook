@@ -62,15 +62,19 @@ confined to it by path-prefix enforcement (not convention). Accept: relaunching 
 same folder resumes instead of re-onboarding; sync-hosted folders trigger the documented
 warning.
 
-**Connect your AI.** One or more connections — Claude Code, Codex, or an API key (into the
-OS keychain, never shown again; local CLIs are found on this Mac and asked whether they are
-signed in, run only with commands fixed in Daybook's code — AGENTS.md) — with **one active
-connection and a model chosen for it**: API-key connections get a live model list
-(fetched by the main process with the stored key; the key never enters the renderer), CLI
-connections offer documented aliases plus any model ID. Switching the
-active connection or model is one click from the scoreboard, and the choice is written
-into the folder's `config.json` so it outlives the app. `authKind` is data on the provider
-record. 🔴 No hosted proxy of anyone's subscription, ever.
+**Choose your secretary's model.** The user picks a model — Fable 5.1, Opus 5.5, Sonnet 5,
+a GPT model — and the connection follows from it: Claude Code or Codex already signed in
+on this Mac (the user's own plan, through the CLI's own sign-in, which Daybook never sees),
+or an API key (into the OS keychain, never shown again). Each CLI shows its state —
+signed in (and how, and on which plan), signed out (with the exact command to run in
+Terminal), or not installed (with where to get it) — and "Check again" re-reads it. CLIs
+are found wherever their installers put them, not only on `PATH`, and are run only with
+commands fixed in Daybook's code (AGENTS.md). Claude Code's models are a catalog of full
+model IDs; Codex and API keys list their own live (the key never enters the renderer);
+any source also takes a typed model ID. Switching is one click from the scoreboard, which
+leads with the model's name, and the choice is written into the folder's `config.json` so
+it outlives the app. `authKind` is data on the provider record. 🔴 No hosted proxy of
+anyone's subscription, ever.
 
 **Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
 **the user's brief time and close time**, timezone (auto-detected). Answers are written into

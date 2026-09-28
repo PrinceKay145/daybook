@@ -1,17 +1,22 @@
-/* Connect your AI — one or more connections, one active, and the model the secretary
-   uses through it. API-key connections fetch their live model list through the main
-   process (the key never enters the renderer); CLI connections offer their documented
-   aliases plus any model ID, because CLIs expose no model-list API. Switching later
-   lives one click away on the scoreboard. */
+/* Choose your secretary's model. The model is the choice; where it runs follows from it —
+   Claude Code or Codex already signed in on this Mac (the user's own plan, through the
+   CLI's own sign-in, which Daybook never sees), or an API key in the keychain.
 
-import { useEffect, useState } from "react";
-import { Check, KeyRound, Plus, TerminalSquare, X } from "lucide-react";
+   Claude Code's models are a catalog (models.ts); Codex lists its own through its
+   app-server; API keys list theirs through the main process, so the key never enters
+   this renderer. Switching later reopens this same step from the scoreboard. */
+
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Check, KeyRound, Plus, RefreshCw, TerminalSquare, X } from "lucide-react";
 import {
   daybook,
   secretName,
+  type CliStatus,
   type Connection,
   type ListableModelProvider,
+  type ModelOption,
 } from "@/lib/daybook";
+import { CLAUDE_CODE_MODELS, isModelId } from "@/lib/models";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
 
 const API_PROVIDERS = [
@@ -20,12 +25,30 @@ const API_PROVIDERS = [
   { id: "google-ai", label: "Google AI", live: false, hint: "Starts with AIza" },
 ] as const;
 
-/** Documented aliases/IDs per CLI. CLIs have no model-list API; these are the
-    stable entry points, and the free-text field covers everything else. */
-const CLI_MODELS: Record<string, string[]> = {
-  claude: ["opus", "sonnet", "haiku"],
-  codex: ["gpt-5-codex", "gpt-5", "gpt-5-mini"],
-};
+const CLI_INFO = {
+  claude: {
+    id: "claude-cli",
+    label: "Claude Code",
+    signIn: "claude auth login",
+    install: "https://code.claude.com/docs/en/setup",
+  },
+  codex: {
+    id: "codex-cli",
+    label: "Codex",
+    signIn: "codex login",
+    install: "https://github.com/openai/codex",
+  },
+} as const;
+
+type Choice = { connectionId: string; model: string; modelLabel: string };
+
+function signedInAs(status: CliStatus): string {
+  if (status.method === "api_key") return "Signed in with an API key";
+  if (status.name === "codex") return "Signed in with ChatGPT";
+  return status.plan
+    ? `Signed in · ${status.plan.charAt(0).toUpperCase()}${status.plan.slice(1)} plan`
+    : "Signed in";
+}
 
 export function ConnectProviderScreen({
   userId,
@@ -38,61 +61,73 @@ export function ConnectProviderScreen({
   activeId?: string;
   onDone: (connections: Connection[], activeConnectionId: string) => void;
 }) {
-  const [draft, setDraft] = useState<Connection[]>(connections);
-  const [active, setActive] = useState<string | undefined>(activeId ?? connections[0]?.id);
-  const [panel, setPanel] = useState<"manage" | "add">(connections.length === 0 ? "add" : "manage");
-  const [addTab, setAddTab] = useState<"api" | "cli">("api");
+  const saved = connections.find((c) => c.id === activeId) ?? connections[0];
+  const [choice, setChoice] = useState<Choice | null>(
+    saved?.model ? { connectionId: saved.id, model: saved.model, modelLabel: saved.modelLabel ?? saved.model } : null,
+  );
+  const [clis, setClis] = useState<CliStatus[] | null>(null);
+  const [codexModels, setCodexModels] = useState<ModelOption[] | null>(null);
+  const [codexError, setCodexError] = useState<string | null>(null);
+  const [keys, setKeys] = useState<Connection[]>(connections.filter((c) => c.authKind === "api_key"));
+  const [keyModels, setKeyModels] = useState<Record<string, ModelOption[]>>({});
+  const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
+  const [adding, setAdding] = useState(false);
   const [providerId, setProviderId] = useState<string>(API_PROVIDERS[0].id);
   const [customLabel, setCustomLabel] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [clis, setClis] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [models, setModels] = useState<Record<string, string[]>>({});
-  const [fetchingModels, setFetchingModels] = useState(false);
-  const [customModel, setCustomModel] = useState("");
 
-  useEffect(() => {
-    daybook
-      .detectCli()
-      .then((found) => {
-        setClis(found);
-        if (found.length === 0) setAddTab("api");
-      })
-      .catch(() => setClis([]));
+  const check = useCallback(async () => {
+    setClis(null);
+    setCodexModels(null);
+    setCodexError(null);
+    const found = await daybook.detectCli().catch(() => [] as CliStatus[]);
+    const statuses = (["claude", "codex"] as const).map(
+      (name) => found.find((s) => s.name === name) ?? { name, found: false },
+    );
+    setClis(statuses);
+    // A choice through a CLI that is no longer signed in (or installed) cannot run.
+    const usable = new Set<string>(
+      statuses.filter((s) => s.found && s.signedIn).map((s) => CLI_INFO[s.name].id),
+    );
+    const cliIds: string[] = Object.values(CLI_INFO).map((info) => info.id);
+    setChoice((current) =>
+      current && cliIds.includes(current.connectionId) && !usable.has(current.connectionId) ? null : current,
+    );
+    if (statuses.find((s) => s.name === "codex")?.signedIn) {
+      daybook
+        .listCliModels("codex")
+        .then(setCodexModels)
+        .catch((err: unknown) => setCodexError((err as Error).message));
+    }
   }, []);
 
-  const activeConnection = draft.find((c) => c.id === active) ?? draft[0] ?? null;
+  useEffect(() => {
+    void check();
+  }, [check]);
+
+  const fetchKeyModels = useCallback(
+    async (connection: Connection) => {
+      if (!API_PROVIDERS.some((p) => p.id === connection.id && p.live)) return;
+      try {
+        const list = await daybook.listModels(connection.id as ListableModelProvider, secretName(userId, connection.id));
+        setKeyModels((m) => ({ ...m, [connection.id]: list }));
+        setKeyErrors(({ [connection.id]: _cleared, ...rest }) => rest);
+      } catch (err) {
+        setKeyErrors((e) => ({ ...e, [connection.id]: (err as Error).message }));
+      }
+    },
+    [userId],
+  );
 
   useEffect(() => {
-    setCustomModel(activeConnection?.model ?? "");
-  }, [activeConnection?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    keys.forEach((k) => void fetchKeyModels(k));
+    // Only the keys present when the step opens; a key added later fetches on its own.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function patchConnection(id: string, patch: Partial<Connection>) {
-    setDraft((list) => list.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  }
-
-  function pickActive(id: string) {
-    setActive(id);
-    setPanel("manage");
-  }
-
-  async function removeConnection(connection: Connection) {
-    setError(null);
-    const remaining = draft.filter((c) => c.id !== connection.id);
-    setDraft(remaining);
-    if (active === connection.id) setActive(remaining[0]?.id);
-    if (remaining.length === 0) setPanel("add");
-    if (connection.authKind === "api_key") {
-      try {
-        await daybook.deleteSecret(secretName(userId, connection.id));
-      } catch {
-        /* the key may already be gone; the connection is removed either way */
-      }
-    }
-  }
-
-  async function connectApiKey() {
+  async function addKey() {
     setError(null);
     if (apiKey.trim().length < 8) {
       setError("That key looks too short to be real.");
@@ -101,14 +136,17 @@ export function ConnectProviderScreen({
     setBusy(true);
     try {
       const preset = API_PROVIDERS.find((p) => p.id === providerId);
-      const label = preset ? preset.label : customLabel.trim() || "Custom provider";
       const id = preset ? preset.id : `custom-${Date.now()}`;
+      const connection: Connection = {
+        id,
+        label: preset ? `${preset.label} API key` : `${customLabel.trim() || "Custom"} API key`,
+        authKind: "api_key",
+      };
       await daybook.storeSecret(secretName(userId, id), apiKey.trim());
-      const connection: Connection = { id, label, authKind: "api_key" };
-      setDraft((list) => [...list.filter((c) => c.id !== id), connection]);
-      setActive(id);
+      setKeys((list) => [...list.filter((c) => c.id !== id), connection]);
       setApiKey("");
-      setPanel("manage");
+      setAdding(false);
+      void fetchKeyModels(connection);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -116,308 +154,330 @@ export function ConnectProviderScreen({
     }
   }
 
-  function connectCli(binary: string) {
-    const label = binary === "claude" ? "Claude Code" : `${binary}`;
-    const connection: Connection = {
-      id: `${binary}-cli`,
-      label,
-      authKind: "local_cli",
-      cliBinary: binary,
-    };
-    setDraft((list) => [...list.filter((c) => c.id !== connection.id), connection]);
-    setActive(connection.id);
-    setPanel("manage");
+  async function removeKey(connection: Connection) {
+    setKeys((list) => list.filter((c) => c.id !== connection.id));
+    if (choice?.connectionId === connection.id) setChoice(null);
+    await daybook.deleteSecret(secretName(userId, connection.id)).catch(() => undefined);
   }
 
-  async function fetchModels(connection: Connection) {
-    setError(null);
-    setFetchingModels(true);
-    try {
-      const ids = await daybook.listModels(
-        connection.id as ListableModelProvider,
-        secretName(userId, connection.id),
-      );
-      setModels((m) => ({ ...m, [connection.id]: ids }));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setFetchingModels(false);
-    }
+  function finish() {
+    if (!choice) return;
+    const withChoice = (c: Connection): Connection =>
+      c.id === choice.connectionId ? { ...c, model: choice.model, modelLabel: choice.modelLabel } : c;
+    const previous = (id: string) => connections.find((c) => c.id === id);
+    const cliConnections: Connection[] = (clis ?? [])
+      .filter((s) => s.found && s.signedIn)
+      .map((s) => {
+        const info = CLI_INFO[s.name];
+        const before = previous(info.id);
+        return {
+          id: info.id,
+          label: info.label,
+          authKind: "local_cli",
+          cliBinary: s.name,
+          binaryPath: s.path,
+          model: before?.model,
+          modelLabel: before?.modelLabel,
+        };
+      });
+    const keyConnections = keys.map((k) => ({ ...previous(k.id), ...k }));
+    onDone([...cliConnections, ...keyConnections].map(withChoice), choice.connectionId);
   }
-
-  const modelOptions = activeConnection
-    ? activeConnection.authKind === "local_cli"
-      ? (CLI_MODELS[activeConnection.cliBinary ?? ""] ?? [])
-      : (models[activeConnection.id] ?? [])
-    : [];
-
-  const liveListing =
-    activeConnection?.authKind === "api_key" &&
-    API_PROVIDERS.some((p) => p.id === activeConnection.id && p.live);
 
   return (
-    <div className="mx-auto w-full max-w-md py-10">
+    <div className="mx-auto w-full max-w-xl py-10">
       <div className="mb-6">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
           Step 2 of 3
         </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Connect your AI</h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight">Choose your secretary's model</h1>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          Connect one or more — Claude Code, Codex, or an API key — then choose the model
-          your secretary uses. You can switch between them anytime from the scoreboard.
-          Credentials stay on this Mac.
+          Daybook runs on an AI you already have: your Claude or ChatGPT plan through Claude
+          Code or Codex on this Mac, or an API key. Pick a model — you can switch any time from
+          the scoreboard. Daybook never sees your Claude or ChatGPT sign-in; API keys stay in
+          this Mac's keychain.
         </p>
       </div>
 
-      <div className="space-y-4">
-        {draft.length > 0 && (
-          <div className="space-y-2 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-              Your connections
-            </p>
-            {draft.map((connection) => {
-              const isActive = connection.id === activeConnection?.id;
-              return (
-                <div
-                  key={connection.id}
-                  className={`flex items-center gap-2 rounded-[var(--radius-card)] border px-3 py-2 text-sm transition-colors ${
-                    isActive
-                      ? "border-[var(--color-accent)]"
-                      : "border-[var(--color-line)]"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    className="flex flex-1 items-center gap-2 text-left"
-                    onClick={() => pickActive(connection.id)}
-                  >
-                    <Check
-                      className={`size-4 shrink-0 ${isActive ? "text-[var(--color-accent)]" : "text-transparent"}`}
-                    />
-                    <span className="font-medium">{connection.label}</span>
-                    <span className="text-xs text-[var(--color-ink-faint)]">
-                      {connection.authKind === "local_cli" ? "local CLI" : "API key"}
-                      {connection.model ? ` · ${connection.model}` : " · no model chosen"}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${connection.label}`}
-                    className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
-                    onClick={() => void removeConnection(connection)}
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
+          On this Mac
+        </p>
+        <Button variant="ghost" className="px-2 py-1 text-xs" disabled={clis === null} onClick={() => void check()}>
+          <RefreshCw className="size-3.5" />
+          Check again
+        </Button>
+      </div>
 
-        {panel === "add" ? (
-          <div className="space-y-4 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
-            <div className="flex gap-2">
-              <Button
-                variant={addTab === "api" ? "primary" : "secondary"}
-                className="flex-1"
-                onClick={() => setAddTab("api")}
-              >
-                <KeyRound className="size-4" />
-                API key
-              </Button>
-              <Button
-                variant={addTab === "cli" ? "primary" : "secondary"}
-                className="flex-1"
-                onClick={() => setAddTab("cli")}
-              >
-                <TerminalSquare className="size-4" />
-                Local CLI
-              </Button>
-            </div>
-
-            {addTab === "api" ? (
-              <div className="space-y-3">
-                <Field label="Provider">
-                  <select
-                    className={inputClass}
-                    value={providerId}
-                    onChange={(event) => setProviderId(event.target.value)}
-                  >
-                    {API_PROVIDERS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                    <option value="custom">Other…</option>
-                  </select>
-                </Field>
-
-                {providerId === "custom" && (
-                  <Field label="What do you call it?">
-                    <input
-                      className={inputClass}
-                      value={customLabel}
-                      onChange={(event) => setCustomLabel(event.target.value)}
-                      placeholder="e.g. Mistral"
-                    />
-                  </Field>
-                )}
-
-                <Field
-                  label="API key"
-                  hint={
-                    API_PROVIDERS.find((p) => p.id === providerId)?.hint ??
-                    "Stored in your keychain, never shown again."
-                  }
-                >
-                  <input
-                    className={inputClass}
-                    type="password"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    placeholder="Paste your key"
-                    autoComplete="off"
-                  />
-                </Field>
-
-                <Button className="w-full" disabled={busy} onClick={() => void connectApiKey()}>
-                  Store key and connect
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-[var(--color-ink-soft)]">
-                  A CLI you installed and signed into yourself. Daybook runs it as a
-                  subprocess and never touches the credential. This only checks what is on
-                  your PATH — nothing is executed.
-                </p>
-                {clis.length === 0 ? (
-                  <p className="rounded-[var(--radius-card)] border border-[var(--color-line)] px-3 py-2 text-sm text-[var(--color-ink-faint)]">
-                    No supported CLI found on this Mac. Install one, or use an API key
-                    instead.
-                  </p>
-                ) : (
-                  clis.map((binary) => (
-                    <button
-                      key={binary}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => connectCli(binary)}
-                      className="flex w-full items-center gap-2 rounded-[var(--radius-card)] border border-[var(--color-line)] px-3 py-2.5 text-sm transition-colors hover:border-[var(--color-accent)] disabled:opacity-50"
-                    >
-                      <Check className="size-4 text-[var(--color-accent)]" />
-                      <code>{binary}</code>
-                      <span className="ml-auto text-xs text-[var(--color-ink-faint)]">
-                        detected
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-
-            {draft.length > 0 && (
-              <Button variant="ghost" className="w-full" onClick={() => setPanel("manage")}>
-                Back to my connections
-              </Button>
-            )}
-          </div>
+      <div className="space-y-3">
+        {clis === null ? (
+          <p className="rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-faint)]">
+            Looking for Claude Code and Codex…
+          </p>
         ) : (
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={() => {
-              setError(null);
-              setPanel("add");
-            }}
-          >
-            <Plus className="size-4" />
-            Add another connection
-          </Button>
-        )}
-
-        {activeConnection && panel === "manage" && (
-          <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-              Model for {activeConnection.label}
-            </p>
-            {modelOptions.length > 0 && (
-              <Field label="Pick a model">
-                <select
-                  className={inputClass}
-                  value={
-                    modelOptions.includes(activeConnection.model ?? "")
-                      ? activeConnection.model
-                      : ""
-                  }
-                  onChange={(event) =>
-                    patchConnection(activeConnection.id, { model: event.target.value })
-                  }
-                >
-                  <option value="">Choose…</option>
-                  {modelOptions.map((model) => (
-                    <option key={model} value={model}>
-                      {model}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-            {liveListing && modelOptions.length === 0 && (
-              <Button
-                variant="secondary"
-                className="w-full"
-                disabled={fetchingModels}
-                onClick={() => void fetchModels(activeConnection)}
+          clis.map((status) => {
+            const info = CLI_INFO[status.name];
+            const models = status.name === "claude" ? CLAUDE_CODE_MODELS : codexModels;
+            return (
+              <SourceCard
+                key={status.name}
+                icon={<TerminalSquare className="size-4" />}
+                title={info.label}
+                meta={status.version}
+                status={
+                  !status.found ? (
+                    <>
+                      Not found on this Mac.{" "}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 hover:text-[var(--color-ink)]"
+                        onClick={() => void daybook.openExternal(info.install)}
+                      >
+                        How to install it
+                      </button>
+                      , then check again.
+                    </>
+                  ) : status.signedIn ? (
+                    signedInAs(status)
+                  ) : (
+                    <>
+                      {status.error ?? "Not signed in."} Open Terminal, run{" "}
+                      <code className="text-[0.75rem]">{info.signIn}</code>, then check again.
+                    </>
+                  )
+                }
+                ready={Boolean(status.found && status.signedIn)}
               >
-                {fetchingModels ? "Asking the provider…" : "Fetch the model list"}
-              </Button>
-            )}
-            <Field
-              label="Or type a model ID"
-              hint={
-                activeConnection.authKind === "local_cli"
-                  ? "Aliases like opus resolve to the CLI's current default; full IDs pass through as-is."
-                  : "Any model ID your key can call."
+                {status.found && status.signedIn && (
+                  <ModelPicker
+                    connectionId={info.id}
+                    models={models}
+                    loadingText={status.name === "codex" && !codexError ? "Asking Codex for its models…" : undefined}
+                    listError={status.name === "codex" ? codexError : null}
+                    choice={choice}
+                    onChoose={setChoice}
+                    placeholder={status.name === "codex" ? "a Codex model ID" : "claude-sonnet-5"}
+                  />
+                )}
+              </SourceCard>
+            );
+          })
+        )}
+      </div>
+
+      <p className="mb-2 mt-6 text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
+        API keys
+      </p>
+      <div className="space-y-3">
+        {keys.map((connection) => {
+          const live = API_PROVIDERS.some((p) => p.id === connection.id && p.live);
+          return (
+            <SourceCard
+              key={connection.id}
+              icon={<KeyRound className="size-4" />}
+              title={connection.label}
+              status="Stored in this Mac's keychain."
+              ready
+              action={
+                <button
+                  type="button"
+                  aria-label={`Remove ${connection.label}`}
+                  className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
+                  onClick={() => void removeKey(connection)}
+                >
+                  <X className="size-4" />
+                </button>
               }
             >
-              <div className="flex gap-2">
+              <ModelPicker
+                connectionId={connection.id}
+                models={live ? (keyModels[connection.id] ?? null) : []}
+                loadingText={live && !keyErrors[connection.id] ? "Asking the provider for its models…" : undefined}
+                listError={keyErrors[connection.id] ?? null}
+                choice={choice}
+                onChoose={setChoice}
+                placeholder="a model ID this key can call"
+              />
+            </SourceCard>
+          );
+        })}
+
+        {adding ? (
+          <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
+            <Field label="Provider">
+              <select className={inputClass} value={providerId} onChange={(event) => setProviderId(event.target.value)}>
+                {API_PROVIDERS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+                <option value="custom">Other…</option>
+              </select>
+            </Field>
+            {providerId === "custom" && (
+              <Field label="What do you call it?">
                 <input
                   className={inputClass}
-                  value={customModel}
-                  onChange={(event) => setCustomModel(event.target.value)}
-                  placeholder={
-                    activeConnection.cliBinary === "codex" ? "gpt-5-codex" : "claude-sonnet-4-5"
-                  }
+                  value={customLabel}
+                  onChange={(event) => setCustomLabel(event.target.value)}
+                  placeholder="e.g. Mistral"
                 />
-                <Button
-                  variant="secondary"
-                  disabled={!customModel.trim()}
-                  onClick={() =>
-                    patchConnection(activeConnection.id, { model: customModel.trim() })
-                  }
-                >
-                  Use
-                </Button>
-              </div>
+              </Field>
+            )}
+            <Field
+              label="API key"
+              hint={API_PROVIDERS.find((p) => p.id === providerId)?.hint ?? "Stored in your keychain, never shown again."}
+            >
+              <input
+                className={inputClass}
+                type="password"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                placeholder="Paste your key"
+                autoComplete="off"
+              />
             </Field>
             <ErrorNote message={error} />
-            <Button
-              className="w-full"
-              disabled={draft.length === 0 || busy}
-              onClick={() => active && onDone(draft, active)}
-            >
-              Continue
-            </Button>
-            <p className="text-xs text-[var(--color-ink-faint)]">
-              A model is recommended but not required to continue — the secretary will ask
-              the connection's own default when none is chosen.
-            </p>
+            <div className="flex gap-2">
+              <Button className="flex-1" disabled={busy} onClick={() => void addKey()}>
+                Store key
+              </Button>
+              <Button variant="ghost" onClick={() => setAdding(false)}>
+                Cancel
+              </Button>
+            </div>
           </div>
+        ) : (
+          <Button variant="secondary" className="w-full" onClick={() => setAdding(true)}>
+            <Plus className="size-4" />
+            Add an API key
+          </Button>
         )}
-
-        {panel === "add" && <ErrorNote message={error} />}
       </div>
+
+      <div className="mt-6 space-y-2">
+        <Button className="w-full" disabled={!choice} onClick={finish}>
+          {choice ? `Continue with ${choice.modelLabel}` : "Choose a model to continue"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SourceCard({
+  icon,
+  title,
+  meta,
+  status,
+  ready,
+  action,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  meta?: string;
+  status: ReactNode;
+  ready: boolean;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
+      <div className="flex items-start gap-2">
+        <span className={`mt-0.5 ${ready ? "text-[var(--color-accent)]" : "text-[var(--color-ink-faint)]"}`}>{icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">
+            {title}
+            {meta && <span className="ml-2 text-xs font-normal text-[var(--color-ink-faint)]">{meta}</span>}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">{status}</p>
+        </div>
+        {action}
+      </div>
+      {children && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
+
+function ModelPicker({
+  connectionId,
+  models,
+  loadingText,
+  listError,
+  choice,
+  onChoose,
+  placeholder,
+}: {
+  connectionId: string;
+  models: (ModelOption & { note?: string })[] | null;
+  loadingText?: string;
+  listError: string | null;
+  choice: Choice | null;
+  onChoose: (choice: Choice) => void;
+  placeholder: string;
+}) {
+  const [custom, setCustom] = useState("");
+  const [customError, setCustomError] = useState<string | null>(null);
+  const chosenHere = choice?.connectionId === connectionId ? choice.model : null;
+  const chosenIsCustom = chosenHere !== null && !(models ?? []).some((m) => m.id === chosenHere);
+
+  function chooseCustom() {
+    const value = custom.trim();
+    if (!isModelId(value)) {
+      setCustomError("A model ID is letters, digits and . _ : / - only.");
+      return;
+    }
+    setCustomError(null);
+    onChoose({ connectionId, model: value, modelLabel: value });
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {models === null && loadingText && <p className="text-xs text-[var(--color-ink-faint)]">{loadingText}</p>}
+      {listError && (
+        <p className="text-xs text-[var(--color-warn)]">
+          {listError} You can still type a model ID below.
+        </p>
+      )}
+      {(models ?? []).map((model) => {
+        const selected = chosenHere === model.id;
+        return (
+          <button
+            key={model.id}
+            type="button"
+            onClick={() => onChoose({ connectionId, model: model.id, modelLabel: model.label })}
+            className={`flex w-full items-center gap-2 rounded-[var(--radius-card)] border px-3 py-2 text-left text-sm transition-colors ${
+              selected
+                ? "border-[var(--color-accent)]"
+                : "border-[var(--color-line)] hover:border-[var(--color-ink-faint)]"
+            }`}
+          >
+            <Check className={`size-4 shrink-0 ${selected ? "text-[var(--color-accent)]" : "text-transparent"}`} />
+            <span className="font-medium">{model.label}</span>
+            {model.note && <span className="text-xs text-[var(--color-ink-faint)]">{model.note}</span>}
+            {model.isDefault && <span className="text-xs text-[var(--color-ink-faint)]">default</span>}
+            <code className="ml-auto text-[0.7rem] text-[var(--color-ink-faint)]">{model.id}</code>
+          </button>
+        );
+      })}
+      <div className="flex gap-2 pt-1">
+        <input
+          className={`${inputClass} py-1.5 text-xs`}
+          value={custom}
+          onChange={(event) => setCustom(event.target.value)}
+          placeholder={`Other: ${placeholder}`}
+          aria-label="Other model ID"
+        />
+        <Button variant="secondary" className="px-3 py-1.5 text-xs" disabled={!custom.trim()} onClick={chooseCustom}>
+          Use
+        </Button>
+      </div>
+      {chosenIsCustom && (
+        <p className="text-xs text-[var(--color-ink-soft)]">
+          Using <code>{chosenHere}</code>.
+        </p>
+      )}
+      {customError && <p className="text-xs text-[var(--color-warn)]">{customError}</p>}
     </div>
   );
 }

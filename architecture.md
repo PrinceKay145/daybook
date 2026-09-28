@@ -98,15 +98,25 @@ hosted proxy of anyone's subscription, ever (S4). 🔴 No shell actions in v1 (S
 writes the config, so a model-authored action target is a laundering path — an action is
 `{"label", and exactly one of "url" | "path"}` and nothing may originate from model output.
 
-**Connections and models (built: storage and selection).** The app keeps a list of
-connections with one active and a per-connection model. Model selection sources:
-API-key connections list models live through the `connections:listModels` IPC — the main
-process reads the key from the keychain and calls the provider's `/v1/models`, so the key
-never enters the renderer; CLI connections surface documented aliases (`claude -p --model
-opus|sonnet|haiku`; `codex exec -m gpt-5-codex …`) plus any full model ID, since CLIs
-expose no model-list API. The active connection and model are written into the folder's
-`config.json` `providers` block at setup and passed straight through at invocation time.
-Switching happens from the scoreboard ("AI: … — change"), which reopens the connect step.
+**Choosing a model (built: detection, sign-in state, model lists, selection; ⏳
+invocation).** The connect step is "choose your secretary's model"; the connection it runs
+through follows from the choice. `electron/cli.cjs` finds Claude Code and Codex in `PATH`
+and the known install locations (native installers `~/.local/bin`, Homebrew, npm prefixes,
+nvm/Volta/Bun) — an app opened from the Dock has a minimal `PATH` — and runs each child
+with its own directory first on `PATH` (so an npm install's `node` resolves) and `USER`
+set (without it Claude Code cannot reach its keychain entry). Sign-in state comes from
+`claude auth status` (JSON: signed in, method, plan — the email and organisation are not
+kept) and `codex login status` (exit code, method on stderr). Model sources: Claude Code
+has no listing, so its choices are a catalog of full model IDs in `src/lib/models.ts`;
+Codex lists its own through `codex app-server` (`initialize` → `initialized` →
+`model/list`, JSONL over stdio); API keys list theirs through `connections:listModels`,
+where the main process reads the key and calls `/v1/models`, so the key never enters the
+renderer. Every source also takes a typed model ID, held to a plain-name pattern where it
+enters the folder. The renderer only ever names a CLI (`claude` / `codex`); the path that
+runs is the one the main process found. The active connection and model go into the
+folder's `config.json` `providers` block — at setup, and again whenever the model is
+switched from the scoreboard — with the binary's path, the model and its display name, and
+no pointer to any key.
 
 ## The three ship gates (⏳ enforced from the brief stage on)
 
@@ -124,9 +134,11 @@ marked as such and is never followed as instruction (law 23; see
 
 ```
 app/electron/main.cjs       window, IPC: folder picker, atomic writes, keychain,
-                            CLI presence scan, daybook://auth, https-only links
+                            per-account settings, daybook://auth, https-only links
+app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex model list
 app/electron/preload.cjs    the single doorway (contextBridge)
 app/src/lib/daybook.ts      typed bridge + plain-browser fallbacks
+app/src/lib/models.ts       the Claude Code model catalog; model-id check
 app/src/lib/auth.ts         Supabase client; dev-mode fallback; callback completion
 app/src/lib/api.ts          runner brief API (unused yet — kept for the brief stage)
 app/src/screens/*           Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard

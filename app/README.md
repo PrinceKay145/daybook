@@ -87,27 +87,29 @@ VITE_DEV_SERVER_URL=http://127.0.0.1:5173 DAYBOOK_USER_DATA=/tmp/daybook-fresh n
 ## What is real vs sample
 
 - **Real:** sign-up/sign-in, folder choice (persisted in app data), API-key storage
-  (`safeStorage` → the macOS keychain), local CLI detection (PATH scan only — nothing
-  is executed), setup answers written into the chosen folder as plain files
-  (`config.json` is merged, never clobbered; markdown seeds are only created if absent).
+  (`safeStorage` → the macOS keychain), setup answers written into the chosen folder as
+  plain files (`config.json` is merged, never clobbered; markdown seeds are only created
+  if absent), and the model choice: Claude Code and Codex found on this Mac and asked
+  whether they are signed in (fixed commands only — `claude auth status`, `codex login
+  status`, `codex app-server` for its model list), Claude Code's model catalog, live
+  model lists for API keys.
+- **Not yet:** the secretary running on the chosen model — that is the brief stage.
+  Nothing here sends a prompt anywhere.
 - **A folder used before:** step 3 asks whether to **use this setup** (the default — no
   file changes but the AI choice in `config.json`) or **start over** (the questions again;
   the old `SETUP-CONTEXT.md` and `MASTER-PLAN.md` move to `archive/setup/<time>/` first).
 - **Sample:** everything on the scoreboard below the warning banner. The morning-brief
   pipeline that fills it for real is the next stage, owner-decided.
 
-## Known gaps — fixed in the Connect-AI rebuild
+## Where Claude Code and Codex are found
 
-- **Finding Claude Code / Codex.** Detection only scans `PATH`. That works under
-  `npm run dev` (launched from a terminal) but not in a packaged app opened from the Dock,
-  which gets a minimal `PATH`. It also misses installs inside a Node version manager: an
-  `npm install -g` under nvm lands in `~/.nvm/versions/node/<version>/bin/`, and switching
-  Node versions hides it. Anthropic's native installer puts `claude` in `~/.local/bin/`;
-  Homebrew uses `/opt/homebrew/bin/` (Apple Silicon) or `/usr/local/bin/`. The rebuild
-  checks those locations and the login shell's `PATH`, and asks each CLI whether it is
-  signed in.
-- **`keychain_ref` in `config.json`** still reads `provider/<id>`; API keys are now stored
-  per account (`user/<id>/provider/<id>`). Nothing reads the field yet.
+An app opened from the Dock gets a minimal `PATH`, so `electron/cli.cjs` also looks where
+the installers put them: `~/.local/bin/` (Anthropic's and OpenAI's native installers),
+`/opt/homebrew/bin/` and `/usr/local/bin/` (Homebrew), `~/.npm-global/bin/`, Volta, Bun,
+and every Node version under `~/.nvm/versions/node/*/bin/` (newest first). An
+`npm install -g` under nvm works, but it belongs to that one Node version — switch
+versions and the CLI can vanish from the terminal, though Daybook still finds it. The
+native installer is the steadier home.
 
 ## Troubleshooting the Google round-trip
 
@@ -133,10 +135,12 @@ macOS → app. Each hop fails differently:
 ## Layout
 
 ```
-electron/main.cjs      window, IPC: folder picker, atomic writes, keychain, CLI scan,
+electron/main.cjs      window, IPC: folder picker, atomic writes, keychain, settings,
                        daybook://auth delivery, https-only outbound links
+electron/cli.cjs       Claude Code / Codex: find, sign-in state, Codex's model list
 electron/preload.cjs   the single doorway (contextBridge) — reviewable in one screen
 src/lib/daybook.ts     typed bridge + browser fallbacks
+src/lib/models.ts      the Claude Code model catalog (data — edit when models ship)
 src/lib/auth.ts        Supabase client; dev-mode fallback; daybook://auth completion
 src/screens/*          Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
 ```
@@ -151,7 +155,8 @@ this stage, kept for the brief pipeline that comes next.
 - **Atomic writes, always.** Every file the app writes (app data and the user's folder)
   goes through temp-file + rename.
 - **No shell actions, no model-authored targets.** Nothing here runs a command on the
-  user's behalf; CLI detection checks presence on PATH and nothing else.
+  user's behalf. The only programs the app runs are Claude Code and Codex, with commands
+  fixed in `electron/cli.cjs`, no shell, and never an argument from model output.
 - **Packaging milestone:** electron-builder + notarization, a strict CSP (the dev warning
   in the console disappears at that point), and the `daybook stop` / process contract —
   all still ahead of us.

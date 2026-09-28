@@ -8,8 +8,32 @@ export interface Connection {
   label: string;
   authKind: "local_cli" | "api_key";
   cliBinary?: string;
-  /** The model the secretary uses through this connection (alias or full ID). */
+  /** Where the CLI was found on this Mac — the path invocation uses. */
+  binaryPath?: string;
+  /** The model the secretary uses through this connection (a full model ID). */
   model?: string;
+  /** The model's display name, e.g. "Sonnet 5". */
+  modelLabel?: string;
+}
+
+/** What the connect step learned about one local CLI. */
+export interface CliStatus {
+  name: "claude" | "codex";
+  found: boolean;
+  path?: string;
+  version?: string;
+  signedIn?: boolean;
+  /** How the CLI is signed in: the user's plan, or an API key. */
+  method?: "subscription" | "api_key";
+  /** Claude Code reports the plan (e.g. "max", "pro"). */
+  plan?: string;
+  error?: string;
+}
+
+export interface ModelOption {
+  id: string;
+  label: string;
+  isDefault?: boolean;
 }
 
 /** One account's state on this Mac, stored under its user id — a different account,
@@ -69,13 +93,18 @@ interface DaybookBridge {
   inspectFolder(folder: string): Promise<ExistingSetup | null>;
   /** Keeps the folder's setup as it is; records the AI choice in its config.json. */
   adoptSetup(folder: string, connection: Connection | null): Promise<string[]>;
+  /** Records a switched model in the folder's config.json. */
+  recordConnection(folder: string, connection: Connection): Promise<string[]>;
   storeSecret(name: string, value: string): Promise<boolean>;
   loadSecret(name: string): Promise<string | null>;
   deleteSecret(name: string): Promise<boolean>;
-  detectCli(): Promise<string[]>;
+  /** Claude Code and Codex: found or not, and whether each is signed in. */
+  detectCli(): Promise<CliStatus[]>;
+  /** The models Codex's sign-in can use (Claude Code's are a catalog: models.ts). */
+  listCliModels(name: "codex"): Promise<ModelOption[]>;
   openExternal(url: string): Promise<boolean>;
-  /** Model IDs the stored key can call. Only for listable providers. */
-  listModels(provider: ListableModelProvider, secret: string): Promise<string[]>;
+  /** Models the stored key can call. Only for listable providers. */
+  listModels(provider: ListableModelProvider, secret: string): Promise<ModelOption[]>;
   /** Name/path the OS reports as the daybook:// handler; empty when none. */
   protocolHandler(): Promise<string>;
   /** Returns the unsubscribe. */
@@ -115,10 +144,12 @@ export const daybook: DaybookBridge = bridge ?? {
   writeSetup: () => refuse("Writing the setup files"),
   inspectFolder: async () => null,
   adoptSetup: () => refuse("Writing the setup files"),
+  recordConnection: () => refuse("Writing config.json"),
   storeSecret: () => refuse("Storing a key in the keychain"),
   loadSecret: async () => null,
   deleteSecret: async () => true,
   detectCli: async () => [],
+  listCliModels: () => refuse("Asking Codex for its models"),
   openExternal: (url) => {
     window.open(url, "_blank", "noopener");
     return Promise.resolve(true);

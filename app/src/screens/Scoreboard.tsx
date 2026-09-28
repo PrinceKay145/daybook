@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Connection } from "@/lib/daybook";
+import { describeChoice } from "@/lib/models";
 
 const SAMPLE_PLANS = [
   { time: "09:00 – 12:30", title: "Deep work — draft the Hartley proposal", note: "First move: open the brief and write the opening section" },
@@ -62,9 +63,7 @@ export function ScoreboardScreen({
             ) : (
               <FolderOpen className="size-3" />
             )}
-            {connection
-              ? `AI: ${connection.label}${connection.model ? ` · ${connection.model}` : ""} — change`
-              : "AI: not connected — connect"}
+            {connection ? `${describeChoice(connection)} — change` : "No model chosen — choose"}
           </button>
           <Button variant="ghost" onClick={onSignOut}>
             <LogOut className="size-3.5" />
