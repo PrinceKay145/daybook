@@ -10,8 +10,9 @@ pre-restart record and loses where it disagrees.
 ```
 Electron shell (dock icon · autostart · updater — macOS in v1)
    └── React + TypeScript renderer (Vite, Tailwind 4)
-         ├── HTTP ──▶ 127.0.0.1 runner  ⏳ Python sidecar: brief builder, verification
-         │                              ⏳ assertions, scheduler integration, file tools
+         ├── HTTP ──▶ 127.0.0.1 runner  Python sidecar (runner/): brief builder and the
+         │                              eleven assertions built; ⏳ spawned by the app,
+         │                              ⏳ scheduler integration, file tools
          └── window.daybook bridge (preload) ──▶ Electron main process
                   folder picker · atomic writes · keychain · CLI detection ·
                   daybook://auth delivery · https-only outbound links
@@ -143,7 +144,8 @@ app/src/lib/auth.ts         Supabase client; dev-mode fallback; callback complet
 app/src/lib/api.ts          runner brief API (unused yet — kept for the brief stage)
 app/src/screens/*           Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
 app/src/components/ui/*     copied-in shadcn-style primitives
-runner/                     pre-restart Python runner — historical reference, superseded
+runner/                     the Python runner: brief data, the eleven assertions, the HTML
+                            brief, 127.0.0.1 server — the base the brief stage builds on
 fixtures/sample-folder/     the invented test folder; develop against it
 docs/design/onboarding-flow.png   the owner's drawing — normative for the v1 flow
 ```

@@ -1,7 +1,8 @@
 # The runner
 
-Working name **daybook**. `DECISIONS.md` D1 is not final, so the package name is the one
-thing here expected to change.
+Package **daybook**, after the product (`DECISIONS.md` D1). Built before the docs restart,
+and the base the brief stage builds on: it already builds the brief's data, runs the
+eleven assertions and renders the brief.
 
 **Zero third-party dependencies.** Standard library only. The reference daemon has none and
 that is a feature — every dependency added here is something that can break an install on
