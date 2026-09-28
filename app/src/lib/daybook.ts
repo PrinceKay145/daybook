@@ -125,6 +125,8 @@ interface DaybookBridge {
   /** The models Codex's sign-in can use (Claude Code's are a catalog: models.ts). */
   listCliModels(name: "codex"): Promise<ModelOption[]>;
   openExternal(url: string): Promise<boolean>;
+  /** Listens on 127.0.0.1 for one Google sign-in; returns the redirect URL for Supabase. */
+  startAuthLoopback(): Promise<string>;
   /** Models the stored key can call. Only for listable providers. */
   listModels(provider: ListableModelProvider, secret: string): Promise<ModelOption[]>;
   /** Name/path the OS reports as the daybook:// handler; empty when none. */
@@ -179,6 +181,7 @@ export const daybook: DaybookBridge = bridge ?? {
     return Promise.resolve(true);
   },
   listModels: () => refuse("Listing a provider's models"),
+  startAuthLoopback: () => refuse("Listening for the sign-in"),
   protocolHandler: async () => "",
   /* In a browser, Supabase handles the redirect itself. */
   onAuthCallback: () => () => {},

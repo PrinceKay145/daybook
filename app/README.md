@@ -53,8 +53,13 @@ never leave it.
      - Redirect URI: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
      - (`YOUR-PROJECT-REF` = the subdomain of your Supabase URL)
    and paste the Client ID + Secret into Supabase.
-3. **URL Configuration → Redirect URLs: add `daybook://auth`.** Without it the browser
-   sign-in cannot hand the session back to the Mac app.
+3. **URL Configuration → Redirect URLs: add both of these.** Supabase only sends a
+   sign-in back to an address on this list; anything else falls back to the Site URL.
+   - `http://127.0.0.1:5368?/auth/callback` — where **Google sign-in** returns: a
+     listener the app opens on your own Mac for the one sign-in (ports 53680–53689; `?`
+     matches one character).
+   - `daybook://auth` — where the **confirmation email** returns, since that link can
+     be opened long after the app stopped listening.
 4. **Email** provider: enable. "Confirm email" can stay ON — sign-up then ends with a
    "check your inbox" notice and the first sign-in happens after clicking the mail link.
 5. Copy Project URL + anon key into `app/.env` (see `.env.example`). Both values are
@@ -64,8 +69,11 @@ never leave it.
 Without a `.env`, the app runs in **developer mode**: the flow works end to end,
 nothing is checked, and the login screen says so.
 
-Google sign-in opens the system browser and returns via the `daybook://auth` protocol
-(registered by the app on launch; in dev it points at your local Electron binary).
+Google sign-in opens the system browser and returns to a listener on `127.0.0.1` that
+exists only while that sign-in is in flight (RFC 8252's pattern for desktop apps). The tab
+lands on "You're signed in to Daybook — you can close this tab", the app comes forward, and
+the listener closes. A `daybook://` return would work too, but a browser cannot show a
+page for a custom scheme, so the tab would be left spinning on Google's page.
 
 **Keep "Confirm email" ON.** Supabase links identities sharing a *verified* email into one
 user — with confirmation off, the same person can become two users (one via password, one
@@ -122,24 +130,29 @@ native installer is the steadier home.
 
 ## Troubleshooting the Google round-trip
 
-The chain is: app → browser → Google consent → Supabase callback → `daybook://auth` →
-macOS → app. Each hop fails differently:
+The chain is: app → browser → Google consent → Supabase callback →
+`http://127.0.0.1:5368x/auth/callback` (the app's listener) → app. Each hop fails
+differently:
 
 - **The browser opened but Google shows "Access blocked"** — the OAuth client is in
   Testing mode and your Google account is not on its test-user list (Google Cloud
   Console → Google Auth Platform → Audience → Test users).
-- **Consent completed, then a dead browser tab** — the `daybook://auth` redirect is not
-  saved in Supabase (URL Configuration → Redirect URLs), so Supabase fell back to the
-  Site URL.
-- **Consent completed, browser silent, nothing in the app** — the OS→app hop. Run
-  `open 'daybook://auth?ping=1'` in a terminal while the app is open:
+- **Consent completed, then the browser lands on your Site URL (or a dead tab)** — the
+  loopback address is not saved in Supabase (URL Configuration → Redirect URLs:
+  `http://127.0.0.1:5368?/auth/callback`), so Supabase fell back to the Site URL.
+- **"This sign-in link has already been used"** — the listener takes one sign-in and
+  closes; choose Continue with Google again.
+- **The confirmation email opens, browser silent, nothing in the app** — that link uses
+  `daybook://auth`, the OS→app hop. Run `open 'daybook://auth?ping=1'` in a terminal
+  while the app is open:
   - If the app shows *"the daybook:// handler works — the link carried no sign-in"*,
     delivery is fine and the earlier failure was at consent.
   - If nothing happens at all, macOS has no handler bound. Restart `npm run dev` (the
     app registers `daybook://` on launch and prints the registration result to its
     terminal), then check what the OS thinks: the app's diagnostics call
     `app.getApplicationNameForProtocol('daybook://auth')`.
-- The app terminal logs every callback it receives (`auth callback via open-url: …`).
+- The app terminal logs every callback it receives (`auth callback via loopback: …` or
+  `via open-url: …`), with the tokens withheld.
 
 ## Layout
 
@@ -148,6 +161,7 @@ electron/main.cjs      window, IPC: folder picker, atomic writes, keychain, sett
                        daybook://auth delivery, https-only outbound links
 electron/cli.cjs       Claude Code / Codex: find, sign-in state, Codex's model list
 electron/runner.cjs    starts and stops runner/ for the brief; finds Python
+electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
 electron/preload.cjs   the single doorway (contextBridge) — reviewable in one screen
 src/lib/daybook.ts     typed bridge + browser fallbacks
 src/lib/models.ts      the Claude Code model catalog (data — edit when models ship)

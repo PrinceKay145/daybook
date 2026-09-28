@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("daybook", {
   detectCli: () => ipcRenderer.invoke("cli:detect"),
   listCliModels: (name) => ipcRenderer.invoke("cli:models", name),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  startAuthLoopback: () => ipcRenderer.invoke("auth:loopback"),
   listModels: (provider, secret) =>
     ipcRenderer.invoke("connections:listModels", { provider, secret }),
   protocolHandler: () => ipcRenderer.invoke("protocol:handler"),

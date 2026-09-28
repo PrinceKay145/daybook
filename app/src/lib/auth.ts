@@ -166,10 +166,11 @@ export async function signInWithPassword(email: string, password: string): Promi
   }
 }
 
-/* Where Supabase sends the browser after Google consent or the confirmation email:
-   back into the app on the desktop, back to this page in a browser tab. Without it
-   the confirmation link lands on the project's Site URL — a browser tab running its
-   own copy of the app, signed in, while the desktop app never hears about it. */
+/* Where Supabase sends the browser after the confirmation email: back into the app on the
+   desktop, back to this page in a browser tab. Without it the confirmation link lands on
+   the project's Site URL — a browser tab running its own copy of the app, signed in, while
+   the desktop app never hears about it. (The email link can be opened long after the app
+   stopped listening, so it keeps daybook:// rather than Google's loopback listener.) */
 function authRedirect(): string {
   return isDesktop ? "daybook://auth" : window.location.origin;
 }
@@ -203,13 +204,16 @@ export async function signUpWithPassword(email: string, password: string): Promi
       : "Check your inbox — your account needs confirming before the first sign-in.";
 }
 
-/** Opens the system browser for Google consent; the OS hands daybook://auth (or the
-    browser origin, in dev) back to us and handleAuthRedirect finishes the exchange. */
+/** Opens the system browser for Google consent. On the desktop the browser returns to a
+    one-sign-in listener on 127.0.0.1, which shows "you can close this tab" and hands the
+    session to the app — a daybook:// redirect would leave the tab spinning, since a browser
+    cannot show a page for a custom scheme. In a browser tab it returns to this page. */
 export async function signInWithGoogle(): Promise<void> {
   if (!supabase) throw new Error("Google sign-in needs Supabase credentials — see app/README.md.");
+  const redirectTo = isDesktop ? await daybook.startAuthLoopback() : window.location.origin;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: authRedirect(), skipBrowserRedirect: true },
+    options: { redirectTo, skipBrowserRedirect: true },
   });
   if (error) throw new Error(error.message);
   if (!data.url) throw new Error("Supabase did not return an authorize URL.");

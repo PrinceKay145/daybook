@@ -10,6 +10,7 @@ const fsp = require("node:fs/promises");
 const os = require("node:os");
 const cli = require("./cli.cjs");
 const runner = require("./runner.cjs");
+const authLoopback = require("./authLoopback.cjs");
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "";
 const PROTOCOL = "daybook";
@@ -579,6 +580,23 @@ ipcMain.handle("cli:models", (_event, name) => {
 });
 
 /* ---------- IPC: outbound links (https only — the renderer never opens targets itself) ---------- */
+
+/* ---------- IPC: Google sign-in's return path (a one-sign-in loopback listener) ---------- */
+
+ipcMain.handle("auth:loopback", () =>
+  authLoopback.start((returnUrl) => {
+    console.log(`[daybook] auth callback via loopback: ${loggable(returnUrl)}`);
+    forwardAuthUrl(returnUrl);
+    // The browser tab now says "you can close this"; the app is where the user continues.
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      app.focus({ steal: true });
+    }
+  }),
+);
+
+app.on("will-quit", () => authLoopback.stop());
 
 ipcMain.handle("shell:openExternal", async (_event, url) => {
   const parsed = new URL(url);

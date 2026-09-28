@@ -60,11 +60,16 @@ SQLite — a second copy of the schedule is how calendar drift starts.
 
 ## Auth (built)
 
-Supabase, email + Google. **Implicit flow**: the system browser opens the authorize URL;
-Supabase redirects to `daybook://auth` (allow-listed in URL Configuration), macOS delivers
-it via `open-url`/`second-instance`, the main process forwards it to the renderer, and
-`supabase.auth.setSession()` completes it. The protocol handler is registered on launch
-(dev registration points at the local Electron binary). Sessions persist in renderer
+Supabase, email + Google. **Implicit flow**: the system browser opens the authorize URL.
+**Google returns to a loopback listener** (`electron/authLoopback.cjs`, RFC 8252): opened on
+`127.0.0.1:53682–53689` only while a sign-in is in flight, it serves a page that posts the
+URL fragment's tokens back (JSON plus a one-time nonce, so no other page can), clears them
+from the address bar, and says "you can close this tab"; the listener closes and the app
+comes forward. **The confirmation email returns to `daybook://auth`** — it can be opened
+long after any listener — which macOS delivers via `open-url`/`second-instance`. Both reach
+the renderer as the same `daybook://auth#…` URL, and `supabase.auth.setSession()` completes
+it. Both addresses are allow-listed in Supabase's Redirect URLs. The protocol handler is
+registered on launch (dev registration points at the local Electron binary). Sessions persist in renderer
 localStorage. Without `.env` credentials the app runs in **developer mode** — the flow
 works, nothing is checked, the login screen says so. Malformed credentials degrade to the
 same mode with the rejection shown on the login screen; the session check is capped at 5s
@@ -138,6 +143,7 @@ app/electron/main.cjs       window, IPC: folder picker, atomic writes, keychain,
                             per-account settings, daybook://auth, https-only links
 app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex model list
 app/electron/runner.cjs     starts/stops runner/, finds Python, fetches the verified brief
+app/electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
 app/electron/preload.cjs    the single doorway (contextBridge)
 app/src/lib/daybook.ts      typed bridge + plain-browser fallbacks
 app/src/lib/models.ts       the Claude Code model catalog; model-id check
