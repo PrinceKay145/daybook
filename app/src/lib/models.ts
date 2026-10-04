@@ -8,11 +8,12 @@
 
 import type { ModelOption } from "@/lib/daybook";
 
-export const CLAUDE_CODE_MODELS: (ModelOption & { note?: string })[] = [
+/* `recommended` marks the model the law evals were run against for daily planning. */
+export const CLAUDE_CODE_MODELS: (ModelOption & { note?: string; recommended?: boolean })[] = [
   { id: "claude-fable-5-1", label: "Fable 5.1", note: "Anthropic's most capable" },
   { id: "claude-opus-5-5", label: "Opus 5.5" },
   { id: "claude-opus-5", label: "Opus 5" },
-  { id: "claude-sonnet-5", label: "Sonnet 5", note: "fast and capable" },
+  { id: "claude-sonnet-5", label: "Sonnet 5", note: "fast and capable", recommended: true },
   { id: "claude-haiku-4-5", label: "Haiku 4.5", note: "fastest" },
 ];
 

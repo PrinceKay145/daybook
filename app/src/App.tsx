@@ -169,39 +169,32 @@ export default function App() {
     null;
 
   if (stage === "loading") {
-    return <p className="mx-auto max-w-md px-4 py-16 text-sm text-[var(--color-ink-faint)]">Opening…</p>;
+    return <p className="px-8 py-16 text-[13px] text-[var(--color-ink-faint)]">Opening…</p>;
   }
 
   if (stage === "login" || !account) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        {authNotice && (
-          <p className="mx-auto mb-4 max-w-md rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
-            {authNotice}
-          </p>
-        )}
-        <LoginScreen onSignedIn={() => void route("sign in")} />
-      </div>
+      <LoginScreen authNotice={authNotice} onSignedIn={() => void route("sign in")} />
     );
   }
 
   switch (stage) {
     case "folder":
       return (
-        <div className="mx-auto max-w-4xl px-4 py-8">
-          <ConnectFolderScreen
-            initialFolder={settings.folderPath}
-            onConnected={(folder) => advance({ folderPath: folder })}
-          />
-        </div>
+        <ConnectFolderScreen
+          initialFolder={settings.folderPath}
+          onConnected={(folder) => advance({ folderPath: folder })}
+        />
       );
     case "provider":
       return (
-        <div className="mx-auto max-w-4xl px-4 py-8">
           <ConnectProviderScreen
             userId={account.id}
             connections={settings.connections ?? []}
             activeId={settings.activeConnectionId}
+            onboarding={!settings.setupCompletedAt}
+            folderName={settings.folderPath?.split("/").filter(Boolean).pop()}
+            onBack={settings.setupCompletedAt ? () => setStage("home") : undefined}
             onDone={(connections, activeConnectionId) => {
               // A switch after setup: the folder's config.json follows the new choice.
               const chosen = connections.find((c) => c.id === activeConnectionId);
@@ -213,11 +206,9 @@ export default function App() {
               advance({ connections, activeConnectionId });
             }}
           />
-        </div>
       );
     case "setup":
       return (
-        <div className="mx-auto max-w-4xl px-4 py-8">
           <SetupQuestionsScreen
             folder={settings.folderPath ?? ""}
             connection={activeConnection}
@@ -226,12 +217,10 @@ export default function App() {
               void advance({ setupCompletedAt: new Date().toISOString(), briefTime });
             }}
           />
-        </div>
       );
     case "home":
       return (
         <ScoreboardScreen
-          accountEmail={account.email}
           userId={account.id}
           planOnArrival={planOnArrival}
           onPlannedOnArrival={() => setPlanOnArrival(false)}
@@ -242,7 +231,6 @@ export default function App() {
           jobsProblem={jobsProblem}
           onChangeAI={() => setStage("provider")}
           onOpenSettings={() => setStage("settings")}
-          onSignOut={() => void handleSignOut()}
         />
       );
     case "settings":
@@ -251,8 +239,10 @@ export default function App() {
           folder={settings.folderPath ?? ""}
           connection={activeConnection}
           backgroundJobs={settings.backgroundJobs ?? "on"}
+          accountEmail={account.email}
           onBack={() => setStage("home")}
           onChangeAI={() => setStage("provider")}
+          onSignOut={() => void handleSignOut()}
           onSaved={update}
         />
       );
