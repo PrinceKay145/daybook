@@ -360,6 +360,7 @@ function today(timeZone) {
 
 function seedsFor(payload) {
   const alias = configAlias(payload.folder);
+  const ownWords = typeof payload.ownWords === "string" ? payload.ownWords.trim().slice(0, 20000) : "";
   const list = (items) =>
     items.filter((line) => line.trim().length > 0).map((line) => `- ${line.trim()}`).join("\n") ||
     "- (nothing recorded yet)";
@@ -373,7 +374,18 @@ function seedsFor(payload) {
     {
       file: "SETUP-CONTEXT.md",
       onlyIfAbsent: true,
-      text: `# Setup context
+      text: ownWords
+        ? `# Setup context
+
+Written by Daybook on ${today(payload.timezone)} from the setup interview, in the user's own
+words, kept exactly as they wrote it. It is the secretary's starting picture of this life;
+the files in this folder are the source of truth.
+
+## In their own words
+
+${ownWords}
+`
+        : `# Setup context
 
 Written by Daybook on ${today(payload.timezone)} from the setup interview. The answers below are the
 secretary's starting picture of this life; the files in this folder are the source of truth.
@@ -401,7 +413,7 @@ Started ${today(payload.timezone)} from the Daybook setup interview. Strategy li
 
 ## Goals
 
-${list(payload.goals)}
+${ownWords ? "- (in SETUP-CONTEXT.md, in the user's own words — the secretary works from there)" : list(payload.goals)}
 `,
     },
     {

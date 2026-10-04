@@ -144,6 +144,9 @@ export interface SetupPayload {
   goals: string[];
   nonNegotiables: string[];
   inFlight: string[];
+  /** Setup answered in the user's own words instead of the three questions: kept
+      verbatim in SETUP-CONTEXT.md, where the model reads it when it plans. */
+  ownWords?: string;
   /** The active connection, written into the folder's config.json providers block.
       Null-tolerant: the flow guarantees it, the writer tolerates its absence. */
   connection: Connection | null;
