@@ -6,8 +6,10 @@
 
    Python: macOS no longer ships it by default, and /usr/bin/python3 without the
    developer tools only opens an "install the tools?" dialog — so that path is used only
-   when the tools are really there. Packaging will bundle a Python; until then a missing
-   one is reported plainly, never guessed around. */
+   when the tools are really there. The packaged app carries its own (Resources/python,
+   fetched by scripts/fetch-python.mjs) and uses it first; in development a missing one is
+   reported plainly, never guessed around. No Python run by Daybook writes bytecode: a
+   file written inside the app bundle would break its seal. */
 
 const { execFile, spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -16,6 +18,10 @@ const os = require("node:os");
 const path = require("node:path");
 
 const MIN_PYTHON = [3, 9];
+
+function bundledPython() {
+  return process.resourcesPath ? path.join(process.resourcesPath, "python", "bin", "python3") : "";
+}
 
 function pythonCandidates() {
   const home = os.homedir();
@@ -34,12 +40,14 @@ function pythonCandidates() {
   const developerTools =
     fs.existsSync("/Library/Developer/CommandLineTools/usr/bin/python3") ||
     fs.existsSync("/Applications/Xcode.app");
-  return [...new Set([...onPath, ...known, ...(developerTools ? ["/usr/bin/python3"] : [])])];
+  const bundled = bundledPython() && fs.existsSync(bundledPython()) ? [bundledPython()] : [];
+  return [...new Set([...bundled, ...onPath, ...known, ...(developerTools ? ["/usr/bin/python3"] : [])])];
 }
 
 function pythonVersion(binary) {
   return new Promise((resolve) => {
-    execFile(binary, ["-c", "import sys; print('%d.%d' % sys.version_info[:2])"], { timeout: 5000 }, (error, stdout) => {
+    const env = { ...process.env, PYTHONDONTWRITEBYTECODE: "1" };
+    execFile(binary, ["-c", "import sys; print('%d.%d' % sys.version_info[:2])"], { timeout: 5000, env }, (error, stdout) => {
       if (error) return resolve(null);
       const [major, minor] = String(stdout).trim().split(".").map(Number);
       resolve(Number.isFinite(major) ? [major, minor] : null);
@@ -67,7 +75,7 @@ async function findPython() {
 }
 
 function runnerDir() {
-  // Development: the repo's runner/. Packaged: copied beside the app (packaging milestone).
+  // Development: the repo's runner/. Packaged: Resources/runner (electron-builder's extraResources).
   const dev = path.resolve(__dirname, "..", "..", "runner");
   const packaged = process.resourcesPath ? path.join(process.resourcesPath, "runner") : "";
   return fs.existsSync(path.join(dev, "daybook")) ? dev : packaged;

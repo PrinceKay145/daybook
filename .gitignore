@@ -42,6 +42,9 @@ venv/
 node_modules/
 app/dist/
 app/.vite/
+# The bundled Python (app/scripts/fetch-python.mjs) and electron-builder's output
+app/build/
+app/release/
 *.tsbuildinfo
 
 # --- macOS -------------------------------------------------------------------
