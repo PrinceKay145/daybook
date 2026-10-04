@@ -7,7 +7,7 @@
    the page the eleven assertions checked, with its live dial, and no reach into the app. */
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { KeyRound, LogOut, RefreshCw, TerminalSquare } from "lucide-react";
+import { KeyRound, LogOut, RefreshCw, Settings, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { daybook, type BriefResult, type Connection } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
@@ -17,14 +17,20 @@ export function ScoreboardScreen({
   folder,
   connection,
   briefTime,
+  backgroundJobs,
+  jobsProblem,
   onChangeAI,
+  onOpenSettings,
   onSignOut,
 }: {
   accountEmail: string;
   folder: string;
   connection: Connection | null;
   briefTime: string;
+  backgroundJobs: "on" | "off";
+  jobsProblem: string | null;
   onChangeAI: () => void;
+  onOpenSettings: () => void;
   onSignOut: () => void;
 }) {
   const [brief, setBrief] = useState<BriefResult | null>(null);
@@ -62,6 +68,10 @@ export function ScoreboardScreen({
             <RefreshCw className="size-3.5" />
             Rebuild
           </Button>
+          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={onOpenSettings}>
+            <Settings className="size-3.5" />
+            Settings
+          </Button>
           <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={onSignOut}>
             <LogOut className="size-3.5" />
             Sign out
@@ -72,6 +82,20 @@ export function ScoreboardScreen({
       <main className="min-h-0 flex-1">
         <BriefView brief={brief} />
       </main>
+
+      {/* Nothing mysterious runs: the scoreboard says what runs in the background, and where to stop it. */}
+      <footer className="border-t border-[var(--color-line)] px-5 py-2 text-center text-[0.7rem] text-[var(--color-ink-faint)]">
+        {jobsProblem ? (
+          <span className="text-[var(--color-warn)]">The brief can't arrive on its own: {jobsProblem}</span>
+        ) : backgroundJobs === "off" ? (
+          "The background jobs are stopped, so your brief only appears when you open Daybook."
+        ) : (
+          `Your brief is written at ${briefTime} on its own, even when Daybook is closed.`
+        )}{" "}
+        <button type="button" className="underline underline-offset-2 hover:text-[var(--color-ink)]" onClick={onOpenSettings}>
+          Settings & status
+        </button>
+      </footer>
     </div>
   );
 }

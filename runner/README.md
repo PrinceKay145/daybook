@@ -25,6 +25,12 @@ python3 -m daybook brief --folder /tmp/my-copy --write
 # Serve it on 127.0.0.1 for the frontend
 python3 -m daybook serve --folder ../fixtures/sample-folder --port 8787
 
+# What launchd runs (the app installs the jobs): every minute, write today's brief once
+# its time has passed; hourly, notice a stopped tick or a missing brief. --state-dir is
+# app data, never the folder. Use a copy of a fixture — tick writes briefs/.
+python3 -m daybook tick     --folder /tmp/my-copy --state-dir /tmp/daybook-state
+python3 -m daybook watchdog --folder /tmp/my-copy --state-dir /tmp/daybook-state
+
 # Tests
 python3 -m unittest discover -s tests -t tests
 ```

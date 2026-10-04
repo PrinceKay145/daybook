@@ -11,6 +11,7 @@ const os = require("node:os");
 const cli = require("./cli.cjs");
 const runner = require("./runner.cjs");
 const authLoopback = require("./authLoopback.cjs");
+const schedule = require("./schedule.cjs");
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "";
 const PROTOCOL = "daybook";
@@ -567,6 +568,85 @@ ipcMain.handle("brief:get", async (_event, folder) => {
   } catch (err) {
     return { ok: false, logFile, code: err.code ?? "RUNNER_FAILED", message: String(err.message ?? err) };
   }
+});
+
+/* ---------- IPC: the background jobs and Settings & status ----------
+   One documented place for everything Daybook writes outside the user's folder:
+   app data — logs/ (runner, tick, watchdog) and state/ (the tick's bookkeeping). */
+
+const logDir = () => path.join(app.getPath("userData"), "logs");
+const stateDir = () => path.join(app.getPath("userData"), "state");
+
+ipcMain.handle("schedule:start", async (_event, folder) => {
+  const python = await runner.findPython();
+  if (!python) {
+    return { ok: false, code: "PYTHON_MISSING", message: "Python 3.9 or newer is needed for the brief to arrive on its own, and none was found on this Mac." };
+  }
+  try {
+    await schedule.start({
+      python: python.binary,
+      runnerDir: runner.runnerDir(),
+      folder: requireFolder(folder),
+      stateDir: stateDir(),
+      logDir: logDir(),
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, code: "LAUNCHD_FAILED", message: String(err.message ?? err) };
+  }
+});
+
+ipcMain.handle("schedule:stop", async () => {
+  await schedule.stop();
+  return { ok: true };
+});
+
+ipcMain.handle("schedule:status", async () => {
+  const sidecar = runner.info();
+  return {
+    ...(await schedule.status({ stateDir: stateDir(), logDir: logDir() })),
+    app: { pid: process.pid, name: app.getName() },
+    runner: sidecar ? { ...sidecar, log: path.join(logDir(), "runner.log") } : null,
+    logDir: logDir(),
+  };
+});
+
+/* The brief and close times, edited from Settings: merged into config.json, where the tick
+   reads them at its next run. */
+ipcMain.handle("folder:setSchedule", async (_event, { folder, briefTime, closeTime }) => {
+  const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!hhmm.test(String(briefTime)) || !hhmm.test(String(closeTime))) {
+    throw new Error("Times must be HH:MM, 24-hour.");
+  }
+  const target = path.join(requireFolder(folder), "config.json");
+  const existing = (await readJson(target)) ?? {};
+  const next = { ...existing, schedule: { ...(existing.schedule ?? {}), brief_time: briefTime, close_time: closeTime } };
+  await writeTextAtomic(target, `${JSON.stringify(next, null, 2)}\n`);
+  return { briefTime, closeTime };
+});
+
+ipcMain.handle("folder:schedule", async (_event, folder) => {
+  const config = (await readJson(path.join(requireFolder(folder), "config.json"))) ?? {};
+  return {
+    briefTime: config.schedule?.brief_time ?? "09:00",
+    closeTime: config.schedule?.close_time ?? "23:00",
+  };
+});
+
+ipcMain.handle("shell:revealFolder", async (_event, folder) => {
+  const error = await shell.openPath(requireFolder(folder));
+  if (error) throw new Error(error);
+  return true;
+});
+
+// Only Daybook's own log directory can be revealed from here.
+ipcMain.handle("shell:revealLog", async (_event, file) => {
+  const resolved = path.resolve(String(file));
+  if (!resolved.startsWith(logDir() + path.sep)) throw new Error("Not one of Daybook's logs.");
+  fs.mkdirSync(logDir(), { recursive: true });
+  if (fs.existsSync(resolved)) shell.showItemInFolder(resolved);
+  else await shell.openPath(logDir());
+  return true;
 });
 
 /* ---------- IPC: local CLIs — found, asked whether signed in, asked for models ----------

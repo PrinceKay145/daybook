@@ -31,24 +31,32 @@ swappable (Tauri remains a documented option; DECISIONS.md S8).
 | Process | When | Resident? |
 |---|---|---|
 | Electron app | while the user has it open | dock icon |
-| ⏳ launchd tick — 60s reminder check | runs and exits | never |
-| ⏳ launchd watchdog — brief-arrival check | hourly, exits | never |
-| ⏳ Job processes — brief, nightly close | spawned by the tick, exit | never |
+| launchd `app.daybook.mac.tick` — every 60 s | `python -m daybook tick`: once the user's brief time has passed (read from `config.json` each run), writes today's brief if all eleven pass, and notifies; ⏳ reminders join it when the reference daemon is bundled | never — runs and exits |
+| launchd `app.daybook.mac.watchdog` — hourly | `python -m daybook watchdog`: notifies once if the tick has stopped or the brief is still missing 30 min after its time | never — runs and exits |
+| ⏳ Job processes — nightly close | spawned by the tick, exit | never |
 | Python sidecar runner (`runner/`) | spawned by the app when the scoreboard asks for a brief (`electron/runner.cjs`: one at a time, on a free 127.0.0.1 port); stopped on quit, and exits itself if the app is gone | only while app is open |
 
 Quit the app and nothing of ours is resident; two launchd timers stay *registered* (a
 registered timer is not a running process). User-level `~/Library/LaunchAgents/` only —
-never sudo, never LaunchDaemons. Processes are named after the product so `ps` and
-Activity Monitor find them. The product must ship `status` / `stop` / `logs` / `uninstall`
-— and `stop` must unload the launchd jobs, because `pkill` alone lets launchd restart the
-tick within 60 seconds.
+never sudo, never LaunchDaemons — written and loaded by `electron/schedule.cjs` when the
+scoreboard opens, unless the user stopped them. Jobs are labelled after the bundle id, so
+`launchctl list | grep daybook` finds them (the Python processes themselves show as
+`python3`; their labels are the names). **Settings & status** is the `status` / `stop` /
+`logs` surface: every job by label with what it does, whether macOS has it loaded, its last
+exit code and the tick's last run, last brief and last error; the runner's PID; one log
+directory. **Stop removes the job files, not only unloads them** — a file left in
+`~/Library/LaunchAgents` comes back at the next login, and `pkill` alone lets launchd restart
+the tick within 60 seconds — and the app never restarts jobs the user stopped
+(`backgroundJobs: "off"` in their record). A test copy of the app (`DAYBOOK_USER_DATA`) uses
+`app.daybook.mac.test.*` labels. ⏳ `uninstall` (jobs and app data, leaving the folder alone,
+said before it happens) comes with packaging.
 
 ## Storage tiers
 
 | Tier | Where | What |
 |---|---|---|
 | **The folder** (chosen by the user) | plain files, git auto-committed | everything real: `DAY-STATE.md`, `MASTER-PLAN.md`, `LOG.md`, `CORRECTIONS.md` (append-only, never pruned), `SETUP-BACKLOG.md`, `reminders.json`, `config.json`, `briefs/` |
-| **App data** (`userData/`) | `settings.json` (one record per account, keyed by Supabase user id: folder choice, connections, setup completion), ⏳ SQLite index | app state only; SQLite is derived, deletable, rebuildable by folder rescan — and never holds the reminder schedule |
+| **App data** (`userData/`) | `settings.json` (one record per account, keyed by Supabase user id: folder choice, connections, setup completion, whether background jobs are on), `logs/` (runner, tick, watchdog — the one log location), `state/tick-state.json` (the tick's last run, last brief, what it already said today), ⏳ SQLite index | app state only; SQLite is derived, deletable, rebuildable by folder rescan — and never holds the reminder schedule |
 | **OS keychain** | via `safeStorage` / `keyring` | API keys, one entry per account and connection. Never a file, never a shell-side store |
 | **Supabase** | minimal DB | account identity, licensing, usage counters — see Accounts |
 
@@ -200,6 +208,49 @@ provider, no general web fetch carrying data, and no action target taken from mo
 button, and an **activity log** records each file the secretary read or changed, when, and
 under which grant (app data, one documented location).
 
+## The reference reminder daemon (⏳ to be bundled — read 2026-10-04, nothing changed)
+
+The finished daemon (AGENTS.md rule 2) was read, read-only, before any bundling work. What it
+is, for whoever writes the behaviour tests:
+
+- **Shape.** One dependency-free Python file, run by its own launchd job every 60 s with
+  `RunAtLoad`; one tick per run. Reads `reminders.json` at every tick (keys beginning `_` are
+  comments) and keeps its own state (`fired` keys of `<id>|<date>|lead/main`, pruned after 7
+  days, written atomically). Writes `.agent-heartbeat.json` next to `reminders.json` on every
+  tick that loaded its config: last tick, timezone offset, schedule source, `fired_this_tick`
+  (attempts, not confirmed deliveries), running total. Daybook's watchdog and V11 read that
+  heartbeat.
+- **Schedule.** `once` (`datetime`), `daily`, `weekdays`, `weekly` (`days`, first three
+  letters), `monthly` (`day`: positive values capped at the month's length, `-1` the last
+  day, `-2` the one before); `lead_minutes` → `default_lead_minutes` → 10. Naive local time.
+- **Delivery.** `osascript display notification` (credited to Script Editor) — the same path
+  the brief tick uses; with buttons, `terminal-notifier` when present, else a detached System
+  Events alert that gives up after 600 s. The result of a delivery is not checked.
+- **The hard-won behaviours the tests must protect:** a late early-warning is dropped, not
+  delivered; the first run swallows everything already past; a 20-minute catch-up after sleep,
+  labelled "N min ago"; the no-repeat key and the atomic state write; broken JSON produces a
+  loud notification, not silence; the monthly day rules; a daily-shifting schedule never
+  reuses another day's times, and is shifted by the machine's live UTC offset; the tick never
+  blocks (detached alerts, `-message " "`, no buttons on early warnings).
+
+**How it joins Daybook — the owner's decisions (2026-10-04, DECISIONS.md S11 and D6):**
+1. **A switch, off by default.** Reminders are opt-in: off until a user turns them on and
+   sets them up. The tick fires them only when the switch is on.
+2. **Personal details removed.** Every personal line — a first name and initials, a personal
+   folder layout, a home city and travel, details of a religious practice — is removed or
+   becomes configuration before any of it enters the repo (rule 1). This overrides rule 2's
+   "unchanged" for those lines only.
+3. **No faith schedule by default (D6).** The daily-shifting schedule engine ships generic and
+   off; Daybook's users include Muslims and Christians, so no tradition's timetable is
+   assumed. Which traditions get a ready-made option, and whether any is fetched online, is
+   decided when the feature is built.
+4. **The known gaps are fixed** while bringing it in, each behind a test: an event missed
+   across midnight is lost; daylight saving's skipped hour can drop a reminder; a crash inside
+   a tick re-sends that tick's notifications for up to 20 minutes; a malformed
+   `reminders.json` notifies every minute.
+5. ⬜ **Shell-command buttons** (`-execute`, an alert click, `do [n]` with `shell=True`) —
+   rule 3 disables them in v1; awaiting the owner's confirmation that they are switched off.
+
 ## The three ship gates (⏳ enforced from the brief stage on)
 
 1. **Nightly close writes a candidate first** — write candidate → diff → mechanical asserts
@@ -220,6 +271,8 @@ app/electron/main.cjs       window, IPC: folder picker, atomic writes, keychain,
 app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex model list
 app/electron/runner.cjs     starts/stops runner/, finds Python, fetches the verified brief
 app/electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
+app/electron/schedule.cjs   the tick and watchdog launchd jobs: write, load, status, stop
+runner/daybook/tick.py      what those jobs run: tick (the brief on its own), watchdog
 app/electron/preload.cjs    the single doorway (contextBridge)
 app/src/lib/daybook.ts      typed bridge + plain-browser fallbacks
 app/src/lib/models.ts       the Claude Code model catalog; model-id check

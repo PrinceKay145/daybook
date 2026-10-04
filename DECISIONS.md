@@ -135,7 +135,11 @@ with its three-source precedence and month-end timetable reminder?
 It is the best engineering in the system and serves an audience nobody builds for. It is also
 the most personal thing in it, and it will shape who thinks the product is for them.
 
-**ANSWER:** ⬜ ships as a preset / ⬜ engine only, no preset / ⬜ defer
+**ANSWER:** ✅ **Not a default feature** (2026-10-04). Daybook's users will include Muslims and
+Christians, so no faith's timetable is on by default or assumed: the generic daily-shifting
+schedule engine ships, off until a user turns it on and sets it up for themselves. ⬜ Still
+open: which traditions get a ready-made option (and whether any timetable is fetched from an
+online source) — decide when the feature is built.
 
 ---
 
@@ -176,6 +180,7 @@ content. Slower learning, but consistent with a product whose pitch is "we never
 | S8 | **Electron shell** | The app was built on Electron (main process, preload bridge, React renderer). Tauri remains a documented option: the renderer never imports Electron or Node APIs, so the shell stays swappable (AGENTS.md) | 2026-09-27 |
 | S9 | **Accounts in v1 — identity and licensing only** | Supabase sign-in (Google or email), supersedes S7. The server may hold account identity, licensing state and usage counters, never folder content, keys, prompts, paths or location; the leak test must stay "no harm" (product-requirements.md, "Accounts") | 2026-09-27 |
 | S10 | **Folder access: write inside, read where granted** | The secretary reads, writes and edits inside the connected folder, changes subject to an approval mode the user sets (ask each time, or apply with git history and undo; deletes and whole-file replacements always ask). It may read other folders (Downloads, Documents, a chosen folder) only where the user granted read access in Daybook's UI, and never writes outside the connected folder. Enforced in code at four layers — UI-only grants in app data, Daybook's file tools, each CLI's own controls, a macOS sandbox — never by a prompt (architecture.md, "Folder access and approvals") | 2026-10-04 |
+| S11 | **Reminders are a switch, off by default** | The reference reminder daemon joins Daybook as an opt-in feature: off until a user turns it on and sets it up. Before any of it enters the repo, every personal detail in it (name, initials, folder layout, city and travel, religious practice) is removed and becomes configuration — which overrides rule 2's "unchanged" for those lines. The known gaps it lives with today (an event missed across midnight is lost; daylight saving's skipped hour can drop a reminder; a crash re-sends a tick's notifications; a malformed file notifies every minute) are fixed while bringing it into Daybook, each behind a test. ⬜ Shell-command buttons vs rule 3: awaiting the owner | 2026-10-04 |
 
 ---
 

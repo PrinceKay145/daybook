@@ -108,11 +108,26 @@ runner failing) says why and where the log is. No sample data: a placeholder tha
 to be a real brief would break the only promise this product makes. The model choice
 ("Sonnet 5 · Claude Code — change"), a rebuild button and sign-out sit above it.
 
-**Settings & status** (next stage, required by the process model): every running process
-with PID and purpose, log path, a working stop button (that also unloads the launchd
-timers — `pkill` alone restarts within 60s), autostart toggle, folder re-selection,
-provider re-auth, schedule editing — and **folder access**: the connected folder's approval
-mode, the read-only folders granted, a revoke button for each, and the activity log.
+**Settings & status** (required by the process model). **Built:** every job Daybook runs,
+by its macOS label, with what it does, whether it is loaded, its last exit code and the
+tick's last run, last brief and last error; the app's and the runner's PIDs; the one log
+directory, openable in Finder; a working **Stop** that unloads the launchd jobs *and removes
+their files* (`pkill` alone restarts within 60s; a file left behind returns at the next
+login) and a **Start** that restores them — the app never restarts jobs the user stopped;
+brief and close times, saved to `config.json`; the folder (open in Finder) and the model
+(change). **⏳ Still to come:** folder re-selection, and **folder access** — the connected
+folder's approval mode, the read-only folders granted, a revoke button for each, and the
+activity log (with the file tools, S10).
+
+**The brief arrives on its own** (built). Once setup is done, the scoreboard installs two
+user-level launchd jobs: `app.daybook.mac.tick` every minute writes today's brief once the
+brief time in `config.json` has passed — only if all eleven pass — and notifies ("Your brief
+is ready", or that it was written late, or that it was withheld); `app.daybook.mac.watchdog`
+hourly notifies once if the tick has stopped or the brief is still missing 30 minutes after
+its time. The scoreboard says, in one line, that this runs and where to stop it.
+Accept: no brief before its time; one brief, once, after it; a late brief says when it was
+written and does not guess why; a withheld brief is said once; stopping leaves nothing in
+`launchctl list` or `~/Library/LaunchAgents`, and reopening the app does not restart them.
 
 **Folder access and approvals** (⏳ built with the secretary's file tools; design in
 architecture.md, decision S10). The secretary reads, writes and edits inside the connected
@@ -204,8 +219,10 @@ Every one is a good idea; every one is how a solo build becomes a nine-month one
 seems necessary, raise it — do not start it.
 
 Open decisions live in `DECISIONS.md` and are awaiting the owner: D3 local-first (the build
-so far assumes it throughout — confirm or redirect) · D5 Windows · D6 prayer-timetable
-preset · D7 alpha users · D8 pricing · D9 telemetry default · D1's domain and GitHub org. Do
-not decide them, do not design around one option. Settled there since: D1 (Daybook,
-`app.daybook.mac`), D2 (the repo stays private for now), D4 (`local_cli` ships, on the
-conditions recorded there) and S8–S10 (Electron, accounts, folder access).
+so far assumes it throughout — confirm or redirect) · D5 Windows · D6's remaining detail
+(which traditions get a ready-made schedule option) · D7 alpha users · D8 pricing · D9
+telemetry default · D1's domain and GitHub org · S11's shell-button question. Do not decide
+them, do not design around one option. Settled there since: D1 (Daybook, `app.daybook.mac`),
+D2 (the repo stays private for now), D4 (`local_cli` ships, on the conditions recorded
+there), D6 (no faith schedule by default) and S8–S11 (Electron, accounts, folder access,
+reminders as an opt-in switch).

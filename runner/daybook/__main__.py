@@ -3,8 +3,12 @@
     python -m daybook brief  --folder <path> [--clock ISO] [--write]
     python -m daybook check  --folder <path> [--clock ISO]
     python -m daybook serve  --folder <path> [--clock ISO] [--port 8787]
+    python -m daybook tick     --folder <path> --state-dir <dir> [--clock ISO] [--no-notify]
+    python -m daybook watchdog --folder <path> --state-dir <dir> [--clock ISO] [--no-notify]
 
-``brief`` and ``serve`` both build, verify and render. Nothing is written or served
+``tick`` (launchd, every minute) writes today's brief once its time has passed; ``watchdog``
+(launchd, hourly) notices a stopped tick or a missing brief. ``brief`` and ``serve`` both
+build, verify and render. Nothing is written or served
 unless all eleven assertions pass — a brief that renders wrong is worse than no brief.
 """
 
@@ -69,6 +73,30 @@ def cmd_brief(args) -> int:
     return 0
 
 
+def _scheduled(run, args) -> int:
+    """tick and watchdog: one line per run in the launchd log, exit 1 only on an error."""
+    from datetime import datetime
+
+    from .tick import notify_macos
+
+    notify = notify_macos if not args.no_notify else (lambda _title, _message: True)
+    outcome = run(args.folder, args.state_dir, clock=args.clock, notify=notify)
+    print(f"{datetime.now().isoformat(timespec='seconds')} {outcome.line()}", flush=True)
+    return 1 if outcome.status == "error" else 0
+
+
+def cmd_tick(args) -> int:
+    from .tick import run_tick
+
+    return _scheduled(run_tick, args)
+
+
+def cmd_watchdog(args) -> int:
+    from .tick import run_watchdog
+
+    return _scheduled(run_watchdog, args)
+
+
 def cmd_serve(args) -> int:
     from .server import serve
 
@@ -95,6 +123,20 @@ def main(argv: list[str] | None = None) -> int:
     serve = common(sub.add_parser("serve", help="serve the brief on 127.0.0.1"))
     serve.add_argument("--port", type=int, default=8787)
     serve.set_defaults(func=cmd_serve)
+
+    def scheduled(p, func):
+        p.add_argument("--state-dir", required=True, help="where the run keeps its bookkeeping (app data)")
+        p.add_argument("--no-notify", action="store_true", help="log only; post no notification")
+        p.set_defaults(func=func)
+
+    scheduled(
+        common(sub.add_parser("tick", help="launchd, every minute: write today's brief once it is due")),
+        cmd_tick,
+    )
+    scheduled(
+        common(sub.add_parser("watchdog", help="launchd, hourly: notice a stopped tick or a missing brief")),
+        cmd_watchdog,
+    )
 
     args = parser.parse_args(argv)
     return args.func(args)

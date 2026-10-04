@@ -143,7 +143,7 @@ def open_folder(path: str, clock_override: str | None = None) -> Folder:
     elif config.get("fixture_now"):
         clock = Clock.from_iso(config["fixture_now"], "fixture_now in config.json")
     else:
-        clock = Clock.system()
+        clock = Clock.system(config.get("owner", {}).get("timezone", ""))
 
     folder = Folder(scope=scope, clock=clock, config=config)
     # A folder the setup interview has only just written has no reminders yet, and a
