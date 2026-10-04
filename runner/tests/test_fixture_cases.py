@@ -16,11 +16,11 @@ from support import FolderCase
 from daybook import dial
 
 
-class Case4_ThreeMaximumNeverManufacture(FolderCase):
+class Case4_AtMostTheCapNeverManufacture(FolderCase):
     def test_exactly_two_with_a_stated_reason(self):
         _, data, _, _ = self.produce()
-        self.assertEqual(2, len(data.three))
-        self.assertIn("no third", data.three_reason.lower())
+        self.assertEqual(2, len(data.today_list))
+        self.assertIn("no third", data.today_list_reason.lower())
 
     def test_the_system_did_work_is_not_counted_as_a_task(self):
         # "Anything the system did for the user goes in a separate note underneath,
@@ -28,7 +28,7 @@ class Case4_ThreeMaximumNeverManufacture(FolderCase):
         _, data, html, _ = self.produce()
         self.assertIn("not on your list", data.done_for_you.lower())
         self.assertIn("not on your list", html)
-        self.assertNotIn("invoice drafts", " ".join(a.title for a in data.three).lower())
+        self.assertNotIn("invoice drafts", " ".join(a.title for a in data.today_list).lower())
 
 
 class Case6_TwoDatesThenAQuestion(FolderCase):
@@ -36,7 +36,7 @@ class Case6_TwoDatesThenAQuestion(FolderCase):
         _, data, _, _ = self.produce()
         joined = " ".join(data.questions).lower()
         self.assertIn("portfolio", joined)
-        self.assertNotIn("portfolio", " ".join(a.title for a in data.three).lower())
+        self.assertNotIn("portfolio", " ".join(a.title for a in data.today_list).lower())
 
     def test_marcus_has_a_second_and_final_prompt_not_a_third(self):
         _, folder_data, _, _ = self.produce()
@@ -132,7 +132,7 @@ class Case14_DailyShiftingSchedule(FolderCase):
 class Case15_UnicodeAndAwkwardStrings(FolderCase):
     def test_umlauts_survive_into_the_rendered_brief(self):
         _, data, html, _ = self.produce()
-        self.assertTrue(any("Bäcker & Söhne" in a.title for a in data.three))
+        self.assertTrue(any("Bäcker & Söhne" in a.title for a in data.today_list))
         self.assertIn("B&auml;cker &amp; S&ouml;hne", html.replace("ä", "&auml;").replace("ö", "&ouml;"))
 
     def test_the_ampersand_is_escaped_not_dropped(self):

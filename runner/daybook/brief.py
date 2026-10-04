@@ -134,8 +134,9 @@ class BriefData:
 
     dial: DialData
     next_up: NextUp | None
-    three: list[Action]
-    three_reason: str
+    today_list: list[Action]
+    today_list_reason: str
+    list_max: int
     done_for_you: str
     scoreboard: list[Metric]
     habits: list[Habit]
@@ -196,8 +197,9 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         clock_frozen=folder.clock.frozen,
         dial=dial_data,
         next_up=next_up,
-        three=state.three,
-        three_reason=state.three_reason or _no_three_reason(state),
+        today_list=state.today_list,
+        today_list_reason=state.today_list_reason or _no_list_reason(state),
+        list_max=folder.list_max(),
         done_for_you=state.done_for_you,
         scoreboard=state.metrics,
         habits=state.habits,
@@ -217,11 +219,11 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
     )
 
 
-def _no_three_reason(state) -> str:
+def _no_list_reason(state) -> str:
     """A day state that lists nothing for today — a folder set up today, before any nightly
     close — still owes the reader a reason (V6). The reason is the fact: there is no list
     yet. Nothing is invented to fill the gap (never manufacture an item)."""
-    if state.three:
+    if state.today_list:
         return ""
     return (
         "Nothing is listed for today yet — the day state has no list, and nothing is "

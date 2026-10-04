@@ -7,7 +7,7 @@
 
 ---
 
-## Today's three
+## Today's list
 
 Honest count today is **two**. There is no third — the Aldridge handover can't start until
 Priya replies, and manufacturing a third item would push real work off tomorrow.
@@ -40,7 +40,7 @@ sitting in `documents/invoices/` ready to send on the 31st. Nothing to do now.
 | Who | What | Status | Next move | Date |
 |---|---|---|---|---|
 | Priya Raghavan (Aldridge) | Handover scope — waiting on her confirmation of what's in scope | **WAIT** | Chase if silent | 2026-03-12 |
-| Tessellate recruiting | Application not yet sent — this is on me, not them | **CHASE** | It's in today's three | 2026-03-10 |
+| Tessellate recruiting | Application not yet sent — this is on me, not them | **CHASE** | It's on today's list | 2026-03-10 |
 | Bäcker & Söhne | Style guide v3 — waiting on my draft, then their sign-off | **CHASE** | Send the draft today | 2026-03-10 |
 | Marcus Ellery | Asked for a coffee/PM conversation on 2 March, no reply yet | **WAIT** | One follow-up, then drop | 2026-03-13 |
 | Northgate Digital | Rejected 2026-03-05. Closed. No further move. | — | — | — |

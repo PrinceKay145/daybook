@@ -126,19 +126,19 @@ def _dial_svg(data: BriefData) -> str:
 </svg>"""
 
 
-def _section_three(data: BriefData) -> str:
-    if not data.three:
+def _section_today_list(data: BriefData) -> str:
+    if not data.today_list:
         # The reason is the brief's own (V6 asserts one exists); the page shows it rather
         # than a second, different explanation.
-        return f'<p class="empty">— {esc(data.three_reason)}</p>'
+        return f'<p class="empty">— {esc(data.today_list_reason)}</p>'
     items = "".join(
         f'<li><span class="action-title">{esc(a.title)}</span>'
         f'<span class="action-detail">{esc(a.detail)}</span></li>'
-        for a in data.three
+        for a in data.today_list
     )
     reason = (
-        f'<p class="reason">{esc(data.three_reason)}</p>'
-        if len(data.three) < 3 and data.three_reason
+        f'<p class="reason">{esc(data.today_list_reason)}</p>'
+        if len(data.today_list) < data.list_max and data.today_list_reason
         else ""
     )
     note = (
@@ -147,7 +147,7 @@ def _section_three(data: BriefData) -> str:
         if data.done_for_you
         else ""
     )
-    return f'{reason}<ol class="three">{items}</ol>{note}'
+    return f'{reason}<ol class="today-list">{items}</ol>{note}'
 
 
 def _section_scoreboard(data: BriefData) -> str:
@@ -312,9 +312,9 @@ h1 {{ font-size: 1.45rem; margin: 0 0 2px; letter-spacing: -0.015em; }}
   display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px;
 }}
 .nextup {{ font-size: 1.05rem; margin: 0; }}
-.three {{ margin: 0; padding-left: 1.15rem; }}
-.three li {{ margin-bottom: 14px; }}
-.three li:last-child {{ margin-bottom: 0; }}
+.today-list {{ margin: 0; padding-left: 1.15rem; }}
+.today-list li {{ margin-bottom: 14px; }}
+.today-list li:last-child {{ margin-bottom: 0; }}
 .action-title {{ display: block; font-weight: 600; }}
 .action-detail {{ display: block; color: var(--ink-soft); font-size: .92rem; margin-top: 2px; }}
 .reason {{ color: var(--ink-soft); font-size: .9rem; margin: 0 0 14px; }}
@@ -406,7 +406,7 @@ footer {{ color: var(--ink-faint); font-size: .72rem; text-align: center; margin
 
 <section class="card">
   <h2>Today</h2>
-  {_section_three(data)}
+  {_section_today_list(data)}
 </section>
 
 <section class="card">

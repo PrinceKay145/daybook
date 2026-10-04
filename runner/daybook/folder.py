@@ -22,6 +22,12 @@ from .paths import FolderScope
 # Unplanned block. It is the truth about that time, not a placeholder.
 UNPLANNED = "Unplanned"
 
+# How many things today's list may hold. Law 8's number is the user's to tune (LAWS.md,
+# "Editing this file"): `daily_list.max_items` in config.json. Its rule is not — the list
+# is never padded to reach the number.
+LIST_MAX_DEFAULT = 3
+LIST_MAX_LOWEST, LIST_MAX_HIGHEST = 1, 10
+
 
 @dataclass
 class Heartbeat:
@@ -100,6 +106,23 @@ class Folder:
             "day's blocks in setup to fill the dial."
         )
         return [{"block": UNPLANNED, "start": "00:00", "end": "00:00"}]
+
+    def list_max(self) -> int:
+        """The most items today's list may hold. Absent, it is law 8's default; a value
+        that is not a whole number in range is not guessed at — the default applies and
+        the brief says so."""
+        raw = (self.config.get("daily_list") or {}).get("max_items")
+        if raw is None:
+            return LIST_MAX_DEFAULT
+        if isinstance(raw, int) and not isinstance(raw, bool) \
+                and LIST_MAX_LOWEST <= raw <= LIST_MAX_HIGHEST:
+            return raw
+        self.warnings.append(
+            f"daily_list.max_items in config.json is {raw!r}, not a whole number from "
+            f"{LIST_MAX_LOWEST} to {LIST_MAX_HIGHEST}, so today's list holds at most "
+            f"{LIST_MAX_DEFAULT}."
+        )
+        return LIST_MAX_DEFAULT
 
     def light_schedule(self) -> sch.DayLight | None:
         """Rank 1 of the source precedence only, in week 1.

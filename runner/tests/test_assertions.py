@@ -127,7 +127,7 @@ class V6_Padding(FolderCase):
         )
         self.assertAssertionFails("V6")
 
-    def test_fewer_than_three_without_a_reason_is_caught(self):
+    def test_fewer_than_the_cap_without_a_reason_is_caught(self):
         # Law 8 allows one item. It does not allow one item with no explanation.
         text = self.read("DAY-STATE.md")
         start = text.index("Honest count today")
@@ -135,9 +135,52 @@ class V6_Padding(FolderCase):
         self.write("DAY-STATE.md", text[:start] + text[end:])
         self.assertAssertionFails("V6")
 
+    # The cap is the user's number (daily_list.max_items); the rule is not.
+
+    def _set_cap(self, value) -> None:
+        self.edit_json("config.json", lambda c: c.__setitem__("daily_list", {"max_items": value}))
+
+    def _add_items(self, count: int) -> None:
+        items = "".join(
+            f"{n}. **Extra item {n}.**\n   Open the file and do step {n}.\n\n"
+            for n in range(3, 3 + count)
+        )
+        self.replace_in("DAY-STATE.md", "**Done for you overnight", items + "**Done for you overnight")
+
+    def test_a_raised_cap_allows_a_longer_list(self):
+        self._set_cap(5)
+        self._add_items(3)
+        _, data, _, _ = self.produce()
+        self.assertEqual((5, 5), (len(data.today_list), data.list_max))
+        self.assertAllPass()
+
+    def test_a_list_over_a_raised_cap_is_caught(self):
+        self._set_cap(5)
+        self._add_items(4)
+        self.assertAssertionFails("V6")
+
+    def test_a_lowered_cap_is_held_too(self):
+        self._set_cap(1)
+        self.assertAssertionFails("V6")
+
+    def test_a_cap_that_is_not_a_whole_number_in_range_is_not_guessed_at(self):
+        for value in (0, 11, "5", 2.5, True, None):
+            with self.subTest(value=value):
+                self._set_cap(value)
+                folder, data, _, _ = self.produce()
+                self.assertEqual(3, data.list_max)
+                warned = any("daily_list.max_items" in w for w in folder.warnings)
+                self.assertEqual(value is not None, warned)
+
+    def test_a_folder_written_with_the_old_heading_still_reads(self):
+        self.replace_in("DAY-STATE.md", "## Today's list", "## Today's three")
+        _, data, _, _ = self.produce()
+        self.assertEqual(2, len(data.today_list))
+        self.assertAllPass()
+
 
 class V7_TheTrustDestroyingFailure(FolderCase):
-    def test_a_done_item_reappearing_in_todays_three_is_caught(self):
+    def test_a_done_item_reappearing_in_todays_list_is_caught(self):
         # fixtures/README.md case 1: DAY-STATE marks the Hartley invoice DONE, and LOG
         # and reminders.json still mention it. It must never come back.
         self.replace_in(
@@ -151,7 +194,7 @@ class V7_TheTrustDestroyingFailure(FolderCase):
     def test_the_untouched_fixture_does_not_resurface_it(self):
         _, data, _, _ = self.produce()
         self.assertIn("Hartley invoice", data.finished_labels)
-        joined = " ".join(f"{a.title} {a.detail}" for a in data.three).lower()
+        joined = " ".join(f"{a.title} {a.detail}" for a in data.today_list).lower()
         self.assertNotIn("hartley", joined)
 
 
