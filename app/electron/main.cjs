@@ -159,6 +159,12 @@ if (!gotLock) {
   });
 
   app.whenReady().then(async () => {
+    // The packaged app's icon comes from its bundle; in development the dock shows the
+    // same mark instead of Electron's.
+    if (!app.isPackaged && process.platform === "darwin") {
+      const icon = path.join(__dirname, "..", "resources", "icon.png");
+      if (fs.existsSync(icon)) app.dock.setIcon(icon);
+    }
     await offerMoveToApplications();
     // Register in dev too, so the Google round-trip can be tested before packaging.
     const registered = process.defaultApp

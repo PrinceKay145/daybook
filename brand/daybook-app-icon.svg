@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- The macOS app icon: the mark on a ledger-paper tile, on Apple's 1024 grid
+       (an 824-point tile, 100 points in from each edge). -->
+  <defs>
+    <filter id="lift" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#16191c" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#f2f3ef" filter="url(#lift)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none" stroke="#16191c" stroke-opacity=".08"/>
+  <g transform="translate(512 512) scale(21.5) translate(-12 -12)">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="#d9dcd5" stroke-width="2.4"/>
+    <path d="M12 3 A9 9 0 0 1 20.2 15.7" fill="none" stroke="#26487a" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M12 12 L15.6 7.6" fill="none" stroke="#16191c" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="12" cy="12" r="1.7" fill="#16191c"/>
+  </g>
+</svg>

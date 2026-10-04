@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Daybook">
+  <circle cx="12" cy="12" r="9" fill="none" stroke="#2a2f34" stroke-width="2.4"/>
+  <path d="M12 3 A9 9 0 0 1 20.2 15.7" fill="none" stroke="#93b2e6" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M12 12 L15.6 7.6" fill="none" stroke="#e7e9ea" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="12" cy="12" r="1.7" fill="#e7e9ea"/>
+</svg>
