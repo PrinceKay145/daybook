@@ -91,7 +91,7 @@ word comes from the folder). Requirements: `product-requirements.md`.
 | Every folder write is git-committed | Cheap history, undo, diffs |
 | A file watcher is mandatory | Users edit these files by hand — without watch-and-reload the next write clobbers them |
 | `authKind` is data, never an assumption | `"local_cli" \| "api_key"`; provider terms moved three times in 2026 |
-| The runner is scoped to the chosen folder | Enforced by path prefix in the file tools, visible in the UI |
+| The secretary writes only in the connected folder, and reads elsewhere only where the user granted read access in Daybook's UI (S10) | Enforced in code — UI-only grants in app data, the file tools' resolved-path checks, each CLI's own controls, a macOS sandbox — never by a prompt; the model can ask for access, never grant it. Visible and revocable in Settings |
 | The user's brief time is their data | `schedule.brief_time` in their `config.json` (default 09:00) — nothing reads a compiled constant |
 
 ## The process model — nothing mysterious may run on a user's machine

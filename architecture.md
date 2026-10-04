@@ -124,6 +124,82 @@ folder's `config.json` `providers` block — at setup, and again whenever the mo
 switched from the scoreboard — with the binary's path, the model and its display name, and
 no pointer to any key.
 
+## Folder access and approvals (⏳ designed 2026-10-04; built with the secretary's file tools)
+
+The owner's rule (DECISIONS.md S10): the secretary **reads, writes and edits inside the
+connected folder**, edits subject to approval the user can set; it may **read** other
+folders — Downloads, Documents, a specific folder — **only where the user granted it**, and
+never writes outside the connected folder. None of this rests on a prompt. A model told
+"only read inside the folder" can be talked out of it by any file it reads; so the boundary
+is enforced in code, in four layers, and the model never holds the pen on its own
+permissions.
+
+**1 · Grants come from a person, in Daybook's own UI — never from the model.** Grants live
+in app data, per account (`settings.json`: the connected folder, its approval mode, the list
+of read-only folders), not in the user's folder and not anywhere a tool can write. A read
+grant is made with the native folder picker in Settings, or by approving a request: the
+secretary may *ask* for access ("may I read Downloads to find the invoice?"), which shows in
+the app as a request the user approves by picking the folder themselves. Text in a chat, an
+email or a file cannot grant anything; it can only cause a request a person sees.
+`config.json`'s `scope.allow_outside_root: false` stays: the folder grants nothing on its
+own. The first read of Documents, Downloads or Desktop also raises macOS's own privacy
+prompt (TCC) — a second, OS-owned confirmation; the packaged app declares
+`NSDocumentsFolderUsageDescription` / `NSDownloadsFolderUsageDescription` /
+`NSDesktopFolderUsageDescription` for it.
+
+**2 · Daybook's file tools check every path** (the API-key path, where Daybook runs the
+tools itself). A requested path is resolved to the file it really is — `..`, symlinks,
+APFS's case-insensitivity — and checked: inside the connected folder → read/write under its
+approval mode; inside a read-only grant → read; anything else → refused, with the reason.
+Deny wins over allow, and for a symlink the check covers both the link and its target. An
+**always-denied list** applies even inside a grant: `~/.ssh`, `~/Library/Keychains`,
+browser profiles, password-manager data, `.env`-style secret files, and the AI CLIs' own
+credential stores (`~/.claude`, `~/.codex` — DECISIONS.md D4 forbids reading them).
+
+**3 · Each CLI's own controls are set from the grants** (the Claude Code / Codex path, where
+the CLI runs its own tools). Claude Code is started in `--restricted` mode (file tools
+confined to its working directories; command and web-fetch tools removed), with the
+connected folder as its working directory, each read grant as `--add-dir` plus deny rules
+for `Edit`/`Write` under that path (deny is evaluated before allow and cannot be carved
+out), the always-denied list as `Read` deny rules (`//absolute` / `~/` patterns), and
+approvals routed to Daybook through `--permission-prompt-tool`; an unattended run uses
+`--permission-prompts none`, so nothing waits on an absent person. Codex runs with `--cd`
+the connected folder and `--sandbox workspace-write`, and **never** `--add-dir`, which
+grants *write* access — Codex's flags do not confine its reads, which is why layer 4 exists.
+
+**4 · A macOS sandbox around the whole secretary process.** The runner and any CLI it
+starts run under a Seatbelt profile (`sandbox-exec`, the mechanism Claude Code's own shell
+sandbox uses on macOS) generated from the grants: reads only in the connected folder, the
+read grants and what the process needs to run (system libraries, the CLI's install and its
+own config); writes only in the connected folder and a scratch area; network only to the
+chosen model provider. This is the layer that holds when a tool has a bug or a model is
+tricked, and the only one that confines Codex's reads. `sandbox-exec` is deprecated but
+still shipped; if it goes, the boundary moves to the packaged app's own sandbox entitlements
+— the design does not depend on the model obeying anything.
+
+**Approvals for changes** — set per connected folder, like Claude Code's modes, and
+changeable in Settings:
+- **Ask before each change** (the default to start with): the change appears in Daybook as a
+  diff — Approve / Reject.
+- **Apply changes, keep history**: changes land without asking; every one is git-committed
+  (the folder's write rule), listed in the activity log, and undoable in one click.
+- **Always asks, in every mode:** deleting a file, replacing a whole file, writing outside
+  the secretary's own files into the user's documents.
+- **When nobody is there** (the nightly close at 23:00): nothing waits on a prompt. Changes
+  that would need approval queue as *proposed* for the user's next visit; the nightly close's
+  own write path is already candidate → mechanical checks → commit (ship gate 1).
+
+**Against prompt injection**, beyond the four layers: everything read — the folder, a read
+grant, a web page — is untrusted data, marked as such in the prompt and never followed as
+instruction (AGENTS.md rule 4). The dangerous combination is private data + untrusted
+content + a way to send it out; Daybook removes the way out: network only to the model
+provider, no general web fetch carrying data, and no action target taken from model output
+(rule 3). Read access never implies write access, at every layer.
+
+**Visible and revocable:** Settings & status lists every grant with its mode and a revoke
+button, and an **activity log** records each file the secretary read or changed, when, and
+under which grant (app data, one documented location).
+
 ## The three ship gates (⏳ enforced from the brief stage on)
 
 1. **Nightly close writes a candidate first** — write candidate → diff → mechanical asserts

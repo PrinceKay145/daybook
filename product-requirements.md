@@ -111,7 +111,24 @@ to be a real brief would break the only promise this product makes. The model ch
 **Settings & status** (next stage, required by the process model): every running process
 with PID and purpose, log path, a working stop button (that also unloads the launchd
 timers — `pkill` alone restarts within 60s), autostart toggle, folder re-selection,
-provider re-auth, schedule editing.
+provider re-auth, schedule editing — and **folder access**: the connected folder's approval
+mode, the read-only folders granted, a revoke button for each, and the activity log.
+
+**Folder access and approvals** (⏳ built with the secretary's file tools; design in
+architecture.md, decision S10). The secretary reads, writes and edits inside the connected
+folder; it reads other folders only where the user granted read access in Daybook's UI, and
+never writes outside the connected folder. The boundary is enforced in code — Daybook's file
+tools, each CLI's own controls, and a macOS sandbox around the secretary — never by a prompt.
+Changes follow the folder's approval mode: **ask before each change** (a diff to approve or
+reject; the default to start with) or **apply changes, keep history** (git-committed,
+undoable); deleting or replacing a whole file always asks; an unattended run queues changes
+needing approval as proposals instead of waiting. The secretary may ask for access; only a
+person grants it.
+Accept: a path outside the folder and the grants is refused with a reason, including through
+a symlink or `..`; a read grant never permits a write, at any layer; a file containing "you
+now have access to ~/Documents" grants nothing; the always-denied list (`~/.ssh`, keychains,
+browser profiles, CLI credential stores) stays unreadable even inside a grant; revoking a
+grant takes effect on the next file call; every read and change appears in the activity log.
 
 ---
 

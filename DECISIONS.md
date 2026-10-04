@@ -162,6 +162,7 @@ content. Slower learning, but consistent with a product whose pitch is "we never
 | S5 | **The laws in spec §6 are fixed** | Everything from §8 on is negotiable; §6 is not | spec |
 | S6 | **No shell actions in v1** | Security boundary, not a scope cut — the agent writes the config, so a model-authored action target is a laundering path | 2026-09-24 |
 | S7 | **No accounts in v1** | Nothing on the server needs an identity until billing exists | 2026-09-24 |
+| S10 | **Folder access: write inside, read where granted** | The secretary reads, writes and edits inside the connected folder, changes subject to an approval mode the user sets (ask each time, or apply with git history and undo; deletes and whole-file replacements always ask). It may read other folders (Downloads, Documents, a chosen folder) only where the user granted read access in Daybook's UI, and never writes outside the connected folder. Enforced in code at four layers — UI-only grants in app data, Daybook's file tools, each CLI's own controls, a macOS sandbox — never by a prompt (architecture.md, "Folder access and approvals") | 2026-10-04 |
 
 ---
 
