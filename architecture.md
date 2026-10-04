@@ -200,6 +200,44 @@ provider, no general web fetch carrying data, and no action target taken from mo
 button, and an **activity log** records each file the secretary read or changed, when, and
 under which grant (app data, one documented location).
 
+## The reference reminder daemon (⏳ to be bundled — read 2026-10-04, nothing changed)
+
+The finished daemon (AGENTS.md rule 2) was read, read-only, before any bundling work. What it
+is, for whoever writes the behaviour tests:
+
+- **Shape.** One dependency-free Python file, run by its own launchd job every 60 s with
+  `RunAtLoad`; one tick per run. Reads `reminders.json` at every tick (keys beginning `_` are
+  comments) and keeps its own state (`fired` keys of `<id>|<date>|lead/main`, pruned after 7
+  days, written atomically). Writes `.agent-heartbeat.json` next to `reminders.json` on every
+  tick that loaded its config: last tick, timezone offset, schedule source, `fired_this_tick`
+  (attempts, not confirmed deliveries), running total. Daybook's watchdog and V11 read that
+  heartbeat.
+- **Schedule.** `once` (`datetime`), `daily`, `weekdays`, `weekly` (`days`, first three
+  letters), `monthly` (`day`: positive values capped at the month's length, `-1` the last
+  day, `-2` the one before); `lead_minutes` → `default_lead_minutes` → 10. Naive local time.
+- **Delivery.** `osascript display notification` (credited to Script Editor) — the same path
+  the brief tick uses; with buttons, `terminal-notifier` when present, else a detached System
+  Events alert that gives up after 600 s. The result of a delivery is not checked.
+- **The hard-won behaviours the tests must protect:** a late early-warning is dropped, not
+  delivered; the first run swallows everything already past; a 20-minute catch-up after sleep,
+  labelled "N min ago"; the no-repeat key and the atomic state write; broken JSON produces a
+  loud notification, not silence; the monthly day rules; a daily-shifting schedule never
+  reuses another day's times, and is shifted by the machine's live UTC offset; the tick never
+  blocks (detached alerts, `-message " "`, no buttons on early warnings).
+
+**Owner decisions before it can be bundled** (not decided here):
+1. It carries personal data — a first name and initials, a personal folder layout, a home
+   city and travel, details of a religious practice — so those lines must become
+   configuration before any of it enters the repo (rule 1). It cannot be copied in as-is.
+2. Its buttons can run **shell commands** taken from `reminders.json` (`-execute`, an alert
+   click, `do [n]` with `shell=True`). Rule 3 disables shell actions in v1, so "bundled
+   unchanged" (rule 2) and rule 3 conflict until the owner says which gives.
+3. Its daily-shifting schedule can call an external prayer-times API — part of D6.
+4. Known gaps it lives with today: events missed across midnight are lost; DST's skipped hour
+   can drop a reminder; a crash inside a tick re-sends that tick's notifications for up to
+   20 minutes; a malformed `reminders.json` notifies every minute. Keep, or fix as part of
+   bundling?
+
 ## The three ship gates (⏳ enforced from the brief stage on)
 
 1. **Nightly close writes a candidate first** — write candidate → diff → mechanical asserts
