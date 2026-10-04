@@ -140,6 +140,7 @@ class BriefData:
     done_for_you: str
     scoreboard: list[Metric]
     habits: list[Habit]
+    metric_labels: dict[str, str]
     light_schedule_line: str
     light_schedule_source: str
     board_live: list[BoardRow]
@@ -203,6 +204,9 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         done_for_you=state.done_for_you,
         scoreboard=state.metrics,
         habits=state.habits,
+        # The readable names config.json gives its metrics, for the page (never the ids).
+        metric_labels={str(m["id"]): str(m["label"]) for m in folder.config.get("metrics", [])
+                       if isinstance(m, dict) and m.get("id") and m.get("label")},
         light_schedule_line=light.describe() if light else "",
         light_schedule_source=_light_source(folder, light),
         board_live=state.live_board,
