@@ -219,8 +219,10 @@ Every one is a good idea; every one is how a solo build becomes a nine-month one
 seems necessary, raise it — do not start it.
 
 Open decisions live in `DECISIONS.md` and are awaiting the owner: D3 local-first (the build
-so far assumes it throughout — confirm or redirect) · D5 Windows · D6 prayer-timetable
-preset · D7 alpha users · D8 pricing · D9 telemetry default · D1's domain and GitHub org. Do
-not decide them, do not design around one option. Settled there since: D1 (Daybook,
-`app.daybook.mac`), D2 (the repo stays private for now), D4 (`local_cli` ships, on the
-conditions recorded there) and S8–S10 (Electron, accounts, folder access).
+so far assumes it throughout — confirm or redirect) · D5 Windows · D6's remaining detail
+(which traditions get a ready-made schedule option) · D7 alpha users · D8 pricing · D9
+telemetry default · D1's domain and GitHub org · S11's shell-button question. Do not decide
+them, do not design around one option. Settled there since: D1 (Daybook, `app.daybook.mac`),
+D2 (the repo stays private for now), D4 (`local_cli` ships, on the conditions recorded
+there), D6 (no faith schedule by default) and S8–S11 (Electron, accounts, folder access,
+reminders as an opt-in switch).

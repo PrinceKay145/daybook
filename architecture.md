@@ -233,18 +233,23 @@ is, for whoever writes the behaviour tests:
   reuses another day's times, and is shifted by the machine's live UTC offset; the tick never
   blocks (detached alerts, `-message " "`, no buttons on early warnings).
 
-**Owner decisions before it can be bundled** (not decided here):
-1. It carries personal data — a first name and initials, a personal folder layout, a home
-   city and travel, details of a religious practice — so those lines must become
-   configuration before any of it enters the repo (rule 1). It cannot be copied in as-is.
-2. Its buttons can run **shell commands** taken from `reminders.json` (`-execute`, an alert
-   click, `do [n]` with `shell=True`). Rule 3 disables shell actions in v1, so "bundled
-   unchanged" (rule 2) and rule 3 conflict until the owner says which gives.
-3. Its daily-shifting schedule can call an external prayer-times API — part of D6.
-4. Known gaps it lives with today: events missed across midnight are lost; DST's skipped hour
-   can drop a reminder; a crash inside a tick re-sends that tick's notifications for up to
-   20 minutes; a malformed `reminders.json` notifies every minute. Keep, or fix as part of
-   bundling?
+**How it joins Daybook — the owner's decisions (2026-10-04, DECISIONS.md S11 and D6):**
+1. **A switch, off by default.** Reminders are opt-in: off until a user turns them on and
+   sets them up. The tick fires them only when the switch is on.
+2. **Personal details removed.** Every personal line — a first name and initials, a personal
+   folder layout, a home city and travel, details of a religious practice — is removed or
+   becomes configuration before any of it enters the repo (rule 1). This overrides rule 2's
+   "unchanged" for those lines only.
+3. **No faith schedule by default (D6).** The daily-shifting schedule engine ships generic and
+   off; Daybook's users include Muslims and Christians, so no tradition's timetable is
+   assumed. Which traditions get a ready-made option, and whether any is fetched online, is
+   decided when the feature is built.
+4. **The known gaps are fixed** while bringing it in, each behind a test: an event missed
+   across midnight is lost; daylight saving's skipped hour can drop a reminder; a crash inside
+   a tick re-sends that tick's notifications for up to 20 minutes; a malformed
+   `reminders.json` notifies every minute.
+5. ⬜ **Shell-command buttons** (`-execute`, an alert click, `do [n]` with `shell=True`) —
+   rule 3 disables them in v1; awaiting the owner's confirmation that they are switched off.
 
 ## The three ship gates (⏳ enforced from the brief stage on)
 

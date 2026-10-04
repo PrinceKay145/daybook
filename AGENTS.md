@@ -74,9 +74,10 @@ all eleven assertions pass (otherwise it is withheld and the failed checks are n
 brief is honest on day one (`fixtures/fresh-folder`). **The brief arrives on its own**: the
 `app.daybook.mac.tick` (every minute) and `app.daybook.mac.watchdog` (hourly) launchd jobs
 write it at the user's brief time and notify, and **Settings & status** shows and stops
-everything Daybook runs. Next, in the owner's order: the reference reminder daemon bundled
-into the tick (blocked on the owner decisions listed in architecture.md, "The reference
-reminder daemon"), then accounts polish and packaging — which must bundle a Python.
+everything Daybook runs. Next, in the owner's order: the reference reminder daemon brought
+into the tick as an **opt-in switch, off by default**, with its personal details removed and
+its known gaps fixed (S11; the shell-button question is still open — architecture.md, "The
+reference reminder daemon"), then accounts polish and packaging — which must bundle a Python.
 Not yet placed by the owner: the chosen model writing any part of the brief (today every
 word comes from the folder). Requirements: `product-requirements.md`.
 
