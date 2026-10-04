@@ -101,6 +101,10 @@ class PlanOutcome:
     flags: list[str] = field(default_factory=list)
     checks: list[str] = field(default_factory=list)
     model: str = ""
+    # What the model proposed, as data the app can show before the user approves it.
+    proposal: dict = field(default_factory=dict)
+    # Planned from something the user told Daybook, rather than from the folder alone.
+    from_message: bool = False
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False)
@@ -462,7 +466,8 @@ def propose(folder_path: str, *, clock: str | None = None, message: str | None =
             f"{len(proposal.today_list)} on the list, {len(proposal.board)} on the board"
             + (f", {len(proposal.newly_finished)} newly finished" if proposal.newly_finished else ""),
             candidate=candidate, base=base, summary=proposal.summary, flags=proposal.flags,
-            checks=[r.line() for r in results], model=model,
+            checks=[r.line() for r in results], model=model, proposal=_shown(proposal),
+            from_message=bool(message),
         )
     return PlanOutcome("refused", f"The model's plan was refused twice. Last reason: {problem}",
                        base=base, model=model)
@@ -487,11 +492,23 @@ def apply(folder_path: str, outcome: PlanOutcome, clock: str | None = None) -> P
     if current.exists():
         atomic_write_text(folder.scope.resolve(f"archive/day-state/{stamp}.md"), folder.day_state_text)
     atomic_write_text(current, outcome.candidate)
-    _append_log(folder, f"- {now:%Y-%m-%d %H:%M} — Today's plan written by {outcome.model}: "
+    how = "updated from your message" if outcome.from_message else "written"
+    _append_log(folder, f"- {now:%Y-%m-%d %H:%M} — Today's plan {how} by {outcome.model}: "
                         f"{outcome.detail}. The previous day state is in archive/day-state/{stamp}.md.")
     return PlanOutcome("planned", outcome.detail, candidate=outcome.candidate,
                        summary=outcome.summary, flags=outcome.flags, checks=outcome.checks,
-                       model=outcome.model)
+                       model=outcome.model, proposal=outcome.proposal,
+                       from_message=outcome.from_message)
+
+
+def _shown(proposal: Proposal) -> dict:
+    return {
+        "today_list": [{"title": t, "first_click": c} for t, c in proposal.today_list],
+        "list_reason": proposal.list_reason,
+        "board": proposal.board,
+        "newly_finished": [{"label": l, "detail": d} for l, d in proposal.newly_finished],
+        "questions": proposal.questions,
+    }
 
 
 def run(folder_path: str, *, clock: str | None = None, message: str | None = None,

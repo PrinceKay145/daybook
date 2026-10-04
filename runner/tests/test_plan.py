@@ -232,3 +232,27 @@ class DayOne(PlanCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FromAMessage(PlanCase):
+    """The message box: propose, show, and write only when the user approves."""
+
+    def test_a_proposal_writes_nothing_and_carries_what_to_show(self):
+        model = Model(answer(newly_finished=[{"label": "Newsletter", "detail": "Sent."}]))
+        before = self.read("DAY-STATE.md")
+        proposed = plan.propose(str(self.folder), message="Sent the newsletter.", ask=model)
+        self.assertEqual("proposed", proposed.status, proposed.detail)
+        self.assertEqual(before, self.read("DAY-STATE.md"))
+        self.assertTrue(proposed.from_message)
+        shown = proposed.proposal
+        self.assertEqual("Send the Bäcker & Söhne style-guide draft", shown["today_list"][0]["title"])
+        self.assertEqual([{"label": "Newsletter", "detail": "Sent."}], shown["newly_finished"])
+        self.assertEqual("WAIT", shown["board"][0]["status"])
+
+    def test_approving_writes_it_and_the_log_says_it_came_from_the_message(self):
+        proposed = plan.propose(str(self.folder), message="Sent the newsletter.", ask=Model(answer()))
+        applied = plan.apply(str(self.folder), plan.PlanOutcome(**json.loads(proposed.to_json())))
+        self.assertEqual("planned", applied.status, applied.detail)
+        self.assertIn("1. **Send the Bäcker & Söhne style-guide draft**", self.day_state())
+        self.assertIn("Today's plan updated from your message by", self.read("LOG.md").splitlines()[-1])
+
