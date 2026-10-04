@@ -74,12 +74,12 @@ all eleven assertions pass (otherwise it is withheld and the failed checks are n
 brief is honest on day one (`fixtures/fresh-folder`). **The brief arrives on its own**: the
 `app.daybook.mac.tick` (every minute) and `app.daybook.mac.watchdog` (hourly) launchd jobs
 write it at the user's brief time and notify, and **Settings & status** shows and stops
-everything Daybook runs. Next, in the owner's order: the reference reminder daemon brought
-into the tick as an **opt-in switch, off by default**, with its personal details removed and
-its known gaps fixed (S11; the shell-button question is still open — architecture.md, "The
-reference reminder daemon"), then accounts polish and packaging — which must bundle a Python.
-Not yet placed by the owner: the chosen model writing any part of the brief (today every
-word comes from the folder). Requirements: `product-requirements.md`.
+everything Daybook runs. Next is **Beta 1** (S12), in the owner's order and nothing else:
+the user sets the size of today's list; the chosen model plans the day (it proposes as text,
+Daybook writes after the checks — no file tools yet); one "tell your secretary" message box,
+also offered in setup; a tester install with Python bundled. Reminders (S11), read grants
+(S10's file tools) and the automatic nightly close wait for tester feedback — do not start
+them. Requirements: `product-requirements.md`, "Beta 1".
 
 ## Hard constraints
 

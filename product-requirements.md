@@ -22,14 +22,51 @@ Three load-bearing ideas, everything below serves them:
 
 ---
 
-## Status — 2026-09-28
+## Status — 2026-10-05
 
-**Stage 1 is built and working, and the scoreboard shows today's real brief.** Real
-sign-up/sign-in (Supabase), folder connection, model choice (Claude Code, Codex or an API
-key), a setup interview writing plain files into the folder, and the brief built from that
-folder by the runner, verified by the eleven assertions and shown only when they pass. Not
-yet: the model writing any part of the brief, the brief arriving on its own at the user's
-time (launchd), and packaging.
+**Stage 1 is built and working, and the brief arrives on its own.** Real sign-up/sign-in
+(Supabase), folder connection, model choice (Claude Code, Codex or an API key), a setup
+interview writing plain files into the folder, the brief built from that folder by the
+runner, verified by the eleven assertions and shown only when they pass, written at the
+user's brief time by launchd, and Settings & status. Not yet: the model writing any part
+of the day, and packaging — both in Beta 1, below.
+
+---
+
+## Beta 1 — what the first testers get (owner, 2026-10-05; S12)
+
+One loop testers can react to: **tell it about your life, get a useful brief every
+morning, correct it in a sentence.** Everything else waits for what they say. A short beta
+that works beats a long one crowded with bugs.
+
+**Built, kept as it is:** sign-in · connect a folder · choose the model · setup questions ·
+the verified brief on the scoreboard · the brief arriving on its own · Settings & status.
+
+**To build, in this order — and nothing else:**
+
+1. **The size of today's list is the user's.** `daily_list.max_items` in `config.json`,
+   1–10, default 3, asked in setup and changeable in Settings. Law 8's number is safe to
+   tune (LAWS.md, "Editing this file"); its rule is not: the list is never padded to reach
+   the number, and a list shorter than it says why.
+2. **The chosen model plans the day.** Before the brief time, Daybook sends the user's own
+   model — through their CLI's own sign-in or their API key — what is in the folder (setup
+   context, master plan, day state, recent log), marked as untrusted data (rule 4), and asks
+   for today's list, the board and a short note. **The model proposes; Daybook writes.** The
+   reply is text only: Daybook parses it into a candidate `DAY-STATE.md` and runs the checks
+   before it replaces the real file (gate 1); the file it replaces is kept. The model gets no
+   file tools and no access to anything, so S10's enforcement is not needed yet. The law
+   eval harness (gate 3) covers the prompt before it ships.
+3. **"Tell your secretary."** One message box on the scoreboard — not a chat with history:
+   "finished the proposal, waiting on Sam until Friday". The model proposes the updated day,
+   the user sees the change and approves it, the brief rebuilds. Setup offers the same box
+   beside the form: tell it about yourself in your own words, typed or dictated.
+4. **An install testers can open.** Unsigned, with the Gatekeeper step documented, and a
+   Python bundled — most Macs no longer have one.
+
+**Not in Beta 1** (each waits for tester feedback): a chat with history · reminders (S11) ·
+reading folders outside the connected one (S10's file tools) · the automatic nightly close
+(the message box covers correcting the day) · daily-shifting schedules (D6) · self-serve
+account deletion.
 
 ---
 
@@ -224,5 +261,5 @@ so far assumes it throughout — confirm or redirect) · D5 Windows · D6's rema
 telemetry default · D1's domain and GitHub org · S11's shell-button question. Do not decide
 them, do not design around one option. Settled there since: D1 (Daybook, `app.daybook.mac`),
 D2 (the repo stays private for now), D4 (`local_cli` ships, on the conditions recorded
-there), D6 (no faith schedule by default) and S8–S11 (Electron, accounts, folder access,
-reminders as an opt-in switch).
+there), D6 (no faith schedule by default) and S8–S12 (Electron, accounts, folder access,
+reminders as an opt-in switch, the Beta 1 scope).

@@ -8,7 +8,7 @@ place with an explicit answer — including *"deferred, don't decide this for me
 not decide it yourself, may not design around one option as if it were chosen, and may not ask
 again mid-build. Build the part that is common to both options and leave a seam.
 
-**Last updated:** 2026-10-04 · ⬜ = awaiting the owner
+**Last updated:** 2026-10-05 · ⬜ = awaiting the owner
 
 ---
 
@@ -181,6 +181,7 @@ content. Slower learning, but consistent with a product whose pitch is "we never
 | S9 | **Accounts in v1 — identity and licensing only** | Supabase sign-in (Google or email), supersedes S7. The server may hold account identity, licensing state and usage counters, never folder content, keys, prompts, paths or location; the leak test must stay "no harm" (product-requirements.md, "Accounts") | 2026-09-27 |
 | S10 | **Folder access: write inside, read where granted** | The secretary reads, writes and edits inside the connected folder, changes subject to an approval mode the user sets (ask each time, or apply with git history and undo; deletes and whole-file replacements always ask). It may read other folders (Downloads, Documents, a chosen folder) only where the user granted read access in Daybook's UI, and never writes outside the connected folder. Enforced in code at four layers — UI-only grants in app data, Daybook's file tools, each CLI's own controls, a macOS sandbox — never by a prompt (architecture.md, "Folder access and approvals") | 2026-10-04 |
 | S11 | **Reminders are a switch, off by default** | The reference reminder daemon joins Daybook as an opt-in feature: off until a user turns it on and sets it up. Before any of it enters the repo, every personal detail in it (name, initials, folder layout, city and travel, religious practice) is removed and becomes configuration — which overrides rule 2's "unchanged" for those lines. The known gaps it lives with today (an event missed across midnight is lost; daylight saving's skipped hour can drop a reminder; a crash re-sends a tick's notifications; a malformed file notifies every minute) are fixed while bringing it into Daybook, each behind a test. ⬜ Shell-command buttons vs rule 3: awaiting the owner | 2026-10-04 |
+| S12 | **Beta 1 is one loop** | Tell it about your life, get a useful brief every morning, correct it in a sentence. Built: everything through Settings & status. Added, and nothing else: the user sets the size of today's list (law 8's number), the chosen model plans the day (it proposes as text, Daybook writes after the checks), one "tell your secretary" message box (also offered in setup), and a tester install with Python bundled. Waits for tester feedback: chat history, reminders (S11), read grants (S10's file tools), the automatic nightly close, daily-shifting schedules (D6) (product-requirements.md, "Beta 1") | 2026-10-05 |
 
 ---
 
