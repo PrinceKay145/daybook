@@ -219,11 +219,9 @@ function BriefView({ brief }: { brief: BriefResult | null }) {
     );
   }
 
+  // The checks run before every brief; a brief that passes them is simply shown.
   return (
     <div className="flex h-full flex-col">
-      <p className="px-5 py-1.5 text-center text-[0.7rem] text-[var(--color-ink-faint)]">
-        Checked before it was shown: {passedCount} of {brief.results.length} checks passed.
-      </p>
       <iframe
         title="Today's brief"
         srcDoc={brief.html}
