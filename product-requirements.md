@@ -60,10 +60,15 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    state untouched and says why in one line; a finished thing never comes back; a made-up
    file path is never shown as a reference; the replaced day state is in
    `archive/day-state/`; the log line is Daybook's words, not the model's.
-3. **"Tell your secretary."** One message box on the scoreboard — not a chat with history:
-   "finished the proposal, waiting on Sam until Friday". The model proposes the updated day,
-   the user sees the change and approves it, the brief rebuilds. Setup offers the same box
-   beside the form: tell it about yourself in your own words, typed or dictated.
+3. ✅ **"Tell your secretary."** (built) One message box on the scoreboard — not a chat
+   with history: "finished the proposal, waiting on Sam until Friday". The model proposes the
+   updated day, the user sees it (today's list, what is marked done, who they are waiting on,
+   questions) and applies or discards it, and the brief rebuilds. Setup offers the same idea
+   beside the form: **in your own words** instead of the three questions, typed or dictated
+   (macOS dictation works in any text box), kept verbatim in `SETUP-CONTEXT.md`, where the
+   model reads it when it plans the first day. Accept: nothing is written until Apply, which
+   checks the plan again; Discard writes nothing and keeps the message to edit; a proposal
+   whose day state changed in the meantime is refused, not merged; one request at a time.
 4. **An install testers can open.** Unsigned, with the Gatekeeper step documented, and a
    Python bundled — most Macs no longer have one.
 
@@ -124,7 +129,8 @@ leads with the model's name, and the choice is written into the folder's `config
 it outlives the app. `authKind` is data on the provider record. 🔴 No hosted proxy of
 anyone's subscription, ever.
 
-**Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
+**Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight
+(or all three **in the user's own words**, one box, saved as written),
 **the user's brief time and close time**, **how many things today's list holds at most**
 (1–10, default 3 — never padded to reach it), **the shape of their day** (optional — the blocks
 they name; every minute they leave out is written as *Unplanned*, so the dial's day shape
@@ -154,7 +160,8 @@ frame. The checks run before every brief without being announced; a brief that f
 runner failing) says why and where the log is. No sample data: a placeholder that pretends
 to be a real brief would break the only promise this product makes. The model choice
 ("Sonnet 5 · Claude Code — change"), **Plan today**, a rebuild button and sign-out sit
-above it. While the model plans, one line says so; afterwards one line says what changed
+above it, and under them the **tell your secretary** box (Enter sends; the proposed day
+appears with Apply and Discard). While the model plans, one line says so; afterwards one line says what changed
 ("Today's plan is written — 2 on the list, 1 on the board", with the model's one-sentence
 summary) or why nothing did, and names any text in the folder that read like instructions
 and was ignored.

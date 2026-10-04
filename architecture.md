@@ -154,7 +154,13 @@ in Daybook's own words (never the model's — its text could otherwise pose as a
 Today's plan is recorded in app data (`state/tick-state.json`), so the tick plans once a day
 and a brief built later says, as a note, if planning failed; a failed retry never unsays a
 plan that was written. A proposal made but not yet applied (`plan --propose`, for the
-message box) is refused at `apply` if the day state changed in between.
+message box) is refused at `apply` if the day state changed in between. **The message box**
+proposes with the user's words as the newest truth about the day (fenced like the files);
+the proposal waits in the main process (`plan:run` with `propose`), the renderer gets what
+to show and an id, never the day state's text, and `plan:apply` with that id writes it
+after checking again. One planning run at a time; a second request is told so. Setup's
+**own words** need no model call: the text goes verbatim into `SETUP-CONTEXT.md`, which the
+first-day plan reads like any other file.
 
 How each connection is asked — arguments fixed in `secretary.py`, as a list, no shell, the
 model id pattern-checked, the prompt on stdin, in an empty temporary directory, with a small
