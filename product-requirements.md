@@ -69,8 +69,11 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    model reads it when it plans the first day. Accept: nothing is written until Apply, which
    checks the plan again; Discard writes nothing and keeps the message to edit; a proposal
    whose day state changed in the meantime is refused, not merged; one request at a time.
-4. **An install testers can open.** Unsigned, with the Gatekeeper step documented, and a
-   Python bundled — most Macs no longer have one.
+4. ✅ **An install testers can open** (built). `npm run dist:mac` → a disk image: Python
+   bundled, signed ad hoc (valid, not notarized), the one-time "Open Anyway" step and the
+   uninstall steps in `TESTERS.md` — the guide sent with it. The app offers to move itself
+   into Applications and installs no background jobs until it lives there. Apple silicon
+   only.
 
 **Then, once the functionality above is done: a design and UI pass** across every screen
 (owner, 2026-10-05). Until then the screens stay as plain as they are — functionality first.

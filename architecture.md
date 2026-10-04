@@ -305,6 +305,23 @@ is, for whoever writes the behaviour tests:
 5. ⬜ **Shell-command buttons** (`-execute`, an alert click, `do [n]` with `shell=True`) —
    rule 3 disables them in v1; awaiting the owner's confirmation that they are switched off.
 
+## Packaging (built 2026-10-05, Beta 1)
+
+`npm run dist:mac` (electron-builder) makes `Daybook-<version>-arm64.dmg`. Inside the app:
+the renderer bundle and `electron/` in `app.asar`; `Resources/runner/daybook/` with
+`LAWS.md` beside it; and `Resources/python/` — python-build-standalone 3.12, pinned by
+SHA-256 in `app/scripts/fetch-python.mjs`, used before any Python on the Mac (the brief, the
+planning run and the launchd jobs all point there). Nothing Daybook runs writes bytecode,
+so the bundle stays as signed. Signed **ad hoc** — a valid signature without a developer
+account, so macOS offers "Open Anyway" once rather than calling the app damaged; ⏳
+notarization before any public release (D4's Commercial Terms note applies then too). The
+installed app's app data is `~/Library/Application Support/Daybook` (a development copy
+keeps `daybook-app`). An app run from Downloads or the disk image is translocated by macOS
+to a path that changes every launch, so the packaged app offers to move itself to
+Applications and refuses to install launchd jobs until it has. ⏳ An in-app uninstall; until
+then `TESTERS.md` lists the steps (stop the jobs, remove the app, optionally its app data —
+never the folder).
+
 ## The three ship gates
 
 1. **A candidate first** — candidate → mechanical asserts → write, the previous file kept.
@@ -331,7 +348,8 @@ marked as such and is never followed as instruction (law 23; see
 app/electron/main.cjs       window, IPC: folder picker, atomic writes, keychain,
                             per-account settings, daybook://auth, https-only links
 app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex model list
-app/electron/runner.cjs     starts/stops runner/, finds Python, fetches the verified brief
+app/electron/runner.cjs     starts/stops runner/, finds Python (bundled first), the brief, planning runs
+app/scripts/fetch-python.mjs  the bundled Python: pinned, checksum-verified, trimmed
 app/electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
 app/electron/schedule.cjs   the tick and watchdog launchd jobs: write, load, status, stop
 runner/daybook/tick.py      what those jobs run: tick (plans the day, then the brief), watchdog

@@ -77,9 +77,9 @@ write it at the user's brief time and notify, and **Settings & status** shows an
 everything Daybook runs. **Beta 1** (S12), in the owner's order and nothing else: ✅ the user
 sets the size of today's list; ✅ the chosen model plans the day (it proposes as JSON, Daybook
 writes after the checks — no file tools; `runner/daybook/plan.py`); ✅ the "tell your
-secretary" box (propose → Apply/Discard) and setup in the user's own words; next, a tester
-install with Python bundled;
-then a design and UI pass across every screen — functionality first, so no polish before
+secretary" box (propose → Apply/Discard) and setup in the user's own words; ✅ a tester
+install (`npm run dist:mac`, Python bundled, signed ad hoc; the guide is `TESTERS.md`);
+next, a design and UI pass across every screen — functionality first, so no polish before
 then. API keys are built but not offered in Beta 1 (`API_KEYS_OFFERED` in the model step). Reminders (S11), read grants
 (S10's file tools) and the automatic nightly close wait for tester feedback — do not start
 them. Requirements: `product-requirements.md`, "Beta 1".
@@ -114,8 +114,9 @@ guessing, without sudo, and without knowing how it was built.
   jobs** — `pkill` alone restarts the tick in 60 seconds, and the docs must say so. One
   documented log location. Uninstall removes our jobs and app data, leaves the folder alone,
   and says so before doing it.
-- Distribution: unsigned for the friends alpha with the Gatekeeper approval step documented
-  in onboarding (S10); notarize before any public launch.
+- Distribution: signed ad hoc (not notarized) for the friends alpha, with the one-time "Open
+  Anyway" step in `TESTERS.md`, the guide sent with the disk image; notarize before any
+  public launch.
 
 ## The three gates — a build that fails any of these does not ship
 
