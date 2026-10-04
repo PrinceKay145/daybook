@@ -1,19 +1,33 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
-/* shadcn's convention: everything is a CSS variable, so a full re-theme is one block.
-   The palette is deliberately unbranded — D1 is not final and nothing here is product copy. */
+/* Daybook's design tokens — the single source of the values in design-system.md. Everything
+   is a CSS variable, so a re-theme is this file. Every colour has a light and a dark value:
+   light is ledger paper with blue-black ink, dark is graphite (drawn, not inverted). The one
+   accent is Daybook ink blue. */
 @theme {
-  --color-canvas: #f6f5f3;
-  --color-surface: #fffefc;
-  --color-ink: #1c1b19;
-  --color-ink-soft: #5d5a55;
-  --color-ink-faint: #8b877f;
-  --color-line: #e3e0da;
-  --color-accent: #2f4858;
-  --color-warn: #8a4b2a;
-  --color-wait: #6b7f9e;
-  --color-chase: #b1663c;
-  --radius-card: 14px;
+  --color-canvas: #f2f3ef;
+  --color-surface: #fbfbf9;
+  --color-sunken: #e8eae4;
+  --color-ink: #16191c;
+  --color-ink-soft: #4c535a;
+  --color-ink-faint: #687078;
+  --color-line: #d9dcd5;
+  --color-accent: #26487a;
+  --color-accent-ink: #ffffff;
+  --color-warn: #8f3b2a;
+  --color-wait: #556884;
+  --color-chase: #8a5410;
+
+  /* Newsreader for headings, the date and the day's list; Hanken Grotesk for everything
+     you operate. Both bundled (fonts.css). */
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Controls are 6; the few things that float (the proposed day, menus) are 10. */
+  --radius-control: 6px;
+  --radius-card: 10px;
 }
 
 @layer base {
@@ -21,37 +35,61 @@
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --color-canvas: #14151a;
-      --color-surface: #1c1e24;
-      --color-ink: #ecebe8;
-      --color-ink-soft: #a7a49e;
-      --color-ink-faint: #74716b;
-      --color-line: #2b2e36;
-      --color-accent: #9fc0d4;
-      --color-warn: #d79a70;
-      --color-wait: #8ba3c2;
-      --color-chase: #d08a5e;
+      --color-canvas: #121416;
+      --color-surface: #1a1d20;
+      --color-sunken: #202428;
+      --color-ink: #e7e9ea;
+      --color-ink-soft: #a8afb5;
+      --color-ink-faint: #838b92;
+      --color-line: #2a2f34;
+      --color-accent: #93b2e6;
+      --color-accent-ink: #0e1a2b;
+      --color-warn: #e3a08a;
+      --color-wait: #93a6c4;
+      --color-chase: #d8a45c;
     }
   }
 
   :root[data-theme="dark"] {
-    --color-canvas: #14151a;
-    --color-surface: #1c1e24;
-    --color-ink: #ecebe8;
-    --color-ink-soft: #a7a49e;
-    --color-ink-faint: #74716b;
-    --color-line: #2b2e36;
-    --color-accent: #9fc0d4;
-    --color-warn: #d79a70;
-    --color-wait: #8ba3c2;
-    --color-chase: #d08a5e;
+    --color-canvas: #121416;
+    --color-surface: #1a1d20;
+    --color-sunken: #202428;
+    --color-ink: #e7e9ea;
+    --color-ink-soft: #a8afb5;
+    --color-ink-faint: #838b92;
+    --color-line: #2a2f34;
+    --color-accent: #93b2e6;
+    --color-accent-ink: #0e1a2b;
+    --color-warn: #e3a08a;
+    --color-wait: #93a6c4;
+    --color-chase: #d8a45c;
   }
 
   body {
     background-color: var(--color-canvas);
     color: var(--color-ink);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
-      "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
+
+  h1, h2, h3 { text-wrap: balance; }
+  :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+}
+
+/* The one decorative convention: a section label, small caps-style and tracked. Used for
+   section names only (Today, Waiting on others, Your day), never for a form question. */
+@utility label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
 }
