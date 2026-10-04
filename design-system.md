@@ -44,9 +44,10 @@ Part of the four-document set: `product-requirements.md` · **design-system.md**
 
 - System font stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", …`) — nothing custom,
   nothing loaded.
-- Scale in use: `text-2xl` (login title) · `text-xl` (page titles) · `text-sm` (body) ·
-  `text-xs` (hints, metadata) · `text-[0.7–0.72rem] uppercase tracking-[0.09em]`
-  (card titles and step labels — the one decorative convention, keep it consistent).
+- Scale in use: `text-2xl` (login title) · `text-xl` (page titles) · `text-sm` (body, form
+  questions) · `text-xs` (guidance, metadata) · `text-[0.7–0.72rem] uppercase
+  tracking-[0.09em]` (card titles, step labels and form-section headings — the one
+  decorative convention, keep it consistent; never for a form question).
 - `font-medium` for emphasis; `font-semibold tracking-tight` for titles; `font-mono text-xs`
   for paths, times and code.
 
@@ -58,9 +59,20 @@ no upgrade can break them. Radix sits underneath only where keyboard/ARIA behavi
 - **Button** (`button.tsx`) — pill shape, three variants: `primary` (accent fill),
   `secondary` (bordered surface), `ghost` (text only). `focus-visible` ring on accent.
   Disabled = 50% opacity, cursor not-allowed.
-- **Field + inputClass** — uppercase micro-label above the input, hint below it. Inputs are
-  surface-bordered rounded cards; `focus:` border turns accent. Time inputs use the native
-  `<input type="time">`.
+- **Field + inputClass** — a field reads in three weights, strongest first: the **question**
+  (`text-sm font-medium`, full ink, sentence case, `(optional)` in faint ink where it
+  applies), the **guidance** (`text-xs`, soft ink, *between* the question and the input, so
+  it is read before typing), then the **input**. Inputs sit recessed in the canvas colour
+  with a line border, so they read as places to type rather than more card; focus turns the
+  border accent with a soft accent ring. Time inputs use the native `<input type="time">`;
+  long choices (time zones) a native `<select>`, which types-to-search.
+- **Placeholders may carry examples** — the owner likes them, and they teach the shape of
+  an answer faster than guidance does. They must never pass for an answer: **italic, in
+  faint ink**, where a typed answer is upright full ink; a one-line field's example starts
+  with **"e.g."** (a bare "Alex Rivera" looks filled in); a multi-line field shows two
+  example lines. The guidance above the field then says only what the field is for.
+- **Long forms group into sections** — a micro-label heading and a line above each group
+  (setup: *About you* · *What you're working with* · *Your day*).
 - **Card** (`card.tsx`) — `CardHeader` / `CardTitle` (the uppercase micro-label) /
   `CardContent`. The container for every scoreboard and settings section.
 - **Badge** (`badge.tsx`) — `pass` / `fail` / `neutral` pills; used for verification

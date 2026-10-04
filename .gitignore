@@ -16,15 +16,16 @@ appdata/
 *.db
 
 # --- Anything that could hold a real person's folder -------------------------
-# The ONLY state folder in this repo is fixtures/sample-folder. Everything else
-# that looks like one is assumed to be real and is refused. See CLAUDE.md rule 1.
+# The ONLY state folders in this repo are the invented ones under fixtures/
+# (sample-folder, fresh-folder). Everything else that looks like one is assumed
+# to be real and is refused. See AGENTS.md rule 1.
 /secretary/
 /Secretary/
 /*-folder/
 scratch/
 tmp/
 # NOTE: these patterns are anchored to the repo root on purpose, so that
-# fixtures/sample-folder/ is never caught and never needs a "!" re-include.
+# fixtures/*-folder/ is never caught and never needs a "!" re-include.
 # Git cannot re-include a file whose parent directory is excluded, so a
 # negation here would be load-bearing and would fail silently.
 

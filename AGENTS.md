@@ -67,17 +67,22 @@ and the shell swappable. It is the one rule in `app/` worth protecting.
 
 ## Where the build is
 
-Stage 1 works: **login → connect a folder → connect an AI provider → setup questions →
-scoreboard** (sample data behind a banner). Next, in the owner's order: the morning-brief
-pipeline (build brief data + the eleven verification assertions against the fixtures), then
-the launchd tick/watchdog and notifications via the Python sidecar, then accounts polish
-and packaging. Requirements: `product-requirements.md`.
+Stage 1 works: **login → connect a folder → choose a model → setup questions (including the
+shape of the day) → scoreboard**, and the scoreboard shows **today's real brief**: the app
+starts `runner/` on 127.0.0.1, the brief is built from the folder, and it is shown only when
+all eleven assertions pass (otherwise it is withheld and the failed checks are named). The
+brief is honest on day one (`fixtures/fresh-folder`). Next, in the owner's order: the
+launchd tick/watchdog and notifications via the Python sidecar (the brief arriving on its
+own at the user's time), then accounts polish and packaging — which must bundle a Python.
+Not yet placed by the owner: the chosen model writing any part of the brief (today every
+word comes from the folder). Requirements: `product-requirements.md`.
 
 ## Hard constraints
 
 | Constraint | Why |
 |---|---|
 | An action is `{"label", and exactly one of "url" \| "path"}` | The kind **is** the key; `shell` is disabled in v1 (rule 3) |
+| A local CLI runs only with commands fixed in our code | Checking sign-in, listing models, invoking: no shell, arguments as a list, the model ID pattern-checked, prompts on stdin as data. Nothing from model output or folder content becomes an argument, and a CLI's own credentials are never read (rule 3, D4) |
 | Secrets in the OS keychain (`safeStorage` / `keyring`) | Never a file on disk |
 | SQLite lives in app data, never the user's folder | Cloud-synced folders corrupt it |
 | SQLite is a derived index, deletable and rebuildable | Nothing may live only there |
@@ -86,7 +91,7 @@ and packaging. Requirements: `product-requirements.md`.
 | Every folder write is git-committed | Cheap history, undo, diffs |
 | A file watcher is mandatory | Users edit these files by hand — without watch-and-reload the next write clobbers them |
 | `authKind` is data, never an assumption | `"local_cli" \| "api_key"`; provider terms moved three times in 2026 |
-| The runner is scoped to the chosen folder | Enforced by path prefix in the file tools, visible in the UI |
+| The secretary writes only in the connected folder, and reads elsewhere only where the user granted read access in Daybook's UI (S10) | Enforced in code — UI-only grants in app data, the file tools' resolved-path checks, each CLI's own controls, a macOS sandbox — never by a prompt; the model can ask for access, never grant it. Visible and revocable in Settings |
 | The user's brief time is their data | `schedule.brief_time` in their `config.json` (default 09:00) — nothing reads a compiled constant |
 
 ## The process model — nothing mysterious may run on a user's machine

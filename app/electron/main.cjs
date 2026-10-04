@@ -8,6 +8,9 @@ const path = require("node:path");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
+const cli = require("./cli.cjs");
+const runner = require("./runner.cjs");
+const authLoopback = require("./authLoopback.cjs");
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "";
 const PROTOCOL = "daybook";
@@ -15,6 +18,13 @@ const PROTOCOL = "daybook";
 /* Renderer console output lands in the terminal that launched the app. The init and
    auth breadcrumbs are how a stalled step gets found without opening DevTools. */
 app.commandLine.appendSwitch("enable-logging");
+
+/* DAYBOOK_USER_DATA points the app at a different app-data directory — a first run
+   on a clean machine, without touching the real one. Must precede everything that
+   reads userData, including the single-instance lock. */
+if (process.env.DAYBOOK_USER_DATA) {
+  app.setPath("userData", path.resolve(process.env.DAYBOOK_USER_DATA));
+}
 
 /* ---------- app-data JSON files (atomic temp+rename, never in the user's folder) ---------- */
 
@@ -76,6 +86,11 @@ function createWindow() {
 
 let pendingAuthUrl = null;
 
+/* The callback's fragment carries the session tokens; logs get everything else. */
+function loggable(rawUrl) {
+  return rawUrl.includes("#") ? `${rawUrl.split("#")[0]}#(tokens withheld)` : rawUrl;
+}
+
 function forwardAuthUrl(rawUrl) {
   if (win && !win.isDestroyed()) {
     win.webContents.send("daybook:auth-callback", rawUrl);
@@ -92,7 +107,7 @@ if (!gotLock) {
   app.on("second-instance", (_event, argv) => {
     const url = argv.find((a) => a.startsWith(`${PROTOCOL}://`));
     if (url) {
-      console.log(`[daybook] auth callback via second-instance: ${url}`);
+      console.log(`[daybook] auth callback via second-instance: ${loggable(url)}`);
       forwardAuthUrl(url);
     }
     if (win) {
@@ -103,7 +118,7 @@ if (!gotLock) {
 
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    console.log(`[daybook] auth callback via open-url: ${url}`);
+    console.log(`[daybook] auth callback via open-url: ${loggable(url)}`);
     forwardAuthUrl(url);
   });
 
@@ -134,16 +149,58 @@ app.on("window-all-closed", () => {
   app.quit();
 });
 
-/* ---------- IPC: settings (the app's own state — folder choice, provider record) ---------- */
+// The runner dies with the app — nothing of ours stays resident after a quit.
+app.on("will-quit", () => runner.stop());
 
-ipcMain.handle("settings:load", () => readJson(settingsPath()) ?? {});
+/* ---------- IPC: settings (the app's own state, one record per account) ----------
+   Keyed by the account's user id, never its email: an account deleted and re-created
+   with the same address is a new account and walks onboarding from the start. The
+   pre-account file (one record for the whole Mac) belongs to nobody, so it is set
+   aside on first read — every account onboards once. */
 
-ipcMain.handle("settings:save", async (_event, patch) => {
-  const current = (await readJson(settingsPath())) ?? {};
-  const next = { ...current, ...(patch ?? {}) };
-  await writeJsonAtomic(settingsPath(), next);
-  return next;
+const USER_ID = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|dev-[^\s/]+@[^\s/]+)$/i;
+
+function requireUserId(userId) {
+  if (typeof userId !== "string" || !USER_ID.test(userId)) {
+    throw new Error("Settings need the signed-in account's id.");
+  }
+  return userId;
+}
+
+async function readStore() {
+  const raw = await readJson(settingsPath());
+  if (raw && raw.version === 2 && raw.users && typeof raw.users === "object") return raw;
+  if (raw) {
+    console.log(
+      `[daybook] settings: setting aside the pre-account record (${Object.keys(raw).join(", ")}) — each account onboards once`,
+    );
+  }
+  return { version: 2, users: {} };
+}
+
+/* Saves are read-modify-write on one file; run them one at a time so two saves
+   landing together cannot drop each other's changes. */
+let settingsQueue = Promise.resolve();
+function serially(task) {
+  const run = settingsQueue.then(task, task);
+  settingsQueue = run.catch(() => {});
+  return run;
+}
+
+ipcMain.handle("settings:load", async (_event, userId) => {
+  const store = await readStore();
+  return store.users[requireUserId(userId)] ?? {};
 });
+
+ipcMain.handle("settings:save", (_event, { userId, patch }) =>
+  serially(async () => {
+    const id = requireUserId(userId);
+    const store = await readStore();
+    const next = { ...(store.users[id] ?? {}), ...(patch ?? {}) };
+    await writeJsonAtomic(settingsPath(), { version: 2, users: { ...store.users, [id]: next } });
+    return next;
+  }),
+);
 
 /* ---------- IPC: folder ---------- */
 
@@ -188,21 +245,90 @@ function seedConfig(existing, payload) {
     allow_outside_root: false,
     shell_actions_enabled: false,
   };
-  if (payload.connection) {
-    // The active connection leads; other provider records the folder already had stay behind it.
-    const c = payload.connection;
-    const record = {
-      id: c.id,
-      label: c.label,
-      authKind: c.authKind,
-      ...(c.cliBinary ? { binary: c.cliBinary } : {}),
-      ...(c.model ? { model: c.model } : {}),
-      ...(c.authKind === "api_key" ? { keychain_ref: `provider/${c.id}` } : {}),
-    };
-    const existingProviders = Array.isArray(existing?.providers) ? existing.providers : [];
-    next.providers = [record, ...existingProviders.filter((p) => p && p.id !== c.id)];
+  if (!coversDayOnce(payload.dayShape)) {
+    throw new Error("The day shape must cover the whole day exactly once — nothing was written.");
   }
-  return next;
+  next.day_shape = payload.dayShape.map((b) => ({ block: b.block, start: b.start, end: b.end }));
+  return withProvider(next, payload.connection);
+}
+
+/* The brief's dial asserts its day shape covers 00:00–24:00 contiguously (V2). The setup
+   step fills the gaps as Unplanned; this refuses anything that would still fail, before
+   it reaches the folder. A block ending at or before its start runs past midnight. */
+function coversDayOnce(shape) {
+  if (!Array.isArray(shape) || shape.length === 0) return false;
+  const minutes = (hhmm) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(String(hhmm));
+    return match && +match[1] < 24 && +match[2] < 60 ? +match[1] * 60 + +match[2] : NaN;
+  };
+  const count = new Array(1440).fill(0);
+  for (const block of shape) {
+    if (!block || typeof block.block !== "string" || !block.block.trim()) return false;
+    const start = minutes(block.start);
+    const end = minutes(block.end);
+    if (Number.isNaN(start) || Number.isNaN(end)) return false;
+    const ranges = end > start ? [[start, end]] : [[start, 1440], [0, end]];
+    for (const [from, to] of ranges) for (let m = from; m < to; m++) count[m] += 1;
+  }
+  return count.every((c) => c === 1);
+}
+
+/* A model id reaches a CLI as an argument at invocation time, so it is held to a plain
+   shape here, where it enters the folder: letters, digits and . _ : / - only. */
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
+
+/* The active connection leads; other provider records the folder already had stay behind
+   it. An API key stays in the app's keychain store and is handed over at invocation, so
+   the folder records no pointer to it (and older records lose theirs). */
+function withProvider(config, connection) {
+  if (!connection) return config;
+  const c = connection;
+  if (c.model && !MODEL_ID.test(c.model)) {
+    throw new Error(`"${c.model}" is not a model id Daybook can pass on.`);
+  }
+  const record = {
+    id: c.id,
+    label: c.label,
+    authKind: c.authKind,
+    ...(c.cliBinary ? { binary: c.cliBinary } : {}),
+    ...(c.binaryPath ? { binary_path: c.binaryPath } : {}),
+    ...(c.model ? { model: c.model } : {}),
+    ...(c.modelLabel ? { model_label: c.modelLabel } : {}),
+  };
+  const existingProviders = (Array.isArray(config.providers) ? config.providers : [])
+    .filter((p) => p && p.id !== c.id)
+    .map(({ keychain_ref: _dropped, ...rest }) => rest);
+  return { ...config, providers: [record, ...existingProviders] };
+}
+
+/* A folder the user picked, as the renderer reports it: absolute, and a directory. */
+function requireFolder(folder) {
+  let usable = false;
+  try {
+    usable = typeof folder === "string" && path.isAbsolute(folder) && fs.statSync(folder).isDirectory();
+  } catch {
+    usable = false;
+  }
+  if (!usable) throw new Error("That is not a folder Daybook can use.");
+  return folder;
+}
+
+/* What an earlier setup left in this folder, or null. An owner name in config.json is the
+   mark of a finished setup interview — the one field the interview always writes. */
+async function existingSetup(folder) {
+  const config = await readJson(path.join(folder, "config.json"));
+  if (!config?.owner?.name) return null;
+  return {
+    ownerName: String(config.owner.name),
+    addressAs: config.owner.address_as ? String(config.owner.address_as) : "",
+    briefTime: config.schedule?.brief_time ? String(config.schedule.brief_time) : "09:00",
+    closeTime: config.schedule?.close_time ? String(config.schedule.close_time) : "23:00",
+    ...(config.owner.timezone ? { timezone: String(config.owner.timezone) } : {}),
+    // The blocks the user named; the Unplanned gaps are recomputed when they save again.
+    dayShape: (Array.isArray(config.day_shape) ? config.day_shape : [])
+      .filter((b) => b && b.block !== "Unplanned")
+      .map((b) => ({ block: String(b.block), start: String(b.start), end: String(b.end) })),
+  };
 }
 
 function today() {
@@ -287,10 +413,56 @@ mistake waiting to be repeated.
   ];
 }
 
+/* Starting over replaces what the interview wrote, never what the days wrote: the previous
+   SETUP-CONTEXT.md and MASTER-PLAN.md move to archive/setup/<stamp>/ first, and
+   DAY-STATE.md, LOG.md and CORRECTIONS.md stay exactly as they are. */
+const REDONE_BY_START_OVER = ["SETUP-CONTEXT.md", "MASTER-PLAN.md"];
+
+async function archivePreviousSetup(folder) {
+  const present = REDONE_BY_START_OVER.filter((file) => fs.existsSync(path.join(folder, file)));
+  if (present.length === 0) return null;
+  const relative = `archive/setup/${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  await fsp.mkdir(path.join(folder, relative), { recursive: true });
+  for (const file of present) {
+    await fsp.rename(path.join(folder, file), path.join(folder, relative, file));
+  }
+  return { relative, files: present };
+}
+
+async function appendLine(file, line) {
+  const current = await fsp.readFile(file, "utf8");
+  await writeTextAtomic(file, `${current.replace(/\n*$/, "\n")}${line}\n`);
+}
+
+ipcMain.handle("folder:inspect", async (_event, folder) => existingSetup(requireFolder(folder)));
+
+/* "Use this setup": the folder's files stay exactly as they are; only the AI choice made in
+   this onboarding is recorded in config.json, where the runner reads it. */
+ipcMain.handle("folder:adoptSetup", async (_event, { folder, connection }) => {
+  const target = path.join(requireFolder(folder), "config.json");
+  const existing = await readJson(target);
+  if (!existing?.owner?.name) {
+    throw new Error("This folder has no setup to use — answer the questions instead.");
+  }
+  await writeTextAtomic(target, `${JSON.stringify(withProvider(existing, connection), null, 2)}\n`);
+  return ["config.json"];
+});
+
+/* A model switched from the scoreboard: the folder's config.json follows, so the choice
+   outlives the app. Everything else in the file is left as it is. */
+ipcMain.handle("folder:recordConnection", async (_event, { folder, connection }) => {
+  const target = path.join(requireFolder(folder), "config.json");
+  const existing = (await readJson(target)) ?? {};
+  await writeTextAtomic(target, `${JSON.stringify(withProvider(existing, connection), null, 2)}\n`);
+  return ["config.json"];
+});
+
 ipcMain.handle("folder:writeSetup", async (_event, payload) => {
+  const folder = requireFolder(payload?.folder);
+  const archived = payload.startOver ? await archivePreviousSetup(folder) : null;
   const written = [];
   for (const seed of seedsFor(payload)) {
-    const target = path.join(payload.folder, seed.file);
+    const target = path.join(folder, seed.file);
     if (seed.file !== "config.json" && fs.existsSync(target) && seed.onlyIfAbsent) continue;
     if (seed.merge) {
       const existing = await readJson(target);
@@ -299,6 +471,14 @@ ipcMain.handle("folder:writeSetup", async (_event, payload) => {
       await writeTextAtomic(target, seed.text);
     }
     written.push(seed.file);
+  }
+  if (archived) {
+    const previous = archived.files.join(" and ");
+    await appendLine(
+      path.join(folder, "LOG.md"),
+      `- ${today()} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
+    );
+    written.push(`${archived.relative}/ — the previous ${previous}`);
   }
   return written;
 });
@@ -350,12 +530,12 @@ const MODEL_ENDPOINTS = {
   },
 };
 
-ipcMain.handle("connections:listModels", async (_event, { provider, connectionId }) => {
+ipcMain.handle("connections:listModels", async (_event, { provider, secret }) => {
   const endpoint = MODEL_ENDPOINTS[provider];
   if (!endpoint) {
     throw new Error(`Live model listing is not available for ${provider} — type a model ID instead.`);
   }
-  const key = await secretValue(`provider/${connectionId}`);
+  const key = await secretValue(secret);
   if (!key) {
     throw new Error("This connection's key is no longer in the keychain — reconnect it first.");
   }
@@ -368,32 +548,55 @@ ipcMain.handle("connections:listModels", async (_event, { provider, connectionId
     );
   }
   const body = await response.json();
-  const ids = (body.data ?? body.models ?? [])
-    .map((m) => m.id ?? m.name)
-    .filter((id) => typeof id === "string");
-  return ids.sort();
+  // OpenAI's list also carries embedding, audio and image models the secretary cannot use.
+  const notChat = /embedding|whisper|tts|dall-e|moderation|audio|realtime|transcribe|image|search/i;
+  return (body.data ?? body.models ?? [])
+    .map((m) => ({ id: m.id ?? m.name, label: m.display_name ?? m.id ?? m.name }))
+    .filter((m) => typeof m.id === "string" && !notChat.test(m.id))
+    .sort((a, b) => a.label.localeCompare(b.label));
 });
 
-/* ---------- IPC: local CLI detection (never executed — presence only) ---------- */
+/* ---------- IPC: today's brief, from the runner ----------
+   Built, verified and rendered by runner/; the rendered page comes back only when all
+   eleven assertions passed. Failures come back as data the scoreboard states plainly. */
 
-ipcMain.handle("cli:detect", async () => {
-  const dirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean);
-  const found = [];
-  for (const name of ["claude", "codex"]) {
-    const hit = dirs.find((dir) => {
-      try {
-        fs.accessSync(path.join(dir, name), fs.constants.X_OK);
-        return true;
-      } catch {
-        return false;
-      }
-    });
-    if (hit) found.push(name);
+ipcMain.handle("brief:get", async (_event, folder) => {
+  const logFile = path.join(app.getPath("userData"), "logs", "runner.log");
+  try {
+    return { ok: true, logFile, ...(await runner.brief(requireFolder(folder), logFile)) };
+  } catch (err) {
+    return { ok: false, logFile, code: err.code ?? "RUNNER_FAILED", message: String(err.message ?? err) };
   }
-  return found;
+});
+
+/* ---------- IPC: local CLIs — found, asked whether signed in, asked for models ----------
+   Everything runs through cli.cjs with fixed commands; the renderer only names the CLI. */
+
+ipcMain.handle("cli:detect", () => cli.detect());
+
+ipcMain.handle("cli:models", (_event, name) => {
+  if (name !== "codex") throw new Error("Only Codex can list its models; Claude Code's are a fixed catalog.");
+  return cli.codexModels();
 });
 
 /* ---------- IPC: outbound links (https only — the renderer never opens targets itself) ---------- */
+
+/* ---------- IPC: Google sign-in's return path (a one-sign-in loopback listener) ---------- */
+
+ipcMain.handle("auth:loopback", () =>
+  authLoopback.start((returnUrl) => {
+    console.log(`[daybook] auth callback via loopback: ${loggable(returnUrl)}`);
+    forwardAuthUrl(returnUrl);
+    // The browser tab now says "you can close this"; the app is where the user continues.
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      app.focus({ steal: true });
+    }
+  }),
+);
+
+app.on("will-quit", () => authLoopback.stop());
 
 ipcMain.handle("shell:openExternal", async (_event, url) => {
   const parsed = new URL(url);

@@ -17,6 +17,8 @@ from pathlib import Path
 RUNNER = Path(__file__).resolve().parents[1]
 REPO = RUNNER.parent
 FIXTURE = REPO / "fixtures" / "sample-folder"
+# Exactly what the app's setup interview writes, for a user who set up today.
+FRESH_FIXTURE = REPO / "fixtures" / "fresh-folder"
 
 if str(RUNNER) not in sys.path:
     sys.path.insert(0, str(RUNNER))
@@ -32,10 +34,12 @@ PENDING = ["briefs/2026-03-10.html", "briefs/latest.html"]
 class FolderCase(unittest.TestCase):
     """A test that gets its own disposable copy of the fixture folder."""
 
+    fixture = FIXTURE
+
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="daybook-test-"))
         self.folder = self.tmp / "folder"
-        shutil.copytree(FIXTURE, self.folder)
+        shutil.copytree(self.fixture, self.folder)
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
 
     # -- editing the copy ---------------------------------------------------

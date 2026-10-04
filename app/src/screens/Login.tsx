@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import {
-  getAccount,
+  verifyAccount,
   authConfigured,
   authInitError,
   signInWithPassword,
@@ -31,7 +31,7 @@ export function LoginScreen({
     setError(null);
     setBusy(true);
     try {
-      const account = await getAccount();
+      const { account } = await verifyAccount();
       if (!account) throw new Error("Signed in, but no account came back. Try again.");
       onSignedIn(account);
     } catch (err) {

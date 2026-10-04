@@ -10,6 +10,7 @@ unless all eleven pass.
 
 from __future__ import annotations
 
+import html
 import re
 import shutil
 import subprocess
@@ -50,7 +51,7 @@ def verify(data: BriefData, html: str) -> list[Result]:
         _v8(data),
         _v9(data),
         _v10(data),
-        _v11(data),
+        _v11(data, html),
     ]
 
 
@@ -323,21 +324,35 @@ def _v10(data: BriefData) -> Result:
 
 # -- V11 -------------------------------------------------------------------------
 
-def _v11(data: BriefData) -> Result:
+def _v11(data: BriefData, html_text: str) -> Result:
+    """The delivery evidence is read, and what it says — including that there is none —
+    is on the page the user reads. "Reflected" is checked against the rendered brief, not
+    assumed from the data.
+
+    No heartbeat is a real state, not an error: a folder set up today, or a Mac where the
+    reminder agent is not installed yet, has no delivery evidence at all. The brief may
+    ship then only if it says so and judges nothing — its closing line is that statement
+    (law 14: never judge a day against instructions that were never delivered)."""
     delivery = data.delivery
-    if not delivery.heartbeat_present:
-        return Result("V11", "The heartbeat was checked and its result is reflected", False,
-                      "no .agent-heartbeat.json — delivery cannot be established, so the "
-                      "brief has no basis for anything it says about the user's days",
-                      "Judging an undelivered day")
     sentence = delivery.sentence().strip()
-    reflected = bool(sentence) and (
-        sentence in data.closing.text or sentence != ""
-    )
+    on_page = bool(sentence) and html.escape(sentence, quote=True) in html_text
+    if not delivery.heartbeat_present:
+        judges_nothing = data.closing.text.strip() == sentence
+        ok = on_page and judges_nothing
+        detail = (
+            "no .agent-heartbeat.json — the brief says delivery cannot be established, and "
+            "its closing line judges nothing"
+            if ok
+            else "no .agent-heartbeat.json and the brief does not say so where it is read"
+        )
+        return Result("V11", "The heartbeat was checked and its result is reflected", ok,
+                      detail, "Judging an undelivered day")
     detail = (
         f"heartbeat read (last tick {delivery.last_tick}, alert style "
         f"{delivery.alert_style!r}); {len(delivery.undelivered_days)} undelivered day(s) "
         f"stated in the brief"
+        if on_page
+        else "heartbeat read, but what it says is not on the rendered page"
     )
-    return Result("V11", "The heartbeat was checked and its result is reflected", reflected,
+    return Result("V11", "The heartbeat was checked and its result is reflected", on_page,
                   detail, "Judging an undelivered day")

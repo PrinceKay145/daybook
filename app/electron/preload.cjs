@@ -6,18 +6,27 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("daybook", {
   pickFolder: () => ipcRenderer.invoke("folder:pick"),
-  loadSettings: () => ipcRenderer.invoke("settings:load"),
-  saveSettings: (patch) => ipcRenderer.invoke("settings:save", patch),
+  loadSettings: (userId) => ipcRenderer.invoke("settings:load", userId),
+  saveSettings: (userId, patch) => ipcRenderer.invoke("settings:save", { userId, patch }),
   writeSetup: (payload) => ipcRenderer.invoke("folder:writeSetup", payload),
+  inspectFolder: (folder) => ipcRenderer.invoke("folder:inspect", folder),
+  adoptSetup: (folder, connection) => ipcRenderer.invoke("folder:adoptSetup", { folder, connection }),
+  recordConnection: (folder, connection) =>
+    ipcRenderer.invoke("folder:recordConnection", { folder, connection }),
   storeSecret: (name, value) => ipcRenderer.invoke("secret:store", { name, value }),
   loadSecret: (name) => ipcRenderer.invoke("secret:load", { name }),
   deleteSecret: (name) => ipcRenderer.invoke("secret:delete", { name }),
+  brief: (folder) => ipcRenderer.invoke("brief:get", folder),
   detectCli: () => ipcRenderer.invoke("cli:detect"),
+  listCliModels: (name) => ipcRenderer.invoke("cli:models", name),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
-  listModels: (provider, connectionId) =>
-    ipcRenderer.invoke("connections:listModels", { provider, connectionId }),
+  startAuthLoopback: () => ipcRenderer.invoke("auth:loopback"),
+  listModels: (provider, secret) =>
+    ipcRenderer.invoke("connections:listModels", { provider, secret }),
   protocolHandler: () => ipcRenderer.invoke("protocol:handler"),
   onAuthCallback: (callback) => {
-    ipcRenderer.on("daybook:auth-callback", (_event, url) => callback(url));
+    const listener = (_event, url) => callback(url);
+    ipcRenderer.on("daybook:auth-callback", listener);
+    return () => ipcRenderer.removeListener("daybook:auth-callback", listener);
   },
 });

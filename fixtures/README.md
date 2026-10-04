@@ -51,6 +51,16 @@ Tests inject that as the clock. Without a frozen clock, half the assertions here
 | `documents/` | Every file the other fixtures point at, so V5 has something to assert against |
 | `briefs/`, `archive/` | Where generated briefs and rolled-off history land |
 
+## `fresh-folder/` — day one
+
+Exactly what the app's setup interview writes, for an invented person (Robin Hale) who set
+up on the frozen date: `config.json` (owner, schedule, scope, a day shape whose gaps are
+**Unplanned**, the chosen model), `SETUP-CONTEXT.md`, `MASTER-PLAN.md`, and the seed
+`DAY-STATE.md`, `LOG.md`, `CORRECTIONS.md`. No reminders, no heartbeat, no day recorded.
+It exists so the brief is tested on the folder most real users actually have in week one:
+it must build, pass all eleven, and say plainly what it does not know yet. If the setup
+interview's output changes, change this folder in the same commit.
+
 ### Paths, and how they resolve
 
 Paths appear two ways in this folder — `~/Secretary/documents/x.md` in `reminders.json`,

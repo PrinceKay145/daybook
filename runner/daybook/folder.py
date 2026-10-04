@@ -17,6 +17,11 @@ from . import schedule as sch
 from .clock import Clock
 from .paths import FolderScope
 
+# The label for any time the user's day shape does not cover. The setup interview writes
+# it for the gaps between the blocks the user named; a folder with no shape at all is one
+# Unplanned block. It is the truth about that time, not a placeholder.
+UNPLANNED = "Unplanned"
+
 
 @dataclass
 class Heartbeat:
@@ -83,6 +88,19 @@ class Folder:
     def timezone(self) -> str:
         return self.config.get("owner", {}).get("timezone", "")
 
+    def day_shape(self) -> list[dict]:
+        """The blocks of the day from config.json. A folder with none recorded — set up
+        before the setup interview asked, or skipped — is one Unplanned block for the whole
+        day: the dial stays complete and says nothing that is not true."""
+        shape = self.config.get("day_shape") or []
+        if shape:
+            return shape
+        self.warnings.append(
+            "No day shape is recorded, so the whole day shows as Unplanned. Describe your "
+            "day's blocks in setup to fill the dial."
+        )
+        return [{"block": UNPLANNED, "start": "00:00", "end": "00:00"}]
+
     def light_schedule(self) -> sch.DayLight | None:
         """Rank 1 of the source precedence only, in week 1.
 
@@ -128,8 +146,21 @@ def open_folder(path: str, clock_override: str | None = None) -> Folder:
         clock = Clock.system()
 
     folder = Folder(scope=scope, clock=clock, config=config)
-    folder.day_state = ds.parse(scope.read_text("DAY-STATE.md"))
-    folder.log = lf.parse(scope.read_text("LOG.md"))
-    folder.schedule = sch.parse(scope.read_text("reminders.json"))
+    # A folder the setup interview has only just written has no reminders yet, and a
+    # user may delete any file by hand. An absent file is read as empty and the brief says
+    # so; it is never a crash, and never filled in with something plausible.
+    folder.day_state = ds.parse(_read_or_empty(folder, "DAY-STATE.md", "No day has been recorded yet"))
+    folder.log = lf.parse(_read_or_empty(folder, "LOG.md", "Nothing has been logged yet"))
+    folder.schedule = sch.parse(
+        _read_or_empty(folder, "reminders.json", "No reminders are set yet", empty="{}")
+    )
     folder.heartbeat = Heartbeat.read(scope)
     return folder
+
+
+def _read_or_empty(folder: Folder, name: str, reason: str, empty: str = "") -> str:
+    try:
+        return folder.scope.read_text(name)
+    except FileNotFoundError:
+        folder.warnings.append(f"{reason} — there is no {name} in the folder.")
+        return empty

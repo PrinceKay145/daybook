@@ -8,7 +8,7 @@ place with an explicit answer — including *"deferred, don't decide this for me
 not decide it yourself, may not design around one option as if it were chosen, and may not ask
 again mid-build. Build the part that is common to both options and leave a seam.
 
-**Last updated:** 2026-09-24 · ⬜ = awaiting the owner
+**Last updated:** 2026-10-04 · ⬜ = awaiting the owner
 
 ---
 
@@ -20,12 +20,16 @@ Renaming after the first commit is painful; after the first user it is worse.
 
 **Shortlist:** Daybook · Adjutant · Sentry · Almanac · Majordomo · Steward · Cairn · Reveille · Understudy · Deputy · Firstlight · Plumb · (or keep PK Secretary)
 
-**ANSWER:** ⬜ Daybook
+**ANSWER:** ✅ Daybook (2026-09-27)
 
 **Also fix at the same time:**
-- Domain: ⬜ ______________________ *(check availability before committing to the name)*
-- GitHub org / repo: ⬜ ______________________
-- Bundle id (e.g. `io.example.daybook`): ⬜ ______________________
+- Domain: ⬜ ______________________ *(check availability before committing to the name; the
+  bundle id reads as `daybook.app` reversed, but it needs no working site)*
+- GitHub org / repo: ⬜ ______________________ *(private — D2)*
+- Bundle id: ✅ `app.daybook.mac` (2026-10-04). Permanent: macOS files the app's data folder,
+  keychain items, notification and folder permissions, the `daybook://` handler and the
+  launchd job labels under it — changing it after users install makes a different app. Set
+  as `build.appId` in `app/package.json`.
 
 ---
 
@@ -42,7 +46,15 @@ the daemon are readable by strangers on day one.
 **Recommendation: start private and decide before the first public push.** Costs nothing, keeps
 every option open, and "we opened it later" is a normal story while "we closed it" is not.
 
-**ANSWER:** ⬜ ______________________
+**ANSWER:** ✅ Private for now (2026-09-28). Whether it ever opens — and under which licence —
+is decided before any public push.
+
+**Before any public push, deal with** (checked 2026-10-04; fine for a private repo under the
+owner's own account): every commit's author line carries the owner's real name and personal
+email (GitHub's noreply address stops this for new commits; history keeps it unless
+rewritten); the old working name "PK Secretary" — the owner's initials — runs through
+`docs/` and twice here; and AGENTS.md rule 2 names the reference daemon's real path on the
+owner's Mac. Nothing else in the files or history carries personal data.
 
 ---
 
@@ -76,7 +88,27 @@ See architecture §3.
 keeps the product alive if a policy moves. Three extra days for insurance against an
 externally-controlled single point of failure.
 
-**ANSWER:** ⬜ both / ⬜ api_key only / ⬜ local_cli only
+**ANSWER:** ✅ `local_cli` ships (2026-09-28), on the route Anthropic explicitly permits: the
+end user signs in to the **unmodified** `claude` binary with their own subscription, through
+Anthropic's own flow. The `api_key` path stays as built alongside it.
+
+**What this commits the build to** (Anthropic's
+[legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance), read
+2026-09-28):
+- Daybook runs `claude` exactly as published and never removes, disables or restricts any
+  sign-in method built into it.
+- Daybook never offers a Claude login of its own and never reads, stores or forwards Claude
+  credentials or session tokens (`~/.claude`, its keychain entry). Not signed in → show the
+  user `claude auth login` and let them finish in Claude Code's own flow.
+- Usage bills to the user's own plan; Daybook never pays for, resells or intermediates it (S4).
+- Daybook invokes the installed CLI directly, not through the Agent SDK — the same page tells
+  Agent SDK builders to use API keys.
+- "Claude Code" appears as plain text only — never in Daybook's name or logo, never implying
+  endorsement.
+- Codex is held to the same conditions until OpenAI states a policy of its own.
+- ⏳ **Before publishing live:** the section this permission sits under says running Claude
+  Code in a product requires agreeing to Anthropic's Commercial Terms. The owner agrees to
+  them before any public release; the friends alpha proceeds without asking Anthropic.
 
 ---
 
@@ -134,13 +166,16 @@ content. Slower learning, but consistent with a product whose pitch is "we never
 
 | # | Decision | Settled | When |
 |---|---|---|---|
-| S1 | **Desktop application**, not a website or a browser+terminal runner | Tauri shell, Python daemon bundled as a sidecar runner. The terminal step excludes the audience in spec §2; a dock icon is a re-entry point where a browser tab is not | 2026-09-24 |
+| S1 | **Desktop application**, not a website or a browser+terminal runner | Python daemon bundled as a sidecar runner. The terminal step excludes the audience in spec §2; a dock icon is a re-entry point where a browser tab is not. The shell is Electron (S8) — this row first said Tauri | 2026-09-24 |
 | S2 | **Fully anonymised** product | No name, employer, city, institution, goal, faith detail or financial state from the owner's life enters the repo, README, website or onboarding | 2026-09-12 |
 | S3 | **Do not rewrite the daemon** | Port only when the test suite is green and nothing is on a deadline | spec §13 |
 | S4 | **Bring your own credential** | No hosted proxy of anyone's subscription. Ever. | 2026-09-24 |
 | S5 | **The laws in spec §6 are fixed** | Everything from §8 on is negotiable; §6 is not | spec |
 | S6 | **No shell actions in v1** | Security boundary, not a scope cut — the agent writes the config, so a model-authored action target is a laundering path | 2026-09-24 |
-| S7 | **No accounts in v1** | Nothing on the server needs an identity until billing exists | 2026-09-24 |
+| S7 | ~~**No accounts in v1**~~ — **superseded by S9** | Nothing on the server needs an identity until billing exists | 2026-09-24 |
+| S8 | **Electron shell** | The app was built on Electron (main process, preload bridge, React renderer). Tauri remains a documented option: the renderer never imports Electron or Node APIs, so the shell stays swappable (AGENTS.md) | 2026-09-27 |
+| S9 | **Accounts in v1 — identity and licensing only** | Supabase sign-in (Google or email), supersedes S7. The server may hold account identity, licensing state and usage counters, never folder content, keys, prompts, paths or location; the leak test must stay "no harm" (product-requirements.md, "Accounts") | 2026-09-27 |
+| S10 | **Folder access: write inside, read where granted** | The secretary reads, writes and edits inside the connected folder, changes subject to an approval mode the user sets (ask each time, or apply with git history and undo; deletes and whole-file replacements always ask). It may read other folders (Downloads, Documents, a chosen folder) only where the user granted read access in Daybook's UI, and never writes outside the connected folder. Enforced in code at four layers — UI-only grants in app data, Daybook's file tools, each CLI's own controls, a macOS sandbox — never by a prompt (architecture.md, "Folder access and approvals") | 2026-10-04 |
 
 ---
 

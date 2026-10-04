@@ -3,27 +3,71 @@
    browser can honestly do (settings in localStorage) and refuse what it cannot
    (folder access, keychain, outbound links) instead of pretending. */
 
+import type { DayBlock } from "@/lib/dayShape";
+import { fetchBriefFromRunner } from "@/lib/api";
+
 export interface Connection {
   id: string;
   label: string;
   authKind: "local_cli" | "api_key";
   cliBinary?: string;
-  /** The model the secretary uses through this connection (alias or full ID). */
+  /** Where the CLI was found on this Mac — the path invocation uses. */
+  binaryPath?: string;
+  /** The model the secretary uses through this connection (a full model ID). */
   model?: string;
+  /** The model's display name, e.g. "Sonnet 5". */
+  modelLabel?: string;
 }
 
-export interface AppSettings {
+/** What the connect step learned about one local CLI. */
+export interface CliStatus {
+  name: "claude" | "codex";
+  found: boolean;
+  path?: string;
+  version?: string;
+  signedIn?: boolean;
+  /** How the CLI is signed in: the user's plan, or an API key. */
+  method?: "subscription" | "api_key";
+  /** Claude Code reports the plan (e.g. "max", "pro"). */
+  plan?: string;
+  error?: string;
+}
+
+export interface CheckResult {
+  id: string;
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** Today's brief from the runner. `html` is present only when all eleven passed. */
+export type BriefResult =
+  | { ok: true; passed: boolean; results: CheckResult[]; warnings: string[]; html: string | null; logFile?: string }
+  | { ok: false; code: string; message: string; logFile?: string };
+
+export interface ModelOption {
+  id: string;
+  label: string;
+  isDefault?: boolean;
+}
+
+/** One account's state on this Mac, stored under its user id — a different account,
+    or the same email re-created as a new account, starts from nothing. */
+export interface UserSettings {
+  /** Display only; the user id is the key. */
+  email?: string;
   folderPath?: string;
   connections?: Connection[];
   activeConnectionId?: string;
-  /** Legacy single-provider record from before connections existed; promoted on load. */
-  provider?: Connection | null;
-  setupCompleted?: boolean;
-  /** The account that completed setup — any other account walks onboarding again. */
-  onboardedFor?: string;
-  accountEmail?: string;
+  /** When this account finished the setup questions (ISO time). */
+  setupCompletedAt?: string;
   /** Display copy of the user's chosen brief time; config.json in the folder is authoritative. */
   briefTime?: string;
+}
+
+/** The keychain entry for one account's API-key connection. */
+export function secretName(userId: string, connectionId: string): string {
+  return `user/${userId}/provider/${connectionId}`;
 }
 
 export interface SetupPayload {
@@ -39,6 +83,22 @@ export interface SetupPayload {
   /** The active connection, written into the folder's config.json providers block.
       Null-tolerant: the flow guarantees it, the writer tolerates its absence. */
   connection: Connection | null;
+  /** Replacing an earlier setup: its SETUP-CONTEXT.md and MASTER-PLAN.md move to
+      archive/setup/ first. */
+  startOver?: boolean;
+  /** The whole day, 00:00–24:00 exactly once: the user's blocks plus Unplanned gaps. */
+  dayShape: DayBlock[];
+}
+
+/** What an earlier setup interview left in a folder. */
+export interface ExistingSetup {
+  ownerName: string;
+  addressAs: string;
+  briefTime: string;
+  closeTime: string;
+  timezone?: string;
+  /** The blocks the user named (Unplanned gaps left out). */
+  dayShape?: DayBlock[];
 }
 
 /** Providers whose model list can be fetched live with the stored key. */
@@ -46,19 +106,33 @@ export type ListableModelProvider = "anthropic" | "openai";
 
 interface DaybookBridge {
   pickFolder(): Promise<string | null>;
-  loadSettings(): Promise<AppSettings>;
-  saveSettings(patch: Partial<AppSettings>): Promise<AppSettings>;
+  loadSettings(userId: string): Promise<UserSettings>;
+  saveSettings(userId: string, patch: Partial<UserSettings>): Promise<UserSettings>;
   writeSetup(payload: SetupPayload): Promise<string[]>;
+  /** The earlier setup this folder holds, or null. */
+  inspectFolder(folder: string): Promise<ExistingSetup | null>;
+  /** Keeps the folder's setup as it is; records the AI choice in its config.json. */
+  adoptSetup(folder: string, connection: Connection | null): Promise<string[]>;
+  /** Records a switched model in the folder's config.json. */
+  recordConnection(folder: string, connection: Connection): Promise<string[]>;
   storeSecret(name: string, value: string): Promise<boolean>;
   loadSecret(name: string): Promise<string | null>;
   deleteSecret(name: string): Promise<boolean>;
-  detectCli(): Promise<string[]>;
+  /** Today's brief for this folder — built, verified and rendered by the runner. */
+  brief(folder: string): Promise<BriefResult>;
+  /** Claude Code and Codex: found or not, and whether each is signed in. */
+  detectCli(): Promise<CliStatus[]>;
+  /** The models Codex's sign-in can use (Claude Code's are a catalog: models.ts). */
+  listCliModels(name: "codex"): Promise<ModelOption[]>;
   openExternal(url: string): Promise<boolean>;
-  /** Model IDs the stored key can call. Only for listable providers. */
-  listModels(provider: ListableModelProvider, connectionId: string): Promise<string[]>;
+  /** Listens on 127.0.0.1 for one Google sign-in; returns the redirect URL for Supabase. */
+  startAuthLoopback(): Promise<string>;
+  /** Models the stored key can call. Only for listable providers. */
+  listModels(provider: ListableModelProvider, secret: string): Promise<ModelOption[]>;
   /** Name/path the OS reports as the daybook:// handler; empty when none. */
   protocolHandler(): Promise<string>;
-  onAuthCallback(callback: (url: string) => void): void;
+  /** Returns the unsubscribe. */
+  onAuthCallback(callback: (url: string) => void): () => void;
 }
 
 const bridge = (window as { daybook?: DaybookBridge }).daybook ?? null;
@@ -66,11 +140,11 @@ const bridge = (window as { daybook?: DaybookBridge }).daybook ?? null;
 /** True when running inside the Electron shell; false in a plain browser tab. */
 export const isDesktop = bridge !== null;
 
-const LS_KEY = "daybook.settings";
+const LS_KEY = "daybook.users";
 
-function browserSettings(): AppSettings {
+function browserUsers(): Record<string, UserSettings> {
   try {
-    return (JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") as AppSettings) ?? {};
+    return (JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") as Record<string, UserSettings>) ?? {};
   } catch {
     return {};
   }
@@ -84,24 +158,31 @@ async function refuse(what: string): Promise<never> {
 
 export const daybook: DaybookBridge = bridge ?? {
   pickFolder: () => refuse("Choosing a folder"),
-  loadSettings: async () => browserSettings(),
-  saveSettings: async (patch) => {
-    const next = { ...browserSettings(), ...patch };
-    localStorage.setItem(LS_KEY, JSON.stringify(next));
+  loadSettings: async (userId) => browserUsers()[userId] ?? {},
+  saveSettings: async (userId, patch) => {
+    const users = browserUsers();
+    const next = { ...(users[userId] ?? {}), ...patch };
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...users, [userId]: next }));
     return next;
   },
   writeSetup: () => refuse("Writing the setup files"),
+  inspectFolder: async () => null,
+  adoptSetup: () => refuse("Writing the setup files"),
+  recordConnection: () => refuse("Writing config.json"),
   storeSecret: () => refuse("Storing a key in the keychain"),
   loadSecret: async () => null,
   deleteSecret: async () => true,
+  // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
+  brief: () => fetchBriefFromRunner(),
   detectCli: async () => [],
+  listCliModels: () => refuse("Asking Codex for its models"),
   openExternal: (url) => {
     window.open(url, "_blank", "noopener");
     return Promise.resolve(true);
   },
   listModels: () => refuse("Listing a provider's models"),
+  startAuthLoopback: () => refuse("Listening for the sign-in"),
   protocolHandler: async () => "",
-  onAuthCallback: () => {
-    /* In a browser, Supabase handles the redirect itself. */
-  },
+  /* In a browser, Supabase handles the redirect itself. */
+  onAuthCallback: () => () => {},
 };
