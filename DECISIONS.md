@@ -8,7 +8,7 @@ place with an explicit answer — including *"deferred, don't decide this for me
 not decide it yourself, may not design around one option as if it were chosen, and may not ask
 again mid-build. Build the part that is common to both options and leave a seam.
 
-**Last updated:** 2026-09-28 · ⬜ = awaiting the owner
+**Last updated:** 2026-10-04 · ⬜ = awaiting the owner
 
 ---
 
@@ -20,12 +20,16 @@ Renaming after the first commit is painful; after the first user it is worse.
 
 **Shortlist:** Daybook · Adjutant · Sentry · Almanac · Majordomo · Steward · Cairn · Reveille · Understudy · Deputy · Firstlight · Plumb · (or keep PK Secretary)
 
-**ANSWER:** ⬜ Daybook
+**ANSWER:** ✅ Daybook (2026-09-27)
 
 **Also fix at the same time:**
-- Domain: ⬜ ______________________ *(check availability before committing to the name)*
-- GitHub org / repo: ⬜ ______________________
-- Bundle id (e.g. `io.example.daybook`): ⬜ ______________________
+- Domain: ⬜ ______________________ *(check availability before committing to the name; the
+  bundle id reads as `daybook.app` reversed, but it needs no working site)*
+- GitHub org / repo: ⬜ ______________________ *(private — D2)*
+- Bundle id: ✅ `app.daybook.mac` (2026-10-04). Permanent: macOS files the app's data folder,
+  keychain items, notification and folder permissions, the `daybook://` handler and the
+  launchd job labels under it — changing it after users install makes a different app. Set
+  as `build.appId` in `app/package.json`.
 
 ---
 
@@ -44,6 +48,13 @@ every option open, and "we opened it later" is a normal story while "we closed i
 
 **ANSWER:** ✅ Private for now (2026-09-28). Whether it ever opens — and under which licence —
 is decided before any public push.
+
+**Before any public push, deal with** (checked 2026-10-04; fine for a private repo under the
+owner's own account): every commit's author line carries the owner's real name and personal
+email (GitHub's noreply address stops this for new commits; history keeps it unless
+rewritten); the old working name "PK Secretary" — the owner's initials — runs through
+`docs/` and twice here; and AGENTS.md rule 2 names the reference daemon's real path on the
+owner's Mac. Nothing else in the files or history carries personal data.
 
 ---
 
@@ -155,13 +166,15 @@ content. Slower learning, but consistent with a product whose pitch is "we never
 
 | # | Decision | Settled | When |
 |---|---|---|---|
-| S1 | **Desktop application**, not a website or a browser+terminal runner | Tauri shell, Python daemon bundled as a sidecar runner. The terminal step excludes the audience in spec §2; a dock icon is a re-entry point where a browser tab is not | 2026-09-24 |
+| S1 | **Desktop application**, not a website or a browser+terminal runner | Python daemon bundled as a sidecar runner. The terminal step excludes the audience in spec §2; a dock icon is a re-entry point where a browser tab is not. The shell is Electron (S8) — this row first said Tauri | 2026-09-24 |
 | S2 | **Fully anonymised** product | No name, employer, city, institution, goal, faith detail or financial state from the owner's life enters the repo, README, website or onboarding | 2026-09-12 |
 | S3 | **Do not rewrite the daemon** | Port only when the test suite is green and nothing is on a deadline | spec §13 |
 | S4 | **Bring your own credential** | No hosted proxy of anyone's subscription. Ever. | 2026-09-24 |
 | S5 | **The laws in spec §6 are fixed** | Everything from §8 on is negotiable; §6 is not | spec |
 | S6 | **No shell actions in v1** | Security boundary, not a scope cut — the agent writes the config, so a model-authored action target is a laundering path | 2026-09-24 |
-| S7 | **No accounts in v1** | Nothing on the server needs an identity until billing exists | 2026-09-24 |
+| S7 | ~~**No accounts in v1**~~ — **superseded by S9** | Nothing on the server needs an identity until billing exists | 2026-09-24 |
+| S8 | **Electron shell** | The app was built on Electron (main process, preload bridge, React renderer). Tauri remains a documented option: the renderer never imports Electron or Node APIs, so the shell stays swappable (AGENTS.md) | 2026-09-27 |
+| S9 | **Accounts in v1 — identity and licensing only** | Supabase sign-in (Google or email), supersedes S7. The server may hold account identity, licensing state and usage counters, never folder content, keys, prompts, paths or location; the leak test must stay "no harm" (product-requirements.md, "Accounts") | 2026-09-27 |
 | S10 | **Folder access: write inside, read where granted** | The secretary reads, writes and edits inside the connected folder, changes subject to an approval mode the user sets (ask each time, or apply with git history and undo; deletes and whole-file replacements always ask). It may read other folders (Downloads, Documents, a chosen folder) only where the user granted read access in Daybook's UI, and never writes outside the connected folder. Enforced in code at four layers — UI-only grants in app data, Daybook's file tools, each CLI's own controls, a macOS sandbox — never by a prompt (architecture.md, "Folder access and approvals") | 2026-10-04 |
 
 ---

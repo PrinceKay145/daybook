@@ -203,7 +203,9 @@ hosted AI proxy · Sentry or any third-party error service · shell actions · m
 Every one is a good idea; every one is how a solo build becomes a nine-month one. If one
 seems necessary, raise it — do not start it.
 
-Open decisions live in `DECISIONS.md` and are awaiting the owner: D5 Windows · D6
-prayer-timetable preset · D7 alpha users · D8 pricing · D9 telemetry default. Do not decide
-them, do not design around one option. Settled there since: D2 (the repo stays private for
-now) and D4 (`local_cli` ships, on the conditions recorded there).
+Open decisions live in `DECISIONS.md` and are awaiting the owner: D3 local-first (the build
+so far assumes it throughout — confirm or redirect) · D5 Windows · D6 prayer-timetable
+preset · D7 alpha users · D8 pricing · D9 telemetry default · D1's domain and GitHub org. Do
+not decide them, do not design around one option. Settled there since: D1 (Daybook,
+`app.daybook.mac`), D2 (the repo stays private for now), D4 (`local_cli` ships, on the
+conditions recorded there) and S8–S10 (Electron, accounts, folder access).
