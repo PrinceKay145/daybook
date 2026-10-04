@@ -74,10 +74,10 @@ all eleven assertions pass (otherwise it is withheld and the failed checks are n
 brief is honest on day one (`fixtures/fresh-folder`). **The brief arrives on its own**: the
 `app.daybook.mac.tick` (every minute) and `app.daybook.mac.watchdog` (hourly) launchd jobs
 write it at the user's brief time and notify, and **Settings & status** shows and stops
-everything Daybook runs. Next is **Beta 1** (S12), in the owner's order and nothing else:
-the user sets the size of today's list; the chosen model plans the day (it proposes as text,
-Daybook writes after the checks — no file tools yet); one "tell your secretary" message box,
-also offered in setup; a tester install with Python bundled. Reminders (S11), read grants
+everything Daybook runs. **Beta 1** (S12), in the owner's order and nothing else: ✅ the user
+sets the size of today's list; ✅ the chosen model plans the day (it proposes as JSON, Daybook
+writes after the checks — no file tools; `runner/daybook/plan.py`); next, one "tell your
+secretary" message box, also offered in setup; then a tester install with Python bundled. Reminders (S11), read grants
 (S10's file tools) and the automatic nightly close wait for tester feedback — do not start
 them. Requirements: `product-requirements.md`, "Beta 1".
 
@@ -119,7 +119,9 @@ guessing, without sudo, and without knowing how it was built.
 1. The nightly close writes a candidate file first and asserts mechanically; never write
    `DAY-STATE.md` directly.
 2. The brief is verified before delivery — the eleven assertions, not eyeballed.
-3. The law eval harness runs on every prompt change and every model version bump.
+3. The law eval harness runs on every prompt change and every model version bump —
+   `python -m daybook evals --cli claude|codex` (it needs a signed-in CLI, so a developer
+   runs it; CI tests only that the harness can fail).
 
 ## Working style
 

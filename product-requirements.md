@@ -28,8 +28,8 @@ Three load-bearing ideas, everything below serves them:
 (Supabase), folder connection, model choice (Claude Code, Codex or an API key), a setup
 interview writing plain files into the folder, the brief built from that folder by the
 runner, verified by the eleven assertions and shown only when they pass, written at the
-user's brief time by launchd, and Settings & status. Not yet: the model writing any part
-of the day, and packaging — both in Beta 1, below.
+user's brief time by launchd, and Settings & status — and **the chosen model plans the
+day** (Beta 1, items 1–2 below). Not yet: the message box and packaging.
 
 ---
 
@@ -48,14 +48,20 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    1–10, default 3, asked in setup and changeable in Settings. Law 8's number is safe to
    tune (LAWS.md, "Editing this file"); its rule is not: the list is never padded to reach
    the number, and a list shorter than it says why.
-2. **The chosen model plans the day.** Before the brief time, Daybook sends the user's own
+2. ✅ **The chosen model plans the day** (built). Before the brief time, Daybook sends the user's own
    model — through their CLI's own sign-in or their API key — what is in the folder (setup
    context, master plan, day state, recent log), marked as untrusted data (rule 4), and asks
    for today's list, the board and a short note. **The model proposes; Daybook writes.** The
    reply is text only: Daybook parses it into a candidate `DAY-STATE.md` and runs the checks
    before it replaces the real file (gate 1); the file it replaces is kept. The model gets no
    file tools and no access to anything, so S10's enforcement is not needed yet. The law
-   eval harness (gate 3) covers the prompt before it ships.
+   eval harness (gate 3) covers the prompt before it ships. Also from the scoreboard
+   ("Plan today"), and straight after setup, so the first day is planned at once. An
+   API-key connection plans only while Daybook is open (the key is unlocked by the app);
+   the unattended run says so in the brief. Accept: a refused or failed plan leaves the day
+   state untouched and says why in one line; a finished thing never comes back; a made-up
+   file path is never shown as a reference; the replaced day state is in
+   `archive/day-state/`; the log line is Daybook's words, not the model's.
 3. **"Tell your secretary."** One message box on the scoreboard — not a chat with history:
    "finished the proposal, waiting on Sam until Friday". The model proposes the updated day,
    the user sees the change and approves it, the brief rebuilds. Setup offers the same box
@@ -144,7 +150,11 @@ frame, with "Checked before it was shown: 11 of 11" above it. A brief that fails
 **withheld**, and the failed checks are named; a brief that cannot be built (no Python, the
 runner failing) says why and where the log is. No sample data: a placeholder that pretends
 to be a real brief would break the only promise this product makes. The model choice
-("Sonnet 5 · Claude Code — change"), a rebuild button and sign-out sit above it.
+("Sonnet 5 · Claude Code — change"), **Plan today**, a rebuild button and sign-out sit
+above it. While the model plans, one line says so; afterwards one line says what changed
+("Today's plan is written — 2 on the list, 1 on the board", with the model's one-sentence
+summary) or why nothing did, and names any text in the folder that read like instructions
+and was ignored.
 
 **Settings & status** (required by the process model). **Built:** every job Daybook runs,
 by its macOS label, with what it does, whether it is loaded, its last exit code and the

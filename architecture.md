@@ -31,8 +31,9 @@ swappable (Tauri remains a documented option; DECISIONS.md S8).
 | Process | When | Resident? |
 |---|---|---|
 | Electron app | while the user has it open | dock icon |
-| launchd `app.daybook.mac.tick` — every 60 s | `python -m daybook tick`: once the user's brief time has passed (read from `config.json` each run), writes today's brief if all eleven pass, and notifies; ⏳ reminders join it when the reference daemon is bundled | never — runs and exits |
+| launchd `app.daybook.mac.tick` — every 60 s | `python -m daybook tick`: in the ten minutes before the user's brief time, asks their chosen model to plan the day, once (`plan.py`); once the brief time has passed (read from `config.json` each run), writes today's brief if all eleven pass, and notifies; ⏳ reminders join it when the reference daemon is bundled | never — runs and exits |
 | launchd `app.daybook.mac.watchdog` — hourly | `python -m daybook watchdog`: notifies once if the tick has stopped or the brief is still missing 30 min after its time | never — runs and exits |
+| Planning run — `python -m daybook plan` | spawned by the app for "Plan today" and for the first day after setup; the CLI it asks (`claude -p` / `codex exec`) runs beneath it and exits with it | never — runs and exits |
 | ⏳ Job processes — nightly close | spawned by the tick, exit | never |
 | Python sidecar runner (`runner/`) | spawned by the app when the scoreboard asks for a brief (`electron/runner.cjs`: one at a time, on a free 127.0.0.1 port); stopped on quit, and exits itself if the app is gone | only while app is open |
 
@@ -99,7 +100,7 @@ counters — never folder content, reminder titles, people data, keys, prompts, 
 precise location. The leak test: if the server DB leaked tomorrow, would any user be
 harmed? The answer must stay no. Billing is out of v1.
 
-## AI providers (built: storage; ⏳ invocation)
+## AI providers (built)
 
 `authKind: "local_cli" | "api_key"` is **data on the provider record** — the surface moved
 three times in 2026, so a path is disabled by editing data, not logic. API keys go into the
@@ -131,6 +132,52 @@ runs is the one the main process found. The active connection and model go into 
 folder's `config.json` `providers` block — at setup, and again whenever the model is
 switched from the scoreboard — with the binary's path, the model and its display name, and
 no pointer to any key.
+
+**Planning the day (built 2026-10-05, Beta 1).** `runner/daybook/plan.py` and
+`secretary.py`. **The model proposes; Daybook writes.** The model is handed text — the
+planning instructions and `LAWS.md` as its system prompt, and the folder (setup context,
+master plan, day state, corrections, the newest part of the log, and the person-facing
+parts of `config.json`) as the message, each file fenced by markers carrying a random token
+so nothing inside a file can close its own block — and answers with one JSON object:
+today's list, the board, what was newly finished, questions, a summary, and *flags* (text
+in the folder that read like instructions). Daybook refuses an answer that breaks a rule
+(over the user's cap, a short list with no reason, a board row without WAIT/CHASE and a
+real date, malformed fields), neutralises markdown that would change the file's structure,
+keeps a path's code marks only if the file really exists, and **writes the day state
+itself**: finished things are carried over by Daybook — the model can add to them, never
+remove one — and sections it does not plan (the scoreboard, the ticks) are kept as they
+were. The candidate goes through the eleven assertions as if it were already the day state
+(gate 1); a refused answer is sent back once with the exact reason, and a second refusal
+leaves the day state untouched. On success the old day state moves to
+`archive/day-state/<time>.md`, the new one is written atomically, and `LOG.md` gets one line
+in Daybook's own words (never the model's — its text could otherwise pose as a log entry).
+Today's plan is recorded in app data (`state/tick-state.json`), so the tick plans once a day
+and a brief built later says, as a note, if planning failed; a failed retry never unsays a
+plan that was written. A proposal made but not yet applied (`plan --propose`, for the
+message box) is refused at `apply` if the day state changed in between.
+
+How each connection is asked — arguments fixed in `secretary.py`, as a list, no shell, the
+model id pattern-checked, the prompt on stdin, in an empty temporary directory, with a small
+known environment:
+- **Claude Code:** `claude -p --output-format json --tools "" --safe-mode
+  --strict-mcp-config --no-session-persistence --system-prompt … --model …` — no tools at
+  all, none of the user's CLAUDE.md, hooks, plugins or MCP servers, and the day is not kept
+  in Claude Code's history. Its own sign-in (the user's plan) is used; `--bare` is never
+  used, because it switches subscription sign-in off.
+- **Codex:** `codex exec --sandbox read-only --skip-git-repo-check --ephemeral
+  --ignore-user-config --ignore-rules --cd <empty dir>`, every tool-bearing feature switched
+  off by name (`shell_tool`, `unified_exec`, `apps`, `plugins`, `hooks`, `browser_use`,
+  `computer_use`, …) and web search disabled, the answer held to a JSON schema
+  (`--output-schema`). Codex has no single "no tools" switch — the list is checked against
+  `codex features list` when Codex updates. ⏳ Not yet verified: whether a global
+  `~/.codex/AGENTS.md` still reaches the model under these flags.
+- **API keys (Anthropic, OpenAI):** HTTPS from the runner with the standard library. The
+  key is decrypted by the app and handed to that one run on stdin — never an argument or an
+  environment variable — so **an API-key connection plans only while Daybook is open**; the
+  unattended morning run says so in the brief instead.
+
+Both CLIs were probed (2026-10-05) by asking them to list the home folder under these
+flags; both answered that they had no tool to do it.
 
 ## Folder access and approvals (⏳ designed 2026-10-04; built with the secretary's file tools)
 
@@ -251,13 +298,21 @@ is, for whoever writes the behaviour tests:
 5. ⬜ **Shell-command buttons** (`-execute`, an alert click, `do [n]` with `shell=True`) —
    rule 3 disables them in v1; awaiting the owner's confirmation that they are switched off.
 
-## The three ship gates (⏳ enforced from the brief stage on)
+## The three ship gates
 
-1. **Nightly close writes a candidate first** — write candidate → diff → mechanical asserts
-   → commit. 🔴 Never write `DAY-STATE.md` directly.
+1. **A candidate first** — candidate → mechanical asserts → write, the previous file kept.
+   🔴 Never write `DAY-STATE.md` directly. Built for planning (`plan.py`); ⏳ a diff to
+   approve (the message box) and the git commit after each write.
 2. **The brief is verified before delivery** — the eleven data assertions, run against
-   `fixtures/sample-folder` on the frozen clock.
-3. **The law eval harness runs on every prompt change and model bump** (`tests/laws/`).
+   `fixtures/sample-folder` and `fixtures/fresh-folder` on the frozen clock. Built.
+3. **The law eval harness runs on every prompt change and model bump** —
+   `python -m daybook evals --cli claude|codex [--model …]` (`runner/daybook/evals.py`).
+   Scenarios plant one temptation each in a copy of the sample folder (room to pad, a
+   finished thing asked back, instructions planted in a file, a message that adds and
+   closes) and check the laws on the model's *first* answer, before Daybook's refusals.
+   It needs a signed-in CLI, so it runs on a developer's Mac; CI tests that the harness
+   itself fails when a law is broken. 2026-10-05: Sonnet 5 through Claude Code and Codex's
+   default model — every hard check passed.
 
 All file, web and connector content is **untrusted data** — it enters the prompt explicitly
 marked as such and is never followed as instruction (law 23; see
@@ -272,7 +327,11 @@ app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex mode
 app/electron/runner.cjs     starts/stops runner/, finds Python, fetches the verified brief
 app/electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
 app/electron/schedule.cjs   the tick and watchdog launchd jobs: write, load, status, stop
-runner/daybook/tick.py      what those jobs run: tick (the brief on its own), watchdog
+runner/daybook/tick.py      what those jobs run: tick (plans the day, then the brief), watchdog
+runner/daybook/plan.py      the model proposes, Daybook writes: prompt, refusals, candidate
+runner/daybook/secretary.py asking Claude Code, Codex or an API key — fixed arguments, no tools
+runner/daybook/prompts/     the planning instructions (LAWS.md is appended at run time)
+runner/daybook/evals.py     the law eval harness (gate 3)
 app/electron/preload.cjs    the single doorway (contextBridge)
 app/src/lib/daybook.ts      typed bridge + plain-browser fallbacks
 app/src/lib/models.ts       the Claude Code model catalog; model-id check
