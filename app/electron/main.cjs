@@ -346,8 +346,15 @@ async function existingSetup(folder) {
   };
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+/* Today's date where the user lives — the zone chosen in setup — not in UTC, which is
+   a day off for everyone east or west of it around midnight. */
+function today(timeZone) {
+  const options = { year: "numeric", month: "2-digit", day: "2-digit" };
+  try {
+    return new Intl.DateTimeFormat("en-CA", { ...options, timeZone: timeZone || undefined }).format(new Date());
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", options).format(new Date()); // an unknown zone: this Mac's
+  }
 }
 
 function seedsFor(payload) {
@@ -367,7 +374,7 @@ function seedsFor(payload) {
       onlyIfAbsent: true,
       text: `# Setup context
 
-Written by Daybook on ${today()} from the setup interview. The answers below are the
+Written by Daybook on ${today(payload.timezone)} from the setup interview. The answers below are the
 secretary's starting picture of this life; the files in this folder are the source of truth.
 
 ## Working toward
@@ -388,7 +395,7 @@ ${list(payload.inFlight)}
       onlyIfAbsent: true,
       text: `# Master plan
 
-Started ${today()} from the Daybook setup interview. Strategy lives here; what is true
+Started ${today(payload.timezone)} from the Daybook setup interview. Strategy lives here; what is true
 *now* lives in DAY-STATE.md.
 
 ## Goals
@@ -399,7 +406,7 @@ ${list(payload.goals)}
     {
       file: "DAY-STATE.md",
       onlyIfAbsent: true,
-      text: `# Day state — ${today()}
+      text: `# Day state — ${today(payload.timezone)}
 
 Nothing has been recorded about a day yet. The nightly close writes this file from what
 actually happened; nothing here is invented to fill the page.
@@ -412,7 +419,7 @@ actually happened; nothing here is invented to fill the page.
 
 Append-only. What happened, in sequence — not what was intended.
 
-- ${today()} — Daybook connected to this folder.
+- ${today(payload.timezone)} — Daybook connected to this folder.
 `,
     },
     {
@@ -491,7 +498,7 @@ ipcMain.handle("folder:writeSetup", async (_event, payload) => {
     const previous = archived.files.join(" and ");
     await appendLine(
       path.join(folder, "LOG.md"),
-      `- ${today()} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
+      `- ${today(payload.timezone)} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
     );
     written.push(`${archived.relative}/ — the previous ${previous}`);
   }
