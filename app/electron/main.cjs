@@ -8,6 +8,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
+const crypto = require("node:crypto");
 const cli = require("./cli.cjs");
 const runner = require("./runner.cjs");
 const authLoopback = require("./authLoopback.cjs");
@@ -593,33 +594,69 @@ ipcMain.handle("brief:get", async (_event, folder) => {
 
 /* ---------- IPC: the chosen model plans the day ----------
    runner/daybook/plan.py: the model proposes, the runner writes DAY-STATE.md only after
-   the eleven checks pass. An API key is decrypted here and handed to that one run on
-   stdin; it is never written anywhere the runner keeps. One plan at a time. */
+   the eleven checks pass. "Plan today" plans and writes; a message ("tell your
+   secretary") proposes first, and the proposal waits here — the day state's text never
+   round-trips through the renderer — until the user applies it, when it is checked
+   again. One run at a time. */
 
-let planning = null;
+let planning = false;
+let pending = null; // { id, folder, outcome } — the proposal awaiting the user's answer
 
-ipcMain.handle("plan:run", async (_event, { folder, userId, message }) => {
-  if (planning) return planning;
+function shownToRenderer(outcome, proposalId) {
+  const { candidate: _candidate, base: _base, checks: _checks, ...shown } = outcome;
+  return proposalId ? { ...shown, proposalId } : shown;
+}
+
+ipcMain.handle("plan:run", async (_event, { folder, userId, message, propose }) => {
+  if (planning) {
+    return { status: "failed", detail: "Your secretary is already planning — try again in a moment.", summary: "", flags: [], model: "" };
+  }
   const target = requireFolder(folder);
-  planning = (async () => {
+  planning = true;
+  try {
     const config = (await readJson(path.join(target, "config.json"))) ?? {};
     const provider = Array.isArray(config.providers) ? config.providers[0] : null;
     const secret =
       provider?.authKind === "api_key" && typeof userId === "string"
         ? await secretValue(`user/${userId}/provider/${provider.id}`)
         : null;
-    return runner.plan(target, {
+    const outcome = await runner.plan(target, {
       stateDir: stateDir(),
       logFile: path.join(logDir(), "runner.log"),
-      message: typeof message === "string" ? message : "",
+      message: typeof message === "string" ? message.slice(0, 4000) : "",
       secret,
+      propose: Boolean(propose),
     });
-  })()
-    .catch((err) => ({ status: "failed", detail: String(err.message ?? err), summary: "", flags: [], model: "" }))
-    .finally(() => {
-      planning = null;
+    if (outcome.status !== "proposed") return shownToRenderer(outcome);
+    pending = { id: crypto.randomUUID(), folder: target, outcome };
+    return shownToRenderer(outcome, pending.id);
+  } catch (err) {
+    return { status: "failed", detail: String(err.message ?? err), summary: "", flags: [], model: "" };
+  } finally {
+    planning = false;
+  }
+});
+
+ipcMain.handle("plan:apply", async (_event, { proposalId }) => {
+  if (!pending || pending.id !== proposalId) {
+    return { status: "refused", detail: "That proposal is no longer waiting — send your message again.", summary: "", flags: [], model: "" };
+  }
+  const { folder, outcome } = pending;
+  pending = null;
+  try {
+    const applied = await runner.applyPlan(folder, outcome, {
+      stateDir: stateDir(),
+      logFile: path.join(logDir(), "runner.log"),
     });
-  return planning;
+    return shownToRenderer(applied);
+  } catch (err) {
+    return { status: "failed", detail: String(err.message ?? err), summary: "", flags: [], model: "" };
+  }
+});
+
+ipcMain.handle("plan:discard", async (_event, { proposalId }) => {
+  if (pending?.id === proposalId) pending = null;
+  return true;
 });
 
 /* ---------- IPC: the background jobs and Settings & status ----------

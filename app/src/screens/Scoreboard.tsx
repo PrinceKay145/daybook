@@ -8,13 +8,18 @@
 
    "Plan today" asks the chosen model to plan the day (it also does so on its own before
    the brief time). The model proposes; the runner writes the day state only after the
-   checks, and the result is said in one line — what changed, or why nothing did. */
+   checks, and the result is said in one line — what changed, or why nothing did.
+
+   "Tell your secretary" is one message box, not a chat: what the user types becomes the
+   newest truth about their day, the model proposes the updated day, and nothing is
+   written until the user applies it. */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { KeyRound, Loader2, LogOut, RefreshCw, Settings, Sparkles, TerminalSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, inputClass } from "@/components/ui/button";
 import { daybook, type BriefResult, type Connection, type PlanOutcome } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
+import { cn } from "@/lib/utils";
 
 export function ScoreboardScreen({
   accountEmail,
@@ -50,11 +55,14 @@ export function ScoreboardScreen({
     setBrief(await daybook.brief(folder));
   }, [folder]);
 
-  const [planning, setPlanning] = useState(false);
+  const [planning, setPlanning] = useState<"day" | "message" | null>(null);
   const [plan, setPlan] = useState<PlanOutcome | null>(null);
+  const [message, setMessage] = useState("");
+  const [proposal, setProposal] = useState<PlanOutcome | null>(null);
+  const [applying, setApplying] = useState(false);
 
   const planToday = useCallback(async () => {
-    setPlanning(true);
+    setPlanning("day");
     setPlan(null);
     try {
       const outcome = await daybook.planDay(folder, userId);
@@ -63,9 +71,48 @@ export function ScoreboardScreen({
     } catch (err) {
       setPlan({ status: "failed", detail: (err as Error).message, summary: "", flags: [], model: "" });
     } finally {
-      setPlanning(false);
+      setPlanning(null);
     }
   }, [folder, userId, load]);
+
+  async function tellSecretary() {
+    const text = message.trim();
+    if (!text) return;
+    setPlanning("message");
+    setPlan(null);
+    try {
+      const outcome = await daybook.proposeDay(folder, userId, text);
+      if (outcome.status === "proposed" && outcome.proposalId) setProposal(outcome);
+      else setPlan(outcome);
+    } catch (err) {
+      setPlan({ status: "failed", detail: (err as Error).message, summary: "", flags: [], model: "" });
+    } finally {
+      setPlanning(null);
+    }
+  }
+
+  async function applyProposal() {
+    if (!proposal?.proposalId) return;
+    setApplying(true);
+    try {
+      const outcome = await daybook.applyPlan(proposal.proposalId);
+      setProposal(null);
+      setPlan(outcome);
+      if (outcome.status === "planned") {
+        setMessage("");
+        await load();
+      }
+    } catch (err) {
+      setPlan({ status: "failed", detail: (err as Error).message, summary: "", flags: [], model: "" });
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  function discardProposal() {
+    if (proposal?.proposalId) void daybook.discardPlan(proposal.proposalId);
+    setProposal(null);
+  }
 
   useEffect(() => {
     void load();
@@ -104,13 +151,13 @@ export function ScoreboardScreen({
             variant="secondary"
             className="px-3 py-1.5 text-xs"
             onClick={() => void planToday()}
-            disabled={planning || !connection}
+            disabled={planning !== null || proposal !== null || !connection}
             title="Your secretary reads your folder and writes today's list. It also does this on its own before your brief."
           >
             <Sparkles className="size-3.5" />
             Plan today
           </Button>
-          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void load()} disabled={brief === null || planning}>
+          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void load()} disabled={brief === null || planning !== null}>
             <RefreshCw className="size-3.5" />
             Rebuild
           </Button>
@@ -125,7 +172,38 @@ export function ScoreboardScreen({
         </div>
       </header>
 
+      <form
+        className="flex items-end gap-2 border-b border-[var(--color-line)] px-5 py-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void tellSecretary();
+        }}
+      >
+        <textarea
+          rows={1}
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void tellSecretary();
+            }
+          }}
+          disabled={planning !== null || proposal !== null || !connection}
+          placeholder="Tell your secretary — e.g. finished the proposal, waiting on Sam until Friday, gym on Thursday"
+          aria-label="Tell your secretary"
+          className={cn(inputClass, "field-sizing-content max-h-32 min-h-9 resize-none")}
+        />
+        <Button type="submit" className="px-4 py-2 text-xs" disabled={!message.trim() || planning !== null || proposal !== null || !connection}>
+          Send
+        </Button>
+      </form>
+
       <PlanLine planning={planning} plan={plan} connection={connection} />
+
+      {proposal?.proposal && (
+        <ProposalCard outcome={proposal} applying={applying} onApply={() => void applyProposal()} onDiscard={discardProposal} />
+      )}
 
       <main className="min-h-0 flex-1">
         <BriefView brief={brief} />
@@ -148,22 +226,26 @@ export function ScoreboardScreen({
   );
 }
 
-function PlanLine({ planning, plan, connection }: { planning: boolean; plan: PlanOutcome | null; connection: Connection | null }) {
+function PlanLine({ planning, plan, connection }: { planning: "day" | "message" | null; plan: PlanOutcome | null; connection: Connection | null }) {
   if (planning) {
+    const who = connection ? describeChoice(connection) : "Your model";
     return (
       <p className="flex items-center justify-center gap-2 border-b border-[var(--color-line)] px-5 py-2 text-xs text-[var(--color-ink-soft)]">
         <Loader2 className="size-3.5 animate-spin" />
-        {connection ? describeChoice(connection) : "Your model"} is reading your folder and planning today — this takes a minute or two.
+        {planning === "message"
+          ? `${who} is reading your message and your folder — this takes a minute or two.`
+          : `${who} is reading your folder and planning today — this takes a minute or two.`}
       </p>
     );
   }
   if (!plan) return null;
   const written = plan.status === "planned";
+  const what = plan.from_message ? "Updated from your message" : "Today's plan is written";
   return (
     <div className="border-b border-[var(--color-line)] px-5 py-2 text-center text-xs">
       <p className={written ? "text-[var(--color-ink-soft)]" : "text-[var(--color-warn)]"}>
         {written
-          ? `Today's plan is written — ${plan.detail}.${plan.summary ? ` ${plan.summary}` : ""} The previous day state is kept in archive/day-state/.`
+          ? `${what} — ${plan.detail}.${plan.summary ? ` ${plan.summary}` : ""} The previous day state is kept in archive/day-state/.`
           : plan.status === "skipped"
             ? plan.detail
             : `Today's plan wasn't written: ${plan.detail} Your day state is unchanged.`}
@@ -174,6 +256,107 @@ function PlanLine({ planning, plan, connection }: { planning: boolean; plan: Pla
         </p>
       )}
     </div>
+  );
+}
+
+/* The proposed day, shown before anything is written. */
+function ProposalCard({
+  outcome,
+  applying,
+  onApply,
+  onDiscard,
+}: {
+  outcome: PlanOutcome;
+  applying: boolean;
+  onApply: () => void;
+  onDiscard: () => void;
+}) {
+  const day = outcome.proposal!;
+  const label = "mt-3 text-[0.68rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]";
+  return (
+    <section className="border-b border-[var(--color-line)] px-5 py-3">
+      <div className="mx-auto max-w-2xl rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm">
+        {/* The proposal scrolls; the buttons below it never do, so Apply is always in view. */}
+        <div className="max-h-[38vh] overflow-y-auto">
+        <p className="font-medium">{outcome.model || "Your secretary"} proposes this for today</p>
+        {outcome.summary && <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">{outcome.summary}</p>}
+
+        <p className={label}>Today's list</p>
+        {day.today_list.length === 0 ? (
+          <p className="mt-1 text-[var(--color-ink-soft)]">— {day.list_reason}</p>
+        ) : (
+          <>
+            {day.list_reason && <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{day.list_reason}</p>}
+            <ol className="mt-1 list-decimal space-y-1 pl-5">
+              {day.today_list.map((item, i) => (
+                <li key={i}>
+                  <span className="font-medium">{item.title}</span>
+                  <span className="text-[var(--color-ink-soft)]"> — {item.first_click}</span>
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+
+        {day.newly_finished.length > 0 && (
+          <>
+            <p className={label}>Marked done</p>
+            <ul className="mt-1 space-y-0.5">
+              {day.newly_finished.map((item, i) => (
+                <li key={i}>
+                  <span className="line-through">{item.label}</span>
+                  {item.detail && <span className="text-[var(--color-ink-soft)]"> — {item.detail}</span>}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {day.board.length > 0 && (
+          <>
+            <p className={label}>Waiting on others</p>
+            <ul className="mt-1 space-y-0.5">
+              {day.board.map((row, i) => (
+                <li key={i}>
+                  <span className="font-medium">{row.who}</span>
+                  <span className="text-[var(--color-ink-soft)]">
+                    {" "}— {row.what} · {row.status} {row.date} · {row.next_move}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {day.questions.length > 0 && (
+          <>
+            <p className={label}>Questions for you</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {day.questions.map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {outcome.flags.length > 0 && (
+          <p className="mt-3 text-xs text-[var(--color-warn)]">
+            Text in your folder read like instructions to the AI, and was ignored: {outcome.flags.join(" · ")}
+          </p>
+        )}
+        </div>
+
+        <div className="mt-4 flex items-center gap-2">
+          <Button onClick={onApply} disabled={applying}>
+            {applying ? "Applying…" : "Apply"}
+          </Button>
+          <Button variant="ghost" onClick={onDiscard} disabled={applying}>
+            Discard
+          </Button>
+          <span className="text-xs text-[var(--color-ink-faint)]">Nothing is written until you apply.</span>
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -55,6 +55,19 @@ export interface PlanOutcome {
   /** Text in the folder that read like instructions, which the model ignored and named. */
   flags: string[];
   model: string;
+  /** What the model proposed, to show before the user applies it. */
+  proposal?: ProposedDay;
+  /** Set on a proposal waiting in the main process for the user's answer. */
+  proposalId?: string;
+  from_message?: boolean;
+}
+
+export interface ProposedDay {
+  today_list: { title: string; first_click: string }[];
+  list_reason: string;
+  board: { who: string; what: string; status: "WAIT" | "CHASE"; next_move: string; date: string }[];
+  newly_finished: { label: string; detail: string }[];
+  questions: string[];
 }
 
 /** One of Daybook's launchd jobs, as Settings & status shows it. */
@@ -173,7 +186,11 @@ interface DaybookBridge {
   /** Today's brief for this folder — built, verified and rendered by the runner. */
   brief(folder: string): Promise<BriefResult>;
   /** Asks the chosen model to plan today; the runner writes DAY-STATE.md after the checks. */
-  planDay(folder: string, userId: string, message?: string): Promise<PlanOutcome>;
+  planDay(folder: string, userId: string): Promise<PlanOutcome>;
+  /** The same from something the user told Daybook — proposed, written only on applyPlan. */
+  proposeDay(folder: string, userId: string, message: string): Promise<PlanOutcome>;
+  applyPlan(proposalId: string): Promise<PlanOutcome>;
+  discardPlan(proposalId: string): Promise<boolean>;
   /** Installs and loads the tick and watchdog launchd jobs for this folder. */
   scheduleStart(folder: string): Promise<ScheduleResult>;
   /** Unloads and removes them, so nothing comes back at the next login. */
@@ -238,6 +255,9 @@ export const daybook: DaybookBridge = bridge ?? {
   // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
   brief: () => fetchBriefFromRunner(),
   planDay: () => refuse("Planning the day"),
+  proposeDay: () => refuse("Planning the day"),
+  applyPlan: () => refuse("Writing the day state"),
+  discardPlan: async () => true,
   scheduleStart: async () => ({ ok: false, code: "NEEDS_APP", message: "The background jobs need the Daybook app." }),
   scheduleStop: async () => ({ ok: true }),
   scheduleStatus: () => refuse("Reading what Daybook runs"),
