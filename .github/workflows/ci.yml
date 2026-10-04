@@ -1,0 +1,96 @@
+# Continuous integration (CI): GitHub runs the project's checks on a fresh machine every
+# time code is pushed for review, and shows the result on the pull request — a green tick
+# or a red cross next to each job. It is AGENTS.md's rule made automatic: "If the
+# typecheck, the build or the tests fail, it is not done."
+#
+# How to read this file: a WORKFLOW (this file) is made of JOBS; each job runs on its own
+# fresh virtual machine and is a list of STEPS; a step either runs a shell command (`run`)
+# or uses a ready-made ACTION published by GitHub (`uses`). Results live in the repo's
+# Actions tab and on every pull request.
+
+name: CI
+
+# WHEN it runs. On every pull request (each push to a PR branch re-runs it), and on pushes
+# to main — the state everyone builds on. Pushes to other branches run once they have a PR.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch cancels a run still checking the older commit: nobody will
+# merge that commit, so its minutes would be wasted (a private repo has a monthly allowance).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# The job only needs to read the code. Least privilege: nothing here can push or comment.
+permissions:
+  contents: read
+
+jobs:
+  # ---- The Python runner: its tests and the brief's eleven checks ------------------------
+  runner:
+    name: Runner (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    # A MATRIX runs the same job once per value. 3.9 is the oldest Python Daybook supports
+    # (what macOS's developer tools ship); 3.13 is current. If either breaks, CI says which.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.13"]
+    defaults:
+      run:
+        working-directory: runner
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Install Python ${{ matrix.python }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Standard library only: the runner has no dependencies to install (AGENTS.md).
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t tests -v
+
+      - name: The eleven checks — sample folder
+        run: python -m daybook check --folder ../fixtures/sample-folder
+
+      - name: The eleven checks — a folder set up today
+        run: python -m daybook check --folder ../fixtures/fresh-folder
+
+  # ---- The desktop app: typecheck and production build -----------------------------------
+  app:
+    name: App (typecheck and build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      # Node's version comes from app/.nvmrc — the same file `nvm use` reads on your Mac, so
+      # CI and your machine cannot drift apart. `cache: npm` keeps downloaded packages
+      # between runs, which makes the install step fast after the first time.
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      # `npm ci` installs exactly what package-lock.json pins, and fails if the lock file and
+      # package.json disagree. Electron's own ~100 MB binary is skipped: typechecking and
+      # building the interface never launch the app.
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
