@@ -71,9 +71,12 @@ Stage 1 works: **login → connect a folder → choose a model → setup questio
 shape of the day) → scoreboard**, and the scoreboard shows **today's real brief**: the app
 starts `runner/` on 127.0.0.1, the brief is built from the folder, and it is shown only when
 all eleven assertions pass (otherwise it is withheld and the failed checks are named). The
-brief is honest on day one (`fixtures/fresh-folder`). Next, in the owner's order: the
-launchd tick/watchdog and notifications via the Python sidecar (the brief arriving on its
-own at the user's time), then accounts polish and packaging — which must bundle a Python.
+brief is honest on day one (`fixtures/fresh-folder`). **The brief arrives on its own**: the
+`app.daybook.mac.tick` (every minute) and `app.daybook.mac.watchdog` (hourly) launchd jobs
+write it at the user's brief time and notify, and **Settings & status** shows and stops
+everything Daybook runs. Next, in the owner's order: the reference reminder daemon bundled
+into the tick (blocked on the owner decisions listed in architecture.md, "The reference
+reminder daemon"), then accounts polish and packaging — which must bundle a Python.
 Not yet placed by the owner: the chosen model writing any part of the brief (today every
 word comes from the folder). Requirements: `product-requirements.md`.
 

@@ -45,6 +45,30 @@ export type BriefResult =
   | { ok: true; passed: boolean; results: CheckResult[]; warnings: string[]; html: string | null; logFile?: string }
   | { ok: false; code: string; message: string; logFile?: string };
 
+/** One of Daybook's launchd jobs, as Settings & status shows it. */
+export interface JobStatus {
+  label: string;
+  purpose: string;
+  every: string;
+  installed: boolean;
+  loaded: boolean;
+  lastExit: string | null;
+  log: string;
+  plist: string;
+}
+
+/** Everything Daybook runs, for Settings & status. */
+export interface SystemStatus {
+  jobs: JobStatus[];
+  /** The tick's own record: last run, last brief, last error. */
+  state: { last_tick?: string; last_brief?: string; last_error?: string; withheld_notified?: string };
+  app: { pid: number; name: string };
+  runner: { pid: number; port: number; folder: string; log: string } | null;
+  logDir: string;
+}
+
+export type ScheduleResult = { ok: true } | { ok: false; code: string; message: string };
+
 export interface ModelOption {
   id: string;
   label: string;
@@ -63,6 +87,9 @@ export interface UserSettings {
   setupCompletedAt?: string;
   /** Display copy of the user's chosen brief time; config.json in the folder is authoritative. */
   briefTime?: string;
+  /** "off" once the user stopped the background jobs in Settings — the app never restarts
+      them on its own after that. Absent or "on": they are kept installed. */
+  backgroundJobs?: "on" | "off";
 }
 
 /** The keychain entry for one account's API-key connection. */
@@ -120,6 +147,15 @@ interface DaybookBridge {
   deleteSecret(name: string): Promise<boolean>;
   /** Today's brief for this folder — built, verified and rendered by the runner. */
   brief(folder: string): Promise<BriefResult>;
+  /** Installs and loads the tick and watchdog launchd jobs for this folder. */
+  scheduleStart(folder: string): Promise<ScheduleResult>;
+  /** Unloads and removes them, so nothing comes back at the next login. */
+  scheduleStop(): Promise<{ ok: true }>;
+  scheduleStatus(): Promise<SystemStatus>;
+  readSchedule(folder: string): Promise<{ briefTime: string; closeTime: string }>;
+  setSchedule(folder: string, briefTime: string, closeTime: string): Promise<{ briefTime: string; closeTime: string }>;
+  revealFolder(folder: string): Promise<boolean>;
+  revealLog(file: string): Promise<boolean>;
   /** Claude Code and Codex: found or not, and whether each is signed in. */
   detectCli(): Promise<CliStatus[]>;
   /** The models Codex's sign-in can use (Claude Code's are a catalog: models.ts). */
@@ -174,6 +210,13 @@ export const daybook: DaybookBridge = bridge ?? {
   deleteSecret: async () => true,
   // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
   brief: () => fetchBriefFromRunner(),
+  scheduleStart: async () => ({ ok: false, code: "NEEDS_APP", message: "The background jobs need the Daybook app." }),
+  scheduleStop: async () => ({ ok: true }),
+  scheduleStatus: () => refuse("Reading what Daybook runs"),
+  readSchedule: () => refuse("Reading config.json"),
+  setSchedule: () => refuse("Writing config.json"),
+  revealFolder: () => refuse("Opening the folder"),
+  revealLog: () => refuse("Opening the logs"),
   detectCli: async () => [],
   listCliModels: () => refuse("Asking Codex for its models"),
   openExternal: (url) => {

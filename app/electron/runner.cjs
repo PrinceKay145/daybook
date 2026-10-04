@@ -161,4 +161,10 @@ async function brief(folder, logFile) {
   };
 }
 
-module.exports = { brief, stop, findPython };
+/** The sidecar right now, for Settings & status: its PID and port, or null. */
+function info() {
+  if (!current || current.child.exitCode !== null) return null;
+  return { pid: current.child.pid, port: current.port, folder: current.folder };
+}
+
+module.exports = { brief, stop, findPython, runnerDir, info };

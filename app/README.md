@@ -114,9 +114,30 @@ VITE_DEV_SERVER_URL=http://127.0.0.1:5173 DAYBOOK_USER_DATA=/tmp/daybook-fresh n
 - **The scoreboard is today's real brief** — built from the folder by `runner/`, shown
   only when all eleven assertions pass, withheld (with the failed checks named) when one
   fails. No sample data anywhere.
+- **The brief arrives on its own** — two launchd jobs, installed when the scoreboard opens
+  (see below).
 - **Not yet:** the secretary running on the chosen model — nothing here sends a prompt
-  anywhere; every word of the brief comes from the folder. Nor does the brief arrive on
-  its own at the brief time yet (launchd, a later stage).
+  anywhere; every word of the brief comes from the folder.
+
+## The background jobs — seeing and stopping them
+
+| Job | Runs | Does |
+|---|---|---|
+| `app.daybook.mac.tick` | every minute, then exits | writes today's brief once its time (in `config.json`) has passed, if all eleven pass; notifies |
+| `app.daybook.mac.watchdog` | hourly, then exits | notifies once if the tick has stopped or the brief is late |
+
+They are user-level LaunchAgents in `~/Library/LaunchAgents` — no sudo — and run with
+the app closed. **Settings & status** shows them and stops them; stopping removes their
+files, so nothing returns at the next login, and the app won't restart them until you
+press Start. From a terminal:
+
+```bash
+launchctl list | grep daybook
+```
+
+Logs (one place): `~/Library/Application Support/daybook-app/logs/` — `tick.log`,
+`watchdog.log`, `runner.log`. The test copy of the app (`DAYBOOK_USER_DATA`) uses
+`app.daybook.mac.test.*` labels and its own logs, so it never touches the real jobs.
 
 ## Where Claude Code and Codex are found
 
@@ -162,6 +183,8 @@ electron/main.cjs      window, IPC: folder picker, atomic writes, keychain, sett
 electron/cli.cjs       Claude Code / Codex: find, sign-in state, Codex's model list
 electron/runner.cjs    starts and stops runner/ for the brief; finds Python
 electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
+electron/schedule.cjs  the tick and watchdog launchd jobs: write, load, status, stop
+src/screens/Settings.tsx  Settings & status: every job, the runner, logs, schedule, stop
 electron/preload.cjs   the single doorway (contextBridge) — reviewable in one screen
 src/lib/daybook.ts     typed bridge + browser fallbacks
 src/lib/models.ts      the Claude Code model catalog (data — edit when models ship)

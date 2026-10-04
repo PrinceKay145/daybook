@@ -31,24 +31,32 @@ swappable (Tauri remains a documented option; DECISIONS.md S8).
 | Process | When | Resident? |
 |---|---|---|
 | Electron app | while the user has it open | dock icon |
-| ⏳ launchd tick — 60s reminder check | runs and exits | never |
-| ⏳ launchd watchdog — brief-arrival check | hourly, exits | never |
-| ⏳ Job processes — brief, nightly close | spawned by the tick, exit | never |
+| launchd `app.daybook.mac.tick` — every 60 s | `python -m daybook tick`: once the user's brief time has passed (read from `config.json` each run), writes today's brief if all eleven pass, and notifies; ⏳ reminders join it when the reference daemon is bundled | never — runs and exits |
+| launchd `app.daybook.mac.watchdog` — hourly | `python -m daybook watchdog`: notifies once if the tick has stopped or the brief is still missing 30 min after its time | never — runs and exits |
+| ⏳ Job processes — nightly close | spawned by the tick, exit | never |
 | Python sidecar runner (`runner/`) | spawned by the app when the scoreboard asks for a brief (`electron/runner.cjs`: one at a time, on a free 127.0.0.1 port); stopped on quit, and exits itself if the app is gone | only while app is open |
 
 Quit the app and nothing of ours is resident; two launchd timers stay *registered* (a
 registered timer is not a running process). User-level `~/Library/LaunchAgents/` only —
-never sudo, never LaunchDaemons. Processes are named after the product so `ps` and
-Activity Monitor find them. The product must ship `status` / `stop` / `logs` / `uninstall`
-— and `stop` must unload the launchd jobs, because `pkill` alone lets launchd restart the
-tick within 60 seconds.
+never sudo, never LaunchDaemons — written and loaded by `electron/schedule.cjs` when the
+scoreboard opens, unless the user stopped them. Jobs are labelled after the bundle id, so
+`launchctl list | grep daybook` finds them (the Python processes themselves show as
+`python3`; their labels are the names). **Settings & status** is the `status` / `stop` /
+`logs` surface: every job by label with what it does, whether macOS has it loaded, its last
+exit code and the tick's last run, last brief and last error; the runner's PID; one log
+directory. **Stop removes the job files, not only unloads them** — a file left in
+`~/Library/LaunchAgents` comes back at the next login, and `pkill` alone lets launchd restart
+the tick within 60 seconds — and the app never restarts jobs the user stopped
+(`backgroundJobs: "off"` in their record). A test copy of the app (`DAYBOOK_USER_DATA`) uses
+`app.daybook.mac.test.*` labels. ⏳ `uninstall` (jobs and app data, leaving the folder alone,
+said before it happens) comes with packaging.
 
 ## Storage tiers
 
 | Tier | Where | What |
 |---|---|---|
 | **The folder** (chosen by the user) | plain files, git auto-committed | everything real: `DAY-STATE.md`, `MASTER-PLAN.md`, `LOG.md`, `CORRECTIONS.md` (append-only, never pruned), `SETUP-BACKLOG.md`, `reminders.json`, `config.json`, `briefs/` |
-| **App data** (`userData/`) | `settings.json` (one record per account, keyed by Supabase user id: folder choice, connections, setup completion), ⏳ SQLite index | app state only; SQLite is derived, deletable, rebuildable by folder rescan — and never holds the reminder schedule |
+| **App data** (`userData/`) | `settings.json` (one record per account, keyed by Supabase user id: folder choice, connections, setup completion, whether background jobs are on), `logs/` (runner, tick, watchdog — the one log location), `state/tick-state.json` (the tick's last run, last brief, what it already said today), ⏳ SQLite index | app state only; SQLite is derived, deletable, rebuildable by folder rescan — and never holds the reminder schedule |
 | **OS keychain** | via `safeStorage` / `keyring` | API keys, one entry per account and connection. Never a file, never a shell-side store |
 | **Supabase** | minimal DB | account identity, licensing, usage counters — see Accounts |
 
@@ -258,6 +266,8 @@ app/electron/main.cjs       window, IPC: folder picker, atomic writes, keychain,
 app/electron/cli.cjs        Claude Code / Codex: find, sign-in state, Codex model list
 app/electron/runner.cjs     starts/stops runner/, finds Python, fetches the verified brief
 app/electron/authLoopback.cjs  Google sign-in's one-shot 127.0.0.1 return listener
+app/electron/schedule.cjs   the tick and watchdog launchd jobs: write, load, status, stop
+runner/daybook/tick.py      what those jobs run: tick (the brief on its own), watchdog
 app/electron/preload.cjs    the single doorway (contextBridge)
 app/src/lib/daybook.ts      typed bridge + plain-browser fallbacks
 app/src/lib/models.ts       the Claude Code model catalog; model-id check

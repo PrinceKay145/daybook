@@ -18,8 +18,9 @@ import { ConnectFolderScreen } from "@/screens/ConnectFolder";
 import { ConnectProviderScreen } from "@/screens/ConnectProvider";
 import { SetupQuestionsScreen } from "@/screens/SetupQuestions";
 import { ScoreboardScreen } from "@/screens/Scoreboard";
+import { SettingsScreen } from "@/screens/Settings";
 
-type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home";
+type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home" | "settings";
 
 const ACCOUNT_GONE_NOTICE =
   "Your sign-in on this Mac has ended — the account was deleted or signed out elsewhere. Sign in, or create a new account.";
@@ -129,6 +130,32 @@ export default function App() {
     [account],
   );
 
+  /* Saves a change made in Settings without moving the user to another screen. */
+  const update = useCallback(
+    (patch: Partial<UserSettings>) => {
+      if (!account) return;
+      void daybook
+        .saveSettings(account.id, patch)
+        .then(setSettings)
+        .catch((err: unknown) => console.warn("[daybook] saving settings failed:", err));
+    },
+    [account],
+  );
+
+  /* The brief arrives on its own once setup is done: the scoreboard keeps the tick and
+     watchdog installed for this folder (rewriting them if the folder changed) — unless the
+     user stopped them in Settings, which the app then never overrides. Failures are shown
+     on the scoreboard, not swallowed. */
+  const [jobsProblem, setJobsProblem] = useState<string | null>(null);
+  const folderPath = settings.folderPath;
+  const jobsWanted = stage === "home" && Boolean(folderPath) && settings.backgroundJobs !== "off";
+  useEffect(() => {
+    if (!jobsWanted || !folderPath) return;
+    void daybook.scheduleStart(folderPath).then((result) => {
+      setJobsProblem(result.ok || result.code === "NEEDS_APP" ? null : result.message);
+    });
+  }, [jobsWanted, folderPath]);
+
   async function handleSignOut() {
     await signOut();
     await route("sign out");
@@ -205,8 +232,22 @@ export default function App() {
           folder={settings.folderPath ?? ""}
           connection={activeConnection}
           briefTime={settings.briefTime ?? "09:00"}
+          backgroundJobs={settings.backgroundJobs ?? "on"}
+          jobsProblem={jobsProblem}
           onChangeAI={() => setStage("provider")}
+          onOpenSettings={() => setStage("settings")}
           onSignOut={() => void handleSignOut()}
+        />
+      );
+    case "settings":
+      return (
+        <SettingsScreen
+          folder={settings.folderPath ?? ""}
+          connection={activeConnection}
+          backgroundJobs={settings.backgroundJobs ?? "on"}
+          onBack={() => setStage("home")}
+          onChangeAI={() => setStage("provider")}
+          onSaved={update}
         />
       );
     default:
