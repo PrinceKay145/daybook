@@ -240,6 +240,7 @@ function seedConfig(existing, payload) {
     brief_time: payload.briefTime,
     close_time: payload.closeTime,
   };
+  next.daily_list = { ...(next.daily_list ?? {}), max_items: requireListMax(payload.listMax) };
   next.scope = {
     ...(next.scope ?? {}),
     root: configAlias(payload.folder),
@@ -251,6 +252,18 @@ function seedConfig(existing, payload) {
   }
   next.day_shape = payload.dayShape.map((b) => ({ block: b.block, start: b.start, end: b.end }));
   return withProvider(next, payload.connection);
+}
+
+/* How many things today's list may hold — law 8's number, the user's to set. The runner
+   holds the same range (folder.py) and falls back to 3 for anything outside it. */
+const LIST_MAX_DEFAULT = 3;
+function listMaxOf(value) {
+  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null;
+}
+function requireListMax(value) {
+  const max = listMaxOf(value);
+  if (max === null) throw new Error("Today's list holds from 1 to 10 things — nothing was written.");
+  return max;
 }
 
 /* The brief's dial asserts its day shape covers 00:00–24:00 contiguously (V2). The setup
@@ -324,6 +337,7 @@ async function existingSetup(folder) {
     addressAs: config.owner.address_as ? String(config.owner.address_as) : "",
     briefTime: config.schedule?.brief_time ? String(config.schedule.brief_time) : "09:00",
     closeTime: config.schedule?.close_time ? String(config.schedule.close_time) : "23:00",
+    listMax: listMaxOf(config.daily_list?.max_items) ?? LIST_MAX_DEFAULT,
     ...(config.owner.timezone ? { timezone: String(config.owner.timezone) } : {}),
     // The blocks the user named; the Unplanned gaps are recomputed when they save again.
     dayShape: (Array.isArray(config.day_shape) ? config.day_shape : [])
@@ -611,18 +625,23 @@ ipcMain.handle("schedule:status", async () => {
   };
 });
 
-/* The brief and close times, edited from Settings: merged into config.json, where the tick
-   reads them at its next run. */
-ipcMain.handle("folder:setSchedule", async (_event, { folder, briefTime, closeTime }) => {
+/* The brief and close times and the size of today's list, edited from Settings: merged
+   into config.json, where the tick reads them at its next run. */
+ipcMain.handle("folder:setSchedule", async (_event, { folder, briefTime, closeTime, listMax }) => {
   const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
   if (!hhmm.test(String(briefTime)) || !hhmm.test(String(closeTime))) {
     throw new Error("Times must be HH:MM, 24-hour.");
   }
+  const max = requireListMax(listMax);
   const target = path.join(requireFolder(folder), "config.json");
   const existing = (await readJson(target)) ?? {};
-  const next = { ...existing, schedule: { ...(existing.schedule ?? {}), brief_time: briefTime, close_time: closeTime } };
+  const next = {
+    ...existing,
+    schedule: { ...(existing.schedule ?? {}), brief_time: briefTime, close_time: closeTime },
+    daily_list: { ...(existing.daily_list ?? {}), max_items: max },
+  };
   await writeTextAtomic(target, `${JSON.stringify(next, null, 2)}\n`);
-  return { briefTime, closeTime };
+  return { briefTime, closeTime, listMax: max };
 });
 
 ipcMain.handle("folder:schedule", async (_event, folder) => {
@@ -630,6 +649,7 @@ ipcMain.handle("folder:schedule", async (_event, folder) => {
   return {
     briefTime: config.schedule?.brief_time ?? "09:00",
     closeTime: config.schedule?.close_time ?? "23:00",
+    listMax: listMaxOf(config.daily_list?.max_items) ?? LIST_MAX_DEFAULT,
   };
 });
 

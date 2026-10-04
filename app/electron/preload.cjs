@@ -21,8 +21,7 @@ contextBridge.exposeInMainWorld("daybook", {
   scheduleStop: () => ipcRenderer.invoke("schedule:stop"),
   scheduleStatus: () => ipcRenderer.invoke("schedule:status"),
   readSchedule: (folder) => ipcRenderer.invoke("folder:schedule", folder),
-  setSchedule: (folder, briefTime, closeTime) =>
-    ipcRenderer.invoke("folder:setSchedule", { folder, briefTime, closeTime }),
+  setSchedule: (folder, day) => ipcRenderer.invoke("folder:setSchedule", { folder, ...day }),
   revealFolder: (folder) => ipcRenderer.invoke("shell:revealFolder", folder),
   revealLog: (file) => ipcRenderer.invoke("shell:revealLog", file),
   detectCli: () => ipcRenderer.invoke("cli:detect"),

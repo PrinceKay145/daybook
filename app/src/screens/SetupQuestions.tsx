@@ -9,7 +9,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Plus, X } from "lucide-react";
-import { daybook, type Connection, type ExistingSetup } from "@/lib/daybook";
+import { daybook, LIST_MAX, type Connection, type ExistingSetup } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
 import {
   completeDay,
@@ -20,6 +20,7 @@ import {
   type DayBlock,
 } from "@/lib/dayShape";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { LIST_MAX_HINT, ListMaxSelect } from "@/components/ListMaxSelect";
 import { cn } from "@/lib/utils";
 
 function lines(value: string): string[] {
@@ -64,6 +65,7 @@ export function SetupQuestionsScreen({
   const [inFlight, setInFlight] = useState("");
   const [briefTime, setBriefTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("23:00");
+  const [listMax, setListMax] = useState<number>(LIST_MAX.default);
   const [blocks, setBlocks] = useState<DayBlock[]>([]);
   const [busy, setBusy] = useState(false);
   const [written, setWritten] = useState<string[] | null>(null);
@@ -100,6 +102,7 @@ export function SetupQuestionsScreen({
     setAddressAs(setup.addressAs);
     setBriefTime(setup.briefTime);
     setCloseTime(setup.closeTime);
+    setListMax(setup.listMax);
     if (setup.timezone) setTimezone(setup.timezone);
     setBlocks(setup.dayShape ?? []);
     setStartOver(true);
@@ -125,6 +128,7 @@ export function SetupQuestionsScreen({
         timezone,
         briefTime,
         closeTime,
+        listMax,
         goals: lines(goals),
         nonNegotiables: lines(nonNegotiables),
         inFlight: lines(inFlight),
@@ -292,6 +296,9 @@ export function SetupQuestionsScreen({
               />
             </Field>
           </div>
+          <Field label="How many things on today's list, at most?" hint={LIST_MAX_HINT}>
+            <ListMaxSelect value={listMax} onChange={setListMax} />
+          </Field>
           <DayShapeEditor blocks={blocks} onChange={setBlocks} />
           <Field
             label="Time zone"

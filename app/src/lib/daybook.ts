@@ -97,6 +97,17 @@ export function secretName(userId: string, connectionId: string): string {
   return `user/${userId}/provider/${connectionId}`;
 }
 
+/** How many things today's list may hold — law 8's number, the user's to set
+    (`daily_list.max_items` in config.json). Its rule is not: the list is never padded. */
+export const LIST_MAX = { default: 3, lowest: 1, highest: 10 } as const;
+
+/** The day's settings that live in the folder's config.json. */
+export interface DaySettings {
+  briefTime: string;
+  closeTime: string;
+  listMax: number;
+}
+
 export interface SetupPayload {
   folder: string;
   ownerName: string;
@@ -104,6 +115,7 @@ export interface SetupPayload {
   timezone: string;
   briefTime: string;
   closeTime: string;
+  listMax: number;
   goals: string[];
   nonNegotiables: string[];
   inFlight: string[];
@@ -123,6 +135,7 @@ export interface ExistingSetup {
   addressAs: string;
   briefTime: string;
   closeTime: string;
+  listMax: number;
   timezone?: string;
   /** The blocks the user named (Unplanned gaps left out). */
   dayShape?: DayBlock[];
@@ -152,8 +165,8 @@ interface DaybookBridge {
   /** Unloads and removes them, so nothing comes back at the next login. */
   scheduleStop(): Promise<{ ok: true }>;
   scheduleStatus(): Promise<SystemStatus>;
-  readSchedule(folder: string): Promise<{ briefTime: string; closeTime: string }>;
-  setSchedule(folder: string, briefTime: string, closeTime: string): Promise<{ briefTime: string; closeTime: string }>;
+  readSchedule(folder: string): Promise<DaySettings>;
+  setSchedule(folder: string, day: DaySettings): Promise<DaySettings>;
   revealFolder(folder: string): Promise<boolean>;
   revealLog(file: string): Promise<boolean>;
   /** Claude Code and Codex: found or not, and whether each is signed in. */

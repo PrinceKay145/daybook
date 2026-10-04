@@ -44,7 +44,7 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
 
 **To build, in this order — and nothing else:**
 
-1. **The size of today's list is the user's.** `daily_list.max_items` in `config.json`,
+1. ✅ **The size of today's list is the user's** (built). `daily_list.max_items` in `config.json`,
    1–10, default 3, asked in setup and changeable in Settings. Law 8's number is safe to
    tune (LAWS.md, "Editing this file"); its rule is not: the list is never padded to reach
    the number, and a list shorter than it says why.
@@ -116,7 +116,8 @@ it outlives the app. `authKind` is data on the provider record. 🔴 No hosted p
 anyone's subscription, ever.
 
 **Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
-**the user's brief time and close time**, **the shape of their day** (optional — the blocks
+**the user's brief time and close time**, **how many things today's list holds at most**
+(1–10, default 3 — never padded to reach it), **the shape of their day** (optional — the blocks
 they name; every minute they leave out is written as *Unplanned*, so the dial's day shape
 always covers 00:00–24:00 exactly once and claims no plan they did not make; overlaps are
 refused with the two block names), and time zone — defaulting to this Mac's own zone
@@ -151,7 +152,7 @@ tick's last run, last brief and last error; the app's and the runner's PIDs; the
 directory, openable in Finder; a working **Stop** that unloads the launchd jobs *and removes
 their files* (`pkill` alone restarts within 60s; a file left behind returns at the next
 login) and a **Start** that restores them — the app never restarts jobs the user stopped;
-brief and close times, saved to `config.json`; the folder (open in Finder) and the model
+brief and close times and the size of today's list, saved to `config.json`; the folder (open in Finder) and the model
 (change). **⏳ Still to come:** folder re-selection, and **folder access** — the connected
 folder's approval mode, the read-only folders granted, a revoke button for each, and the
 activity log (with the file tools, S10).
@@ -195,8 +196,9 @@ am I doing → what am I keeping up → who am I waiting on → a human note):
 1. **24-hour dial** — blocks contiguous 00:00–24:00, asserted at build time; non-negotiables
    tick *outside* the ring; live hand; centre shows time, current block, `until HH:MM`.
 2. **Next up** — one line.
-3. **Today's three** — at most three, each one concrete first click. 🔴 Never manufacture a
-   third; nothing marked done in `DAY-STATE.md` may appear, ever.
+3. **Today's list** — at most the user's number (`daily_list.max_items`, 1–10, default 3),
+   each one concrete first click; a list shorter than the number says why. 🔴 Never
+   manufacture an item to reach it; nothing marked done in `DAY-STATE.md` may appear, ever.
 4. **Scoreboard** — empty prints an em dash *and a sentence why*. 🔴 Nothing estimated,
    interpolated or inferred.
 5. **Today's ticks** — 🔴 shown, never graded. No streaks, scores, percentages.
@@ -207,7 +209,7 @@ am I doing → what am I keeping up → who am I waiting on → a human note):
 
 🔴 **Verified before delivery, never eyeballed.** The eleven data assertions (V1 embedded JS
 syntax · V2 day-shape contiguity · V3 dial geometry · V4 block lookup · V5 referenced paths
-exist · V6 ≤3 items · V7 nothing done re-surfaces · V8 every empty metric has a reason ·
+exist · V6 no more than the user's cap · V7 nothing done re-surfaces · V8 every empty metric has a reason ·
 V9 every board row WAIT/CHASE + date · V10 no grading · V11 heartbeat reflected) run against
 `fixtures/sample-folder` and `fixtures/fresh-folder` (day one) on the frozen clock. They are
 data assertions, not view concerns — they survive any renderer.

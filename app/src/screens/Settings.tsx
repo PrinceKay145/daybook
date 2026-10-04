@@ -2,12 +2,14 @@
    and stop everything Daybook runs, without guessing and without knowing how it was built
    (AGENTS.md). Every job is named as macOS knows it, with what it does, when it last ran
    and where it logs; Stop really stops — it removes the jobs, so nothing returns at the
-   next login. The schedule edits config.json, where the tick reads it within a minute. */
+   next login. The schedule and the size of today's list edit config.json, where the tick
+   reads them within a minute. */
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, FolderOpen, RefreshCw } from "lucide-react";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
-import { daybook, type Connection, type SystemStatus } from "@/lib/daybook";
+import { daybook, LIST_MAX, type Connection, type SystemStatus } from "@/lib/daybook";
+import { LIST_MAX_HINT, ListMaxSelect, things } from "@/components/ListMaxSelect";
 import { describeChoice } from "@/lib/models";
 
 function clockTime(iso?: string): string {
@@ -34,6 +36,7 @@ export function SettingsScreen({
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [briefTime, setBriefTime] = useState("");
   const [closeTime, setCloseTime] = useState("");
+  const [listMax, setListMax] = useState<number>(LIST_MAX.default);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +56,7 @@ export function SettingsScreen({
       .then((s) => {
         setBriefTime(s.briefTime);
         setCloseTime(s.closeTime);
+        setListMax(s.listMax);
       })
       .catch((err: unknown) => setError((err as Error).message));
   }, [folder, refresh]);
@@ -81,9 +85,11 @@ export function SettingsScreen({
     setError(null);
     setSavedNote(null);
     try {
-      const saved = await daybook.setSchedule(folder, briefTime, closeTime);
+      const saved = await daybook.setSchedule(folder, { briefTime, closeTime, listMax });
       onSaved({ briefTime: saved.briefTime });
-      setSavedNote(`Saved to config.json — the next brief arrives at ${saved.briefTime}.`);
+      setSavedNote(
+        `Saved to config.json — the next brief arrives at ${saved.briefTime}, with at most ${things(saved.listMax)} on today's list.`,
+      );
     } catch (err) {
       setError((err as Error).message);
     }
@@ -152,13 +158,18 @@ export function SettingsScreen({
           </div>
         </Panel>
 
-        <Panel title="Schedule">
+        <Panel title="Your day">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Morning brief at">
               <input className={inputClass} type="time" value={briefTime} onChange={(e) => setBriefTime(e.target.value)} />
             </Field>
             <Field label="Nightly close at">
               <input className={inputClass} type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
+            </Field>
+          </div>
+          <div className="mt-3">
+            <Field label="Today's list holds at most" hint={LIST_MAX_HINT}>
+              <ListMaxSelect value={listMax} onChange={setListMax} />
             </Field>
           </div>
           <div className="mt-3 flex items-center gap-3">
