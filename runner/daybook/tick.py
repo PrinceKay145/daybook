@@ -1,7 +1,9 @@
 """The brief, arriving on its own — the scheduled side of the runner.
 
-``tick`` is run by launchd every minute (app.daybook.mac.tick) and exits. Once the user's
-brief time has passed — read from config.json at every tick, never a compiled constant —
+``tick`` is run by launchd every minute (app.daybook.mac.tick) and exits. In the ten
+minutes before the user's brief time it asks their chosen model to plan the day, once
+(plan.py: the model proposes, Daybook writes, after the checks). Once the brief time has
+passed — read from config.json at every tick, never a compiled constant —
 and today's brief does not exist yet, it builds the brief, runs the eleven assertions, and
 writes ``briefs/<date>.html`` and ``briefs/latest.html`` only if all eleven pass (ship
 gate 2). Then it says so with a notification. A Mac asleep at the brief time gets its
@@ -28,16 +30,19 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
+from . import plan
 from .assertions import all_passed, verify
 from .brief import build
-from .folder import open_folder
+from .folder import Folder, open_folder
 from .render import render
 from .write import atomic_write_text
 
 Notifier = Callable[[str, str], bool]
+Planner = Callable[..., "plan.PlanOutcome"]
 
 DEFAULT_BRIEF_TIME = "09:00"
 LATE_AFTER = timedelta(minutes=15)  # a brief written later than this says it was late
+PLAN_AHEAD = timedelta(minutes=10)  # the model plans the day this long before the brief
 WATCHDOG_GRACE = timedelta(minutes=30)  # how long after the brief time a missing brief is news
 TICK_STALE_AFTER = timedelta(minutes=10)  # a tick this old means the minute check has stopped
 
@@ -94,11 +99,44 @@ def _save_state(state_dir: Path, state: dict) -> None:
     atomic_write_text(state_dir / "tick-state.json", json.dumps(state, indent=2) + "\n")
 
 
+def record_plan(state_dir: str, day: str, outcome: "plan.PlanOutcome") -> None:
+    """Today's planning, wherever it ran — the tick, or the app's "plan my day" — so the
+    day is planned once, and a brief built later can say if planning failed."""
+    states = Path(state_dir)
+    state = _load_state(states)
+    earlier = state.get("plan") or {}
+    if earlier.get("day") == day and earlier.get("status") == "planned" and outcome.status != "planned":
+        return  # today was planned; a retry that failed leaves that plan standing, and true
+    state["plan"] = {"day": day, "status": outcome.status, "detail": outcome.detail,
+                     "model": outcome.model, "at": datetime.now().isoformat(timespec="seconds")}
+    _save_state(states, state)
+
+
+def plan_note(state: dict, day: str) -> str | None:
+    """A line for the brief when today's plan could not be refreshed (law 14: the system
+    reports its own failures). None when it was planned, or not attempted."""
+    entry = state.get("plan") or {}
+    if entry.get("day") != day or entry.get("status") not in ("failed", "refused"):
+        return None
+    who = entry.get("model") or "your model"
+    return (f"Today's plan wasn't refreshed by {who}: {entry.get('detail', '')} This brief is "
+            "built from your day state as it stood.")
+
+
+def add_plan_note(folder: Folder, state_dir: str | None) -> None:
+    if not state_dir:
+        return
+    note = plan_note(_load_state(Path(state_dir)), folder.today.isoformat())
+    if note:
+        folder.warnings.append(note)
+
+
 def run_tick(
     folder_path: str,
     state_dir: str,
     clock: str | None = None,
     notify: Notifier = notify_macos,
+    plan_day: Planner | None = plan.run,
 ) -> Outcome:
     states = Path(state_dir)
     state = _load_state(states)
@@ -118,13 +156,28 @@ def run_tick(
     due = _brief_moment(today, folder.config)
 
     try:
-        if now < due:
+        if now < due - PLAN_AHEAD:
             return Outcome("waiting", f"today's brief is due at {due:%H:%M}")
 
         dated = folder.scope.resolve(f"briefs/{today.isoformat()}.html")
         if dated.exists():
             return Outcome("done", f"today's brief already exists ({dated.name})")
 
+        planned = (state.get("plan") or {}).get("day") == today.isoformat()
+        if plan_day is not None and not planned:
+            _save_state(states, state)  # the planning call can take minutes; keep the tick seen
+            outcome = plan_day(folder_path, clock=clock)
+            record_plan(state_dir, today.isoformat(), outcome)
+            state = _load_state(states)
+            folder = open_folder(folder_path, clock_override=clock)
+            planned_detail = f"planned ({outcome.status}: {outcome.detail})"
+        else:
+            planned_detail = "already planned" if planned else "not planned"
+
+        if now < due:
+            return Outcome("waiting", f"{planned_detail}; today's brief is due at {due:%H:%M}")
+
+        add_plan_note(folder, state_dir)
         pending = [f"briefs/{today.isoformat()}.html", "briefs/latest.html"]
         data = build(folder, pending_outputs=pending)
         html = render(data)

@@ -31,6 +31,16 @@ python3 -m daybook serve --folder ../fixtures/sample-folder --port 8787
 python3 -m daybook tick     --folder /tmp/my-copy --state-dir /tmp/daybook-state
 python3 -m daybook watchdog --folder /tmp/my-copy --state-dir /tmp/daybook-state
 
+# Ask the folder's chosen model (providers[0] in config.json) to plan the day. It proposes;
+# the runner writes DAY-STATE.md after the eleven checks. --propose writes nothing and
+# prints the plan; apply writes one later. --stdin takes {"message", "secret"} as JSON.
+python3 -m daybook plan --folder /tmp/my-copy --state-dir /tmp/daybook-state
+
+# The law eval harness (gate 3) — run on every prompt change and model bump. Uses your
+# own signed-in CLI and the invented sample folder.
+python3 -m daybook evals --cli claude --model claude-sonnet-5
+python3 -m daybook evals --cli codex
+
 # Tests
 python3 -m unittest discover -s tests -t tests
 ```
@@ -53,17 +63,20 @@ The fixtures are read-only in the repo. **Copy the folder before running anythin
 | `render.py` | The **view** — one self-contained HTML file |
 | `write.py` | Atomic writes only |
 | `server.py` | HTTP on `127.0.0.1` for the frontend |
+| `secretary.py` | Asks the user's model — Claude Code, Codex or an API key — with fixed arguments and no tools |
+| `plan.py` | The model proposes the day as JSON; this refuses what breaks a rule and writes the day state after the checks |
+| `prompts/plan.md` | The planning instructions; `LAWS.md` is appended at run time |
+| `tick.py` | What launchd runs: plan the day, then the brief; the watchdog |
+| `evals.py` | The law eval harness (ship gate 3) |
 
 **Not here, on purpose:**
 
 - **The reminder daemon.** Finished, in production, bundled unchanged as a sidecar in week 7.
   Not spiked, ported or reimplemented here — `CLAUDE.md` rule 2.
-- **The rest of the write path** — advisory lock, read-modify-write diff, file watcher, git
-  auto-commit. Week 2.
-- **The provider layer.** Week 3. Which is why the brief's closing line is assembled from
-  `LOG.md` and says so, rather than being written by a model.
-- **Scheduler, notifications, watchdog.** Week 4.
-- **The agent harness.** Weeks 5–6. Python, in this runner — no Vercel AI SDK.
+- **The rest of the write path** — advisory lock, file watcher, git auto-commit.
+- **File tools for the model.** In Beta 1 the model reads nothing and writes nothing: it is
+  handed text and answers with text (`plan.py`). File tools arrive with folder access (S10).
+- **The closing line from a model.** It is still assembled from `LOG.md` and says so.
 
 ## Why data and view are separate
 

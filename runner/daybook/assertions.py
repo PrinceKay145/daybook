@@ -237,15 +237,19 @@ def _v5(data: BriefData) -> Result:
 # -- V6 --------------------------------------------------------------------------
 
 def _v6(data: BriefData) -> Result:
-    count = len(data.three)
-    ok = count <= 3
-    detail = f"{count} item{'s' if count != 1 else ''}"
-    if count < 3 and not data.three_reason:
+    """Law 8: the cap is the user's number (config.json, daily_list.max_items); the rule
+    is not. A list shorter than the cap says why, so a short day reads as honest rather
+    than as something missing."""
+    count, cap = len(data.today_list), data.list_max
+    ok = count <= cap
+    detail = f"{count} item{'s' if count != 1 else ''}, at most {cap}"
+    if count < cap and not data.today_list_reason:
         ok = False
-        detail += " — fewer than three and no reason given for why"
-    elif count < 3:
+        detail += " — fewer than the cap and no reason given for why"
+    elif count < cap:
         detail += ", with a stated reason"
-    return Result("V6", "Today's three contains <= 3 items", ok, detail, "Padding")
+    return Result("V6", "Today's list holds no more than the user's cap", ok, detail,
+                  "Padding")
 
 
 # -- V7 --------------------------------------------------------------------------
@@ -258,7 +262,7 @@ def _v7(data: BriefData) -> Result:
     """The trust-destroying failure. Named by the reference user as the one that would
     end confidence fastest — and it happened anyway."""
     offenders = []
-    haystacks = [(a.title, a.detail) for a in data.three]
+    haystacks = [(a.title, a.detail) for a in data.today_list]
     for label in data.finished_labels:
         needle = " ".join(_normalise(label).split())
         if not needle:
@@ -266,11 +270,11 @@ def _v7(data: BriefData) -> Result:
         for title, detail in haystacks:
             if needle in " ".join(_normalise(f"{title} {detail}").split()):
                 offenders.append(f"{label!r} reappears in {title!r}")
-    return Result("V7", "Nothing marked done in DAY-STATE appears in today's three",
+    return Result("V7", "Nothing marked done in DAY-STATE appears in today's list",
                   not offenders,
                   "; ".join(offenders)
                   or f"{len(data.finished_labels)} finished item(s) checked against "
-                     f"{len(data.three)} action(s), none reappear",
+                     f"{len(data.today_list)} action(s), none reappear",
                   "The trust-destroying failure")
 
 

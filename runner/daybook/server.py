@@ -52,8 +52,11 @@ def _plain(value):
     return value
 
 
-def _payload(folder_path: str, clock: str | None) -> tuple[dict, str, bool]:
+def _payload(folder_path: str, clock: str | None, state_dir: str | None = None) -> tuple[dict, str, bool]:
+    from .tick import add_plan_note
+
     folder = open_folder(folder_path, clock_override=clock)
+    add_plan_note(folder, state_dir)
     pending = [p.format(date=folder.today.isoformat()) for p in PENDING]
     data = build(folder, pending_outputs=pending)
     html = render(data)
@@ -86,7 +89,7 @@ def _payload(folder_path: str, clock: str | None) -> tuple[dict, str, bool]:
     return payload, html, all_passed(results)
 
 
-def make_handler(folder_path: str, clock: str | None):
+def make_handler(folder_path: str, clock: str | None, state_dir: str | None = None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "daybook"
         sys_version = ""
@@ -119,7 +122,7 @@ def make_handler(folder_path: str, clock: str | None):
                     self._send(200, b'{"ok":true}', "application/json; charset=utf-8")
                     return
 
-                payload, html, passed = _payload(folder_path, clock)
+                payload, html, passed = _payload(folder_path, clock, state_dir)
 
                 if path in ("/", "/api/brief"):
                     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -175,12 +178,13 @@ def _exit_with_parent(interval: float = 2.0) -> None:
     threading.Thread(target=watch, name="exit-with-parent", daemon=True).start()
 
 
-def serve(folder_path: str, clock: str | None, host: str = "127.0.0.1", port: int = 8787):
+def serve(folder_path: str, clock: str | None, host: str = "127.0.0.1", port: int = 8787,
+          state_dir: str | None = None):
     if host not in ("127.0.0.1", "localhost", "::1"):
         raise ValueError(
             f"refusing to bind to {host!r}: the runner is loopback-only"
         )
-    httpd = ThreadingHTTPServer((host, port), make_handler(folder_path, clock))
+    httpd = ThreadingHTTPServer((host, port), make_handler(folder_path, clock, state_dir))
     _exit_with_parent()
     print(f"daybook runner on http://{host}:{port}  folder={folder_path}", flush=True)
     print("  GET /api/brief   the brief as data, with verification results", flush=True)

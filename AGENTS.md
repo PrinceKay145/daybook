@@ -74,12 +74,15 @@ all eleven assertions pass (otherwise it is withheld and the failed checks are n
 brief is honest on day one (`fixtures/fresh-folder`). **The brief arrives on its own**: the
 `app.daybook.mac.tick` (every minute) and `app.daybook.mac.watchdog` (hourly) launchd jobs
 write it at the user's brief time and notify, and **Settings & status** shows and stops
-everything Daybook runs. Next, in the owner's order: the reference reminder daemon brought
-into the tick as an **opt-in switch, off by default**, with its personal details removed and
-its known gaps fixed (S11; the shell-button question is still open — architecture.md, "The
-reference reminder daemon"), then accounts polish and packaging — which must bundle a Python.
-Not yet placed by the owner: the chosen model writing any part of the brief (today every
-word comes from the folder). Requirements: `product-requirements.md`.
+everything Daybook runs. **Beta 1** (S12), in the owner's order and nothing else: ✅ the user
+sets the size of today's list; ✅ the chosen model plans the day (it proposes as JSON, Daybook
+writes after the checks — no file tools; `runner/daybook/plan.py`); ✅ the "tell your
+secretary" box (propose → Apply/Discard) and setup in the user's own words; ✅ a tester
+install (`npm run dist:mac`, Python bundled, signed ad hoc; the guide is `TESTERS.md`);
+next, a design and UI pass across every screen — functionality first, so no polish before
+then. API keys are built but not offered in Beta 1 (`API_KEYS_OFFERED` in the model step). Reminders (S11), read grants
+(S10's file tools) and the automatic nightly close wait for tester feedback — do not start
+them. Requirements: `product-requirements.md`, "Beta 1".
 
 ## Hard constraints
 
@@ -111,15 +114,18 @@ guessing, without sudo, and without knowing how it was built.
   jobs** — `pkill` alone restarts the tick in 60 seconds, and the docs must say so. One
   documented log location. Uninstall removes our jobs and app data, leaves the folder alone,
   and says so before doing it.
-- Distribution: unsigned for the friends alpha with the Gatekeeper approval step documented
-  in onboarding (S10); notarize before any public launch.
+- Distribution: signed ad hoc (not notarized) for the friends alpha, with the one-time "Open
+  Anyway" step in `TESTERS.md`, the guide sent with the disk image; notarize before any
+  public launch.
 
 ## The three gates — a build that fails any of these does not ship
 
 1. The nightly close writes a candidate file first and asserts mechanically; never write
    `DAY-STATE.md` directly.
 2. The brief is verified before delivery — the eleven assertions, not eyeballed.
-3. The law eval harness runs on every prompt change and every model version bump.
+3. The law eval harness runs on every prompt change and every model version bump —
+   `python -m daybook evals --cli claude|codex` (it needs a signed-in CLI, so a developer
+   runs it; CI tests only that the harness can fail).
 
 ## Working style
 

@@ -9,7 +9,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Plus, X } from "lucide-react";
-import { daybook, type Connection, type ExistingSetup } from "@/lib/daybook";
+import { daybook, LIST_MAX, type Connection, type ExistingSetup } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
 import {
   completeDay,
@@ -20,6 +20,7 @@ import {
   type DayBlock,
 } from "@/lib/dayShape";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { LIST_MAX_HINT, ListMaxSelect } from "@/components/ListMaxSelect";
 import { cn } from "@/lib/utils";
 
 function lines(value: string): string[] {
@@ -62,8 +63,11 @@ export function SetupQuestionsScreen({
   const [goals, setGoals] = useState("");
   const [nonNegotiables, setNonNegotiables] = useState("");
   const [inFlight, setInFlight] = useState("");
+  const [answerMode, setAnswerMode] = useState<"questions" | "words">("questions");
+  const [ownWords, setOwnWords] = useState("");
   const [briefTime, setBriefTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("23:00");
+  const [listMax, setListMax] = useState<number>(LIST_MAX.default);
   const [blocks, setBlocks] = useState<DayBlock[]>([]);
   const [busy, setBusy] = useState(false);
   const [written, setWritten] = useState<string[] | null>(null);
@@ -100,6 +104,7 @@ export function SetupQuestionsScreen({
     setAddressAs(setup.addressAs);
     setBriefTime(setup.briefTime);
     setCloseTime(setup.closeTime);
+    setListMax(setup.listMax);
     if (setup.timezone) setTimezone(setup.timezone);
     setBlocks(setup.dayShape ?? []);
     setStartOver(true);
@@ -125,9 +130,11 @@ export function SetupQuestionsScreen({
         timezone,
         briefTime,
         closeTime,
-        goals: lines(goals),
-        nonNegotiables: lines(nonNegotiables),
-        inFlight: lines(inFlight),
+        listMax,
+        goals: answerMode === "questions" ? lines(goals) : [],
+        nonNegotiables: answerMode === "questions" ? lines(nonNegotiables) : [],
+        inFlight: answerMode === "questions" ? lines(inFlight) : [],
+        ...(answerMode === "words" && ownWords.trim() ? { ownWords: ownWords.trim() } : {}),
         connection,
         startOver,
         dayShape: completeDay(blocks),
@@ -247,30 +254,70 @@ export function SetupQuestionsScreen({
         </Section>
 
         <Section title="What you're working with">
-          <Field label="What are you working toward?" hint="One goal per line — they seed your master plan.">
-            <textarea
-              className={`${inputClass} min-h-20 resize-y`}
-              value={goals}
-              onChange={(event) => setGoals(event.target.value)}
-              placeholder={"Land a product role by summer\nShip the newsletter weekly"}
-            />
-          </Field>
-          <Field label="What's non-negotiable in your week?" hint="One per line — the fixed points it plans around.">
-            <textarea
-              className={`${inputClass} min-h-16 resize-y`}
-              value={nonNegotiables}
-              onChange={(event) => setNonNegotiables(event.target.value)}
-              placeholder={"School run 08:20 on weekdays\nGym Tue/Thu 07:00"}
-            />
-          </Field>
-          <Field label="Who are you waiting on?" hint="One per line — replies, decisions, invoices." optional>
-            <textarea
-              className={`${inputClass} min-h-16 resize-y`}
-              value={inFlight}
-              onChange={(event) => setInFlight(event.target.value)}
-              placeholder={"Contract renewal — sent 4 March\nReference from a former manager"}
-            />
-          </Field>
+          <div className="flex gap-1 rounded-[var(--radius-card)] border border-[var(--color-line)] p-1 text-xs" role="radiogroup" aria-label="How to answer">
+            {(
+              [
+                ["questions", "Answer three questions"],
+                ["words", "In your own words"],
+              ] as const
+            ).map(([value, text]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={answerMode === value}
+                onClick={() => setAnswerMode(value)}
+                className={cn(
+                  "flex-1 rounded-[calc(var(--radius-card)-4px)] px-3 py-1.5",
+                  answerMode === value
+                    ? "bg-[var(--color-surface)] font-medium text-[var(--color-ink)]"
+                    : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
+                )}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+          {answerMode === "words" ? (
+            <Field
+              label="Tell your secretary about your life"
+              hint="What you're working toward, what's fixed in your week, who you're waiting on — however it comes out. Saved as you wrote it; your secretary reads it when it plans. You can dictate: press the dictation key, or Fn twice."
+            >
+              <textarea
+                className={`${inputClass} min-h-40 resize-y`}
+                value={ownWords}
+                onChange={(event) => setOwnWords(event.target.value)}
+                placeholder={"e.g. I'm trying to land a product role by summer and keep the newsletter going weekly. School run is 08:20 on weekdays, gym Tuesday and Thursday mornings. Still waiting to hear back on the contract renewal I sent on 4 March."}
+              />
+            </Field>
+          ) : (
+            <>
+              <Field label="What are you working toward?" hint="One goal per line — they seed your master plan.">
+                <textarea
+                  className={`${inputClass} min-h-20 resize-y`}
+                  value={goals}
+                  onChange={(event) => setGoals(event.target.value)}
+                  placeholder={"Land a product role by summer\nShip the newsletter weekly"}
+                />
+              </Field>
+              <Field label="What's non-negotiable in your week?" hint="One per line — the fixed points it plans around.">
+                <textarea
+                  className={`${inputClass} min-h-16 resize-y`}
+                  value={nonNegotiables}
+                  onChange={(event) => setNonNegotiables(event.target.value)}
+                  placeholder={"School run 08:20 on weekdays\nGym Tue/Thu 07:00"}
+                />
+              </Field>
+              <Field label="Who are you waiting on?" hint="One per line — replies, decisions, invoices." optional>
+                <textarea
+                  className={`${inputClass} min-h-16 resize-y`}
+                  value={inFlight}
+                  onChange={(event) => setInFlight(event.target.value)}
+                  placeholder={"Contract renewal — sent 4 March\nReference from a former manager"}
+                />
+              </Field>
+            </>
+          )}
         </Section>
 
         <Section title="Your day">
@@ -292,6 +339,9 @@ export function SetupQuestionsScreen({
               />
             </Field>
           </div>
+          <Field label="How many things on today's list, at most?" hint={LIST_MAX_HINT}>
+            <ListMaxSelect value={listMax} onChange={setListMax} />
+          </Field>
           <DayShapeEditor blocks={blocks} onChange={setBlocks} />
           <Field
             label="Time zone"

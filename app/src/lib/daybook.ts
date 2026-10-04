@@ -45,6 +45,31 @@ export type BriefResult =
   | { ok: true; passed: boolean; results: CheckResult[]; warnings: string[]; html: string | null; logFile?: string }
   | { ok: false; code: string; message: string; logFile?: string };
 
+/** One run of the chosen model planning the day (runner/daybook/plan.py). "planned": the
+    day state was written after the eleven checks; "failed": the model couldn't be asked;
+    "refused": its answer broke a rule twice; "skipped": no model is chosen. */
+export interface PlanOutcome {
+  status: "planned" | "proposed" | "refused" | "failed" | "skipped";
+  detail: string;
+  summary: string;
+  /** Text in the folder that read like instructions, which the model ignored and named. */
+  flags: string[];
+  model: string;
+  /** What the model proposed, to show before the user applies it. */
+  proposal?: ProposedDay;
+  /** Set on a proposal waiting in the main process for the user's answer. */
+  proposalId?: string;
+  from_message?: boolean;
+}
+
+export interface ProposedDay {
+  today_list: { title: string; first_click: string }[];
+  list_reason: string;
+  board: { who: string; what: string; status: "WAIT" | "CHASE"; next_move: string; date: string }[];
+  newly_finished: { label: string; detail: string }[];
+  questions: string[];
+}
+
 /** One of Daybook's launchd jobs, as Settings & status shows it. */
 export interface JobStatus {
   label: string;
@@ -97,6 +122,17 @@ export function secretName(userId: string, connectionId: string): string {
   return `user/${userId}/provider/${connectionId}`;
 }
 
+/** How many things today's list may hold — law 8's number, the user's to set
+    (`daily_list.max_items` in config.json). Its rule is not: the list is never padded. */
+export const LIST_MAX = { default: 3, lowest: 1, highest: 10 } as const;
+
+/** The day's settings that live in the folder's config.json. */
+export interface DaySettings {
+  briefTime: string;
+  closeTime: string;
+  listMax: number;
+}
+
 export interface SetupPayload {
   folder: string;
   ownerName: string;
@@ -104,9 +140,13 @@ export interface SetupPayload {
   timezone: string;
   briefTime: string;
   closeTime: string;
+  listMax: number;
   goals: string[];
   nonNegotiables: string[];
   inFlight: string[];
+  /** Setup answered in the user's own words instead of the three questions: kept
+      verbatim in SETUP-CONTEXT.md, where the model reads it when it plans. */
+  ownWords?: string;
   /** The active connection, written into the folder's config.json providers block.
       Null-tolerant: the flow guarantees it, the writer tolerates its absence. */
   connection: Connection | null;
@@ -123,6 +163,7 @@ export interface ExistingSetup {
   addressAs: string;
   briefTime: string;
   closeTime: string;
+  listMax: number;
   timezone?: string;
   /** The blocks the user named (Unplanned gaps left out). */
   dayShape?: DayBlock[];
@@ -147,13 +188,19 @@ interface DaybookBridge {
   deleteSecret(name: string): Promise<boolean>;
   /** Today's brief for this folder — built, verified and rendered by the runner. */
   brief(folder: string): Promise<BriefResult>;
+  /** Asks the chosen model to plan today; the runner writes DAY-STATE.md after the checks. */
+  planDay(folder: string, userId: string): Promise<PlanOutcome>;
+  /** The same from something the user told Daybook — proposed, written only on applyPlan. */
+  proposeDay(folder: string, userId: string, message: string): Promise<PlanOutcome>;
+  applyPlan(proposalId: string): Promise<PlanOutcome>;
+  discardPlan(proposalId: string): Promise<boolean>;
   /** Installs and loads the tick and watchdog launchd jobs for this folder. */
   scheduleStart(folder: string): Promise<ScheduleResult>;
   /** Unloads and removes them, so nothing comes back at the next login. */
   scheduleStop(): Promise<{ ok: true }>;
   scheduleStatus(): Promise<SystemStatus>;
-  readSchedule(folder: string): Promise<{ briefTime: string; closeTime: string }>;
-  setSchedule(folder: string, briefTime: string, closeTime: string): Promise<{ briefTime: string; closeTime: string }>;
+  readSchedule(folder: string): Promise<DaySettings>;
+  setSchedule(folder: string, day: DaySettings): Promise<DaySettings>;
   revealFolder(folder: string): Promise<boolean>;
   revealLog(file: string): Promise<boolean>;
   /** Claude Code and Codex: found or not, and whether each is signed in. */
@@ -210,6 +257,10 @@ export const daybook: DaybookBridge = bridge ?? {
   deleteSecret: async () => true,
   // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
   brief: () => fetchBriefFromRunner(),
+  planDay: () => refuse("Planning the day"),
+  proposeDay: () => refuse("Planning the day"),
+  applyPlan: () => refuse("Writing the day state"),
+  discardPlan: async () => true,
   scheduleStart: async () => ({ ok: false, code: "NEEDS_APP", message: "The background jobs need the Daybook app." }),
   scheduleStop: async () => ({ ok: true }),
   scheduleStatus: () => refuse("Reading what Daybook runs"),

@@ -40,7 +40,7 @@ Tests inject that as the clock. Without a frozen clock, half the assertions here
 | File | Exercises |
 |---|---|
 | `MASTER-PLAN.md` | Lane priority, day shape, non-negotiables, metrics, tone |
-| `DAY-STATE.md` | Current truth, the board, today's three, done items, an empty metric |
+| `DAY-STATE.md` | Current truth, the board, today's list, done items, an empty metric |
 | `LOG.md` | Append-only history, newest first, a system-failure day |
 | `CORRECTIONS.md` | The never-pruned record of what the system got wrong |
 | `SETUP-BACKLOG.md` | NOW / NEXT / LATER tiers and a DONE section |
@@ -82,10 +82,10 @@ constructed so that breaking it produces a **visible** failure.
 
 | # | Case | Where it's planted | Should produce |
 |---|---|---|---|
-| 1 | **Law 1 — never re-surface a finished thing** | `DAY-STATE` marks the Hartley invoice DONE; `LOG` and `reminders.json` still mention it | The invoice must **not** appear in today's three |
+| 1 | **Law 1 — never re-surface a finished thing** | `DAY-STATE` marks the Hartley invoice DONE; `LOG` and `reminders.json` still mention it | The invoice must **not** appear in today's list |
 | 2 | **Law 4 / 7 — no invented numbers** | `newsletter_subscribers` has no reading this week | A dash **and a reason**, never an estimate or last week's figure |
 | 3 | **Law 7 — a dropped metric stays dropped** | `words_shipped` is marked `"tracking": false` | A dash and "you stopped tracking this", never silently re-added |
-| 4 | **Law 8 — three maximum, never manufacture** | Only two items honestly qualify today | Exactly two, with a line saying why it's two |
+| 4 | **Law 8 — at most the cap (3 unless the user sets another), never manufacture** | Only two items honestly qualify today | Exactly two, with a line saying why it's two |
 | 5 | **Law 11 — wait or chase, with a date** | Every board item carries one or the other | No board item without a status and a next date |
 | 6 | **Law 12 — two dates, then a question** | The portfolio rewrite has had two prompts | It must convert to a yes/no, not get a third date |
 | 7 | **Law 14 — never judge an undelivered day** | `LOG` 2026-03-06 records a daemon outage | That day reads as a system failure, not a personal slip |

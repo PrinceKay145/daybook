@@ -22,14 +22,67 @@ Three load-bearing ideas, everything below serves them:
 
 ---
 
-## Status — 2026-09-28
+## Status — 2026-10-05
 
-**Stage 1 is built and working, and the scoreboard shows today's real brief.** Real
-sign-up/sign-in (Supabase), folder connection, model choice (Claude Code, Codex or an API
-key), a setup interview writing plain files into the folder, and the brief built from that
-folder by the runner, verified by the eleven assertions and shown only when they pass. Not
-yet: the model writing any part of the brief, the brief arriving on its own at the user's
-time (launchd), and packaging.
+**Stage 1 is built and working, and the brief arrives on its own.** Real sign-up/sign-in
+(Supabase), folder connection, model choice (Claude Code, Codex or an API key), a setup
+interview writing plain files into the folder, the brief built from that folder by the
+runner, verified by the eleven assertions and shown only when they pass, written at the
+user's brief time by launchd, and Settings & status — and **the chosen model plans the
+day** (Beta 1, items 1–2 below). Not yet: the message box and packaging.
+
+---
+
+## Beta 1 — what the first testers get (owner, 2026-10-05; S12)
+
+One loop testers can react to: **tell it about your life, get a useful brief every
+morning, correct it in a sentence.** Everything else waits for what they say. A short beta
+that works beats a long one crowded with bugs.
+
+**Built, kept as it is:** sign-in · connect a folder · choose the model · setup questions ·
+the verified brief on the scoreboard · the brief arriving on its own · Settings & status.
+
+**To build, in this order — and nothing else:**
+
+1. ✅ **The size of today's list is the user's** (built). `daily_list.max_items` in `config.json`,
+   1–10, default 3, asked in setup and changeable in Settings. Law 8's number is safe to
+   tune (LAWS.md, "Editing this file"); its rule is not: the list is never padded to reach
+   the number, and a list shorter than it says why.
+2. ✅ **The chosen model plans the day** (built). Before the brief time, Daybook sends the user's own
+   model — through their CLI's own sign-in or their API key — what is in the folder (setup
+   context, master plan, day state, recent log), marked as untrusted data (rule 4), and asks
+   for today's list, the board and a short note. **The model proposes; Daybook writes.** The
+   reply is text only: Daybook parses it into a candidate `DAY-STATE.md` and runs the checks
+   before it replaces the real file (gate 1); the file it replaces is kept. The model gets no
+   file tools and no access to anything, so S10's enforcement is not needed yet. The law
+   eval harness (gate 3) covers the prompt before it ships. Also from the scoreboard
+   ("Plan today"), and straight after setup, so the first day is planned at once. Accept: a refused or failed plan leaves the day
+   state untouched and says why in one line; a finished thing never comes back; a made-up
+   file path is never shown as a reference; the replaced day state is in
+   `archive/day-state/`; the log line is Daybook's words, not the model's.
+3. ✅ **"Tell your secretary."** (built) One message box on the scoreboard — not a chat
+   with history: "finished the proposal, waiting on Sam until Friday". The model proposes the
+   updated day, the user sees it (today's list, what is marked done, who they are waiting on,
+   questions) and applies or discards it, and the brief rebuilds. Setup offers the same idea
+   beside the form: **in your own words** instead of the three questions, typed or dictated
+   (macOS dictation works in any text box), kept verbatim in `SETUP-CONTEXT.md`, where the
+   model reads it when it plans the first day. Accept: nothing is written until Apply, which
+   checks the plan again; Discard writes nothing and keeps the message to edit; a proposal
+   whose day state changed in the meantime is refused, not merged; one request at a time.
+4. ✅ **An install testers can open** (built). `npm run dist:mac` → a disk image: Python
+   bundled, signed ad hoc (valid, not notarized), the one-time "Open Anyway" step and the
+   uninstall steps in `TESTERS.md` — the guide sent with it. The app offers to move itself
+   into Applications and installs no background jobs until it lives there. Apple silicon
+   only.
+
+**Then, once the functionality above is done: a design and UI pass** across every screen
+(owner, 2026-10-05). Until then the screens stay as plain as they are — functionality first.
+
+**Not in Beta 1** (each waits for tester feedback): API keys (built, but the model step
+offers only Claude Code and Codex — the users' own plans) · a chat with history · reminders
+(S11) · reading folders outside the connected one (S10's file tools) · the automatic nightly
+close (the message box covers correcting the day) · daily-shifting schedules (D6) ·
+self-serve account deletion.
 
 ---
 
@@ -67,7 +120,8 @@ warning.
 **Choose your secretary's model.** The user picks a model — Fable 5.1, Opus 5.5, Sonnet 5,
 a GPT model — and the connection follows from it: Claude Code or Codex already signed in
 on this Mac (the user's own plan, through the CLI's own sign-in, which Daybook never sees),
-or an API key (into the OS keychain, never shown again). Each CLI shows its state —
+or an API key (into the OS keychain, never shown again — built, but not offered in Beta 1,
+S12). Each CLI shows its state —
 signed in (and how, and on which plan), signed out (with the exact command to run in
 Terminal), or not installed (with where to get it) — and "Check again" re-reads it. CLIs
 are found wherever their installers put them, not only on `PATH`, and are run only with
@@ -78,8 +132,10 @@ leads with the model's name, and the choice is written into the folder's `config
 it outlives the app. `authKind` is data on the provider record. 🔴 No hosted proxy of
 anyone's subscription, ever.
 
-**Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight,
-**the user's brief time and close time**, **the shape of their day** (optional — the blocks
+**Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight
+(or all three **in the user's own words**, one box, saved as written),
+**the user's brief time and close time**, **how many things today's list holds at most**
+(1–10, default 3 — never padded to reach it), **the shape of their day** (optional — the blocks
 they name; every minute they leave out is written as *Unplanned*, so the dial's day shape
 always covers 00:00–24:00 exactly once and claims no plan they did not make; overlaps are
 refused with the two block names), and time zone — defaulting to this Mac's own zone
@@ -102,11 +158,16 @@ happened, not what was set up. Nothing is deleted either way.
 
 **Scoreboard (home).** Today's brief, built from the folder by the runner and shown only
 when all eleven assertions pass — the runner's own self-contained page, in a sandboxed
-frame, with "Checked before it was shown: 11 of 11" above it. A brief that fails a check is
+frame. The checks run before every brief without being announced; a brief that fails one is
 **withheld**, and the failed checks are named; a brief that cannot be built (no Python, the
 runner failing) says why and where the log is. No sample data: a placeholder that pretends
 to be a real brief would break the only promise this product makes. The model choice
-("Sonnet 5 · Claude Code — change"), a rebuild button and sign-out sit above it.
+("Sonnet 5 · Claude Code — change"), **Plan today**, a rebuild button and sign-out sit
+above it, and under them the **tell your secretary** box (Enter sends; the proposed day
+appears with Apply and Discard). While the model plans, one line says so; afterwards one line says what changed
+("Today's plan is written — 2 on the list, 1 on the board", with the model's one-sentence
+summary) or why nothing did, and names any text in the folder that read like instructions
+and was ignored.
 
 **Settings & status** (required by the process model). **Built:** every job Daybook runs,
 by its macOS label, with what it does, whether it is loaded, its last exit code and the
@@ -114,7 +175,7 @@ tick's last run, last brief and last error; the app's and the runner's PIDs; the
 directory, openable in Finder; a working **Stop** that unloads the launchd jobs *and removes
 their files* (`pkill` alone restarts within 60s; a file left behind returns at the next
 login) and a **Start** that restores them — the app never restarts jobs the user stopped;
-brief and close times, saved to `config.json`; the folder (open in Finder) and the model
+brief and close times and the size of today's list, saved to `config.json`; the folder (open in Finder) and the model
 (change). **⏳ Still to come:** folder re-selection, and **folder access** — the connected
 folder's approval mode, the read-only folders granted, a revoke button for each, and the
 activity log (with the file tools, S10).
@@ -158,8 +219,9 @@ am I doing → what am I keeping up → who am I waiting on → a human note):
 1. **24-hour dial** — blocks contiguous 00:00–24:00, asserted at build time; non-negotiables
    tick *outside* the ring; live hand; centre shows time, current block, `until HH:MM`.
 2. **Next up** — one line.
-3. **Today's three** — at most three, each one concrete first click. 🔴 Never manufacture a
-   third; nothing marked done in `DAY-STATE.md` may appear, ever.
+3. **Today's list** — at most the user's number (`daily_list.max_items`, 1–10, default 3),
+   each one concrete first click; a list shorter than the number says why. 🔴 Never
+   manufacture an item to reach it; nothing marked done in `DAY-STATE.md` may appear, ever.
 4. **Scoreboard** — empty prints an em dash *and a sentence why*. 🔴 Nothing estimated,
    interpolated or inferred.
 5. **Today's ticks** — 🔴 shown, never graded. No streaks, scores, percentages.
@@ -170,7 +232,7 @@ am I doing → what am I keeping up → who am I waiting on → a human note):
 
 🔴 **Verified before delivery, never eyeballed.** The eleven data assertions (V1 embedded JS
 syntax · V2 day-shape contiguity · V3 dial geometry · V4 block lookup · V5 referenced paths
-exist · V6 ≤3 items · V7 nothing done re-surfaces · V8 every empty metric has a reason ·
+exist · V6 no more than the user's cap · V7 nothing done re-surfaces · V8 every empty metric has a reason ·
 V9 every board row WAIT/CHASE + date · V10 no grading · V11 heartbeat reflected) run against
 `fixtures/sample-folder` and `fixtures/fresh-folder` (day one) on the frozen clock. They are
 data assertions, not view concerns — they survive any renderer.
@@ -224,5 +286,5 @@ so far assumes it throughout — confirm or redirect) · D5 Windows · D6's rema
 telemetry default · D1's domain and GitHub org · S11's shell-button question. Do not decide
 them, do not design around one option. Settled there since: D1 (Daybook, `app.daybook.mac`),
 D2 (the repo stays private for now), D4 (`local_cli` ships, on the conditions recorded
-there), D6 (no faith schedule by default) and S8–S11 (Electron, accounts, folder access,
-reminders as an opt-in switch).
+there), D6 (no faith schedule by default) and S8–S12 (Electron, accounts, folder access,
+reminders as an opt-in switch, the Beta 1 scope).

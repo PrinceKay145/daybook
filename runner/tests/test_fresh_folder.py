@@ -28,8 +28,8 @@ class FreshFolder(FolderCase):
 
     def test_an_empty_list_for_today_has_its_reason(self):
         _, data, _, _ = self.produce()
-        self.assertEqual([], data.three)
-        self.assertIn("nothing is invented", data.three_reason.lower())
+        self.assertEqual([], data.today_list)
+        self.assertIn("nothing is invented", data.today_list_reason.lower())
 
     def test_no_heartbeat_means_the_closing_line_judges_nothing(self):
         _, data, _, _ = self.produce()

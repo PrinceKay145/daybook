@@ -8,6 +8,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
+const crypto = require("node:crypto");
 const cli = require("./cli.cjs");
 const runner = require("./runner.cjs");
 const authLoopback = require("./authLoopback.cjs");
@@ -25,6 +26,12 @@ app.commandLine.appendSwitch("enable-logging");
    reads userData, including the single-instance lock. */
 if (process.env.DAYBOOK_USER_DATA) {
   app.setPath("userData", path.resolve(process.env.DAYBOOK_USER_DATA));
+} else if (app.isPackaged) {
+  /* The installed app keeps its own app data, ~/Library/Application Support/Daybook —
+     Electron would otherwise name it after package.json's "daybook-app" and share it
+     with a development copy on the same Mac. */
+  app.setName("Daybook");
+  app.setPath("userData", path.join(app.getPath("appData"), "Daybook"));
 }
 
 /* ---------- app-data JSON files (atomic temp+rename, never in the user's folder) ---------- */
@@ -101,6 +108,34 @@ function forwardAuthUrl(rawUrl) {
   }
 }
 
+/* An unsigned app opened from Downloads or the disk image is run by macOS from a
+   temporary, read-only copy that changes every launch — and the brief's launchd jobs
+   would point at a path that is gone tomorrow. So the packaged app offers to move itself
+   into Applications first, and installs no jobs until it lives there. */
+function outsideApplications() {
+  return app.isPackaged && !process.env.DAYBOOK_USER_DATA && !app.isInApplicationsFolder();
+}
+
+async function offerMoveToApplications() {
+  if (!outsideApplications()) return;
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Move to Applications", "Not now"],
+    defaultId: 0,
+    cancelId: 1,
+    message: "Move Daybook to your Applications folder?",
+    detail:
+      "Your morning brief is written by Daybook even when it's closed, from wherever the app lives. " +
+      "Opened from Downloads or the disk image, it can't find its way back tomorrow.",
+  });
+  if (response !== 0) return;
+  try {
+    app.moveToApplicationsFolder(); // relaunches from Applications when it succeeds
+  } catch (err) {
+    dialog.showErrorBox("Daybook couldn't move itself", `${err.message ?? err}\n\nDrag Daybook into Applications, then open it from there.`);
+  }
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -123,7 +158,8 @@ if (!gotLock) {
     forwardAuthUrl(url);
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await offerMoveToApplications();
     // Register in dev too, so the Google round-trip can be tested before packaging.
     const registered = process.defaultApp
       ? app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [
@@ -240,6 +276,7 @@ function seedConfig(existing, payload) {
     brief_time: payload.briefTime,
     close_time: payload.closeTime,
   };
+  next.daily_list = { ...(next.daily_list ?? {}), max_items: requireListMax(payload.listMax) };
   next.scope = {
     ...(next.scope ?? {}),
     root: configAlias(payload.folder),
@@ -251,6 +288,18 @@ function seedConfig(existing, payload) {
   }
   next.day_shape = payload.dayShape.map((b) => ({ block: b.block, start: b.start, end: b.end }));
   return withProvider(next, payload.connection);
+}
+
+/* How many things today's list may hold — law 8's number, the user's to set. The runner
+   holds the same range (folder.py) and falls back to 3 for anything outside it. */
+const LIST_MAX_DEFAULT = 3;
+function listMaxOf(value) {
+  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : null;
+}
+function requireListMax(value) {
+  const max = listMaxOf(value);
+  if (max === null) throw new Error("Today's list holds from 1 to 10 things — nothing was written.");
+  return max;
 }
 
 /* The brief's dial asserts its day shape covers 00:00–24:00 contiguously (V2). The setup
@@ -324,6 +373,7 @@ async function existingSetup(folder) {
     addressAs: config.owner.address_as ? String(config.owner.address_as) : "",
     briefTime: config.schedule?.brief_time ? String(config.schedule.brief_time) : "09:00",
     closeTime: config.schedule?.close_time ? String(config.schedule.close_time) : "23:00",
+    listMax: listMaxOf(config.daily_list?.max_items) ?? LIST_MAX_DEFAULT,
     ...(config.owner.timezone ? { timezone: String(config.owner.timezone) } : {}),
     // The blocks the user named; the Unplanned gaps are recomputed when they save again.
     dayShape: (Array.isArray(config.day_shape) ? config.day_shape : [])
@@ -332,12 +382,20 @@ async function existingSetup(folder) {
   };
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+/* Today's date where the user lives — the zone chosen in setup — not in UTC, which is
+   a day off for everyone east or west of it around midnight. */
+function today(timeZone) {
+  const options = { year: "numeric", month: "2-digit", day: "2-digit" };
+  try {
+    return new Intl.DateTimeFormat("en-CA", { ...options, timeZone: timeZone || undefined }).format(new Date());
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", options).format(new Date()); // an unknown zone: this Mac's
+  }
 }
 
 function seedsFor(payload) {
   const alias = configAlias(payload.folder);
+  const ownWords = typeof payload.ownWords === "string" ? payload.ownWords.trim().slice(0, 20000) : "";
   const list = (items) =>
     items.filter((line) => line.trim().length > 0).map((line) => `- ${line.trim()}`).join("\n") ||
     "- (nothing recorded yet)";
@@ -351,9 +409,20 @@ function seedsFor(payload) {
     {
       file: "SETUP-CONTEXT.md",
       onlyIfAbsent: true,
-      text: `# Setup context
+      text: ownWords
+        ? `# Setup context
 
-Written by Daybook on ${today()} from the setup interview. The answers below are the
+Written by Daybook on ${today(payload.timezone)} from the setup interview, in the user's own
+words, kept exactly as they wrote it. It is the secretary's starting picture of this life;
+the files in this folder are the source of truth.
+
+## In their own words
+
+${ownWords}
+`
+        : `# Setup context
+
+Written by Daybook on ${today(payload.timezone)} from the setup interview. The answers below are the
 secretary's starting picture of this life; the files in this folder are the source of truth.
 
 ## Working toward
@@ -374,18 +443,18 @@ ${list(payload.inFlight)}
       onlyIfAbsent: true,
       text: `# Master plan
 
-Started ${today()} from the Daybook setup interview. Strategy lives here; what is true
+Started ${today(payload.timezone)} from the Daybook setup interview. Strategy lives here; what is true
 *now* lives in DAY-STATE.md.
 
 ## Goals
 
-${list(payload.goals)}
+${ownWords ? "- (in SETUP-CONTEXT.md, in the user's own words — the secretary works from there)" : list(payload.goals)}
 `,
     },
     {
       file: "DAY-STATE.md",
       onlyIfAbsent: true,
-      text: `# Day state — ${today()}
+      text: `# Day state — ${today(payload.timezone)}
 
 Nothing has been recorded about a day yet. The nightly close writes this file from what
 actually happened; nothing here is invented to fill the page.
@@ -398,7 +467,7 @@ actually happened; nothing here is invented to fill the page.
 
 Append-only. What happened, in sequence — not what was intended.
 
-- ${today()} — Daybook connected to this folder.
+- ${today(payload.timezone)} — Daybook connected to this folder.
 `,
     },
     {
@@ -477,7 +546,7 @@ ipcMain.handle("folder:writeSetup", async (_event, payload) => {
     const previous = archived.files.join(" and ");
     await appendLine(
       path.join(folder, "LOG.md"),
-      `- ${today()} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
+      `- ${today(payload.timezone)} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
     );
     written.push(`${archived.relative}/ — the previous ${previous}`);
   }
@@ -564,10 +633,77 @@ ipcMain.handle("connections:listModels", async (_event, { provider, secret }) =>
 ipcMain.handle("brief:get", async (_event, folder) => {
   const logFile = path.join(app.getPath("userData"), "logs", "runner.log");
   try {
-    return { ok: true, logFile, ...(await runner.brief(requireFolder(folder), logFile)) };
+    return { ok: true, logFile, ...(await runner.brief(requireFolder(folder), logFile, stateDir())) };
   } catch (err) {
     return { ok: false, logFile, code: err.code ?? "RUNNER_FAILED", message: String(err.message ?? err) };
   }
+});
+
+/* ---------- IPC: the chosen model plans the day ----------
+   runner/daybook/plan.py: the model proposes, the runner writes DAY-STATE.md only after
+   the eleven checks pass. "Plan today" plans and writes; a message ("tell your
+   secretary") proposes first, and the proposal waits here — the day state's text never
+   round-trips through the renderer — until the user applies it, when it is checked
+   again. One run at a time. */
+
+let planning = false;
+let pending = null; // { id, folder, outcome } — the proposal awaiting the user's answer
+
+function shownToRenderer(outcome, proposalId) {
+  const { candidate: _candidate, base: _base, checks: _checks, ...shown } = outcome;
+  return proposalId ? { ...shown, proposalId } : shown;
+}
+
+ipcMain.handle("plan:run", async (_event, { folder, userId, message, propose }) => {
+  if (planning) {
+    return { status: "failed", detail: "Your secretary is already planning — try again in a moment.", summary: "", flags: [], model: "" };
+  }
+  const target = requireFolder(folder);
+  planning = true;
+  try {
+    const config = (await readJson(path.join(target, "config.json"))) ?? {};
+    const provider = Array.isArray(config.providers) ? config.providers[0] : null;
+    const secret =
+      provider?.authKind === "api_key" && typeof userId === "string"
+        ? await secretValue(`user/${userId}/provider/${provider.id}`)
+        : null;
+    const outcome = await runner.plan(target, {
+      stateDir: stateDir(),
+      logFile: path.join(logDir(), "runner.log"),
+      message: typeof message === "string" ? message.slice(0, 4000) : "",
+      secret,
+      propose: Boolean(propose),
+    });
+    if (outcome.status !== "proposed") return shownToRenderer(outcome);
+    pending = { id: crypto.randomUUID(), folder: target, outcome };
+    return shownToRenderer(outcome, pending.id);
+  } catch (err) {
+    return { status: "failed", detail: String(err.message ?? err), summary: "", flags: [], model: "" };
+  } finally {
+    planning = false;
+  }
+});
+
+ipcMain.handle("plan:apply", async (_event, { proposalId }) => {
+  if (!pending || pending.id !== proposalId) {
+    return { status: "refused", detail: "That proposal is no longer waiting — send your message again.", summary: "", flags: [], model: "" };
+  }
+  const { folder, outcome } = pending;
+  pending = null;
+  try {
+    const applied = await runner.applyPlan(folder, outcome, {
+      stateDir: stateDir(),
+      logFile: path.join(logDir(), "runner.log"),
+    });
+    return shownToRenderer(applied);
+  } catch (err) {
+    return { status: "failed", detail: String(err.message ?? err), summary: "", flags: [], model: "" };
+  }
+});
+
+ipcMain.handle("plan:discard", async (_event, { proposalId }) => {
+  if (pending?.id === proposalId) pending = null;
+  return true;
 });
 
 /* ---------- IPC: the background jobs and Settings & status ----------
@@ -578,6 +714,9 @@ const logDir = () => path.join(app.getPath("userData"), "logs");
 const stateDir = () => path.join(app.getPath("userData"), "state");
 
 ipcMain.handle("schedule:start", async (_event, folder) => {
+  if (outsideApplications()) {
+    return { ok: false, code: "NOT_IN_APPLICATIONS", message: "Daybook isn't in your Applications folder yet — move it there (and open it from there) so your brief can arrive on its own." };
+  }
   const python = await runner.findPython();
   if (!python) {
     return { ok: false, code: "PYTHON_MISSING", message: "Python 3.9 or newer is needed for the brief to arrive on its own, and none was found on this Mac." };
@@ -611,18 +750,23 @@ ipcMain.handle("schedule:status", async () => {
   };
 });
 
-/* The brief and close times, edited from Settings: merged into config.json, where the tick
-   reads them at its next run. */
-ipcMain.handle("folder:setSchedule", async (_event, { folder, briefTime, closeTime }) => {
+/* The brief and close times and the size of today's list, edited from Settings: merged
+   into config.json, where the tick reads them at its next run. */
+ipcMain.handle("folder:setSchedule", async (_event, { folder, briefTime, closeTime, listMax }) => {
   const hhmm = /^([01]\d|2[0-3]):[0-5]\d$/;
   if (!hhmm.test(String(briefTime)) || !hhmm.test(String(closeTime))) {
     throw new Error("Times must be HH:MM, 24-hour.");
   }
+  const max = requireListMax(listMax);
   const target = path.join(requireFolder(folder), "config.json");
   const existing = (await readJson(target)) ?? {};
-  const next = { ...existing, schedule: { ...(existing.schedule ?? {}), brief_time: briefTime, close_time: closeTime } };
+  const next = {
+    ...existing,
+    schedule: { ...(existing.schedule ?? {}), brief_time: briefTime, close_time: closeTime },
+    daily_list: { ...(existing.daily_list ?? {}), max_items: max },
+  };
   await writeTextAtomic(target, `${JSON.stringify(next, null, 2)}\n`);
-  return { briefTime, closeTime };
+  return { briefTime, closeTime, listMax: max };
 });
 
 ipcMain.handle("folder:schedule", async (_event, folder) => {
@@ -630,6 +774,7 @@ ipcMain.handle("folder:schedule", async (_event, folder) => {
   return {
     briefTime: config.schedule?.brief_time ?? "09:00",
     closeTime: config.schedule?.close_time ?? "23:00",
+    listMax: listMaxOf(config.daily_list?.max_items) ?? LIST_MAX_DEFAULT,
   };
 });
 

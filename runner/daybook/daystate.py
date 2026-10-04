@@ -22,7 +22,7 @@ DONE_MARKER = re.compile(r"\bDONE\b")
 
 @dataclass
 class Action:
-    """One of today's three: a title and the concrete first click."""
+    """One item on today's list: a title and the concrete first click."""
 
     title: str
     detail: str
@@ -83,8 +83,8 @@ class Habit:
 class DayState:
     true_for: str = ""
     rewritten: str = ""
-    three: list[Action] = field(default_factory=list)
-    three_reason: str = ""
+    today_list: list[Action] = field(default_factory=list)
+    today_list_reason: str = ""
     done_for_you: str = ""
     finished: list[FinishedThing] = field(default_factory=list)
     not_on_list: list[str] = field(default_factory=list)
@@ -115,7 +115,10 @@ def parse(source: str) -> DayState:
             if line.startswith(prefix):
                 setattr(state, attr, md.strip_markup(line[len(prefix):]))
 
-    _parse_three(md.find_section(sections, "today's three", "todays three"), state)
+    # "Today's three" is the heading folders written before the list's size was the
+    # user's setting still carry; both name the same section.
+    _parse_today_list(md.find_section(sections, "today's list", "todays list",
+                                      "today's three", "todays three"), state)
     _parse_finished(md.find_section(sections, "not on the list"), state)
     _parse_board(md.find_section(sections, "board"), state)
     _parse_scoreboard(md.find_section(sections, "scoreboard"), state)
@@ -124,17 +127,17 @@ def parse(source: str) -> DayState:
     return state
 
 
-def _parse_three(section: md.Section | None, state: DayState) -> None:
+def _parse_today_list(section: md.Section | None, state: DayState) -> None:
     if section is None:
-        state.unreadable.append("Today's three")
+        state.unreadable.append("Today's list")
         return
-    state.three = [Action(title=t, detail=d) for t, d in md.numbered_items(section.lines)]
+    state.today_list = [Action(title=t, detail=d) for t, d in md.numbered_items(section.lines)]
     for para in md.paragraphs(section.lines):
         plain = md.strip_markup(para)
         if "not on your list" in plain.lower() or plain.lower().startswith("done for you"):
             state.done_for_you = plain
-        elif not state.three_reason:
-            state.three_reason = plain
+        elif not state.today_list_reason:
+            state.today_list_reason = plain
 
 
 def _parse_finished(section: md.Section | None, state: DayState) -> None:
