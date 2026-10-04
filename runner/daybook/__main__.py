@@ -7,6 +7,7 @@
     python -m daybook watchdog --folder <path> --state-dir <dir> [--clock ISO] [--no-notify]
     python -m daybook plan     --folder <path> [--state-dir <dir>] [--propose] [--stdin]
     python -m daybook apply    --folder <path> [--state-dir <dir>]   (the proposal on stdin)
+    python -m daybook evals    --cli claude|codex [--model ID] [--binary PATH]
 
 ``tick`` (launchd, every minute) writes today's brief once its time has passed; ``watchdog``
 (launchd, hourly) notices a stopped tick or a missing brief. ``plan`` asks the chosen model
@@ -147,6 +148,20 @@ def cmd_apply(args) -> int:
     return 0
 
 
+def cmd_evals(args) -> int:
+    from . import evals
+    from .secretary import AskError
+
+    try:
+        provider = evals.provider_for(args.cli, args.binary, args.model)
+    except AskError as exc:
+        print(exc)
+        return 2
+    passed, lines = evals.run(provider)
+    print("\n".join(lines), flush=True)
+    return 0 if passed else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="daybook", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -176,6 +191,11 @@ def main(argv: list[str] | None = None) -> int:
     apply_cmd = common(sub.add_parser("apply", help="write a plan returned by plan --propose (on stdin)"))
     apply_cmd.add_argument("--state-dir", help="app data, to record that today was planned")
     apply_cmd.set_defaults(func=cmd_apply)
+    evals_cmd = sub.add_parser("evals", help="the law eval harness, against a real model (gate 3)")
+    evals_cmd.add_argument("--cli", required=True, choices=["claude", "codex"])
+    evals_cmd.add_argument("--model", help="a model id; the CLI's default if left out")
+    evals_cmd.add_argument("--binary", help="where the CLI is, if not on PATH")
+    evals_cmd.set_defaults(func=cmd_evals)
 
     def scheduled(p, func):
         p.add_argument("--state-dir", required=True, help="where the run keeps its bookkeeping (app data)")
