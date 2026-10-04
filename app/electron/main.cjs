@@ -578,10 +578,41 @@ ipcMain.handle("connections:listModels", async (_event, { provider, secret }) =>
 ipcMain.handle("brief:get", async (_event, folder) => {
   const logFile = path.join(app.getPath("userData"), "logs", "runner.log");
   try {
-    return { ok: true, logFile, ...(await runner.brief(requireFolder(folder), logFile)) };
+    return { ok: true, logFile, ...(await runner.brief(requireFolder(folder), logFile, stateDir())) };
   } catch (err) {
     return { ok: false, logFile, code: err.code ?? "RUNNER_FAILED", message: String(err.message ?? err) };
   }
+});
+
+/* ---------- IPC: the chosen model plans the day ----------
+   runner/daybook/plan.py: the model proposes, the runner writes DAY-STATE.md only after
+   the eleven checks pass. An API key is decrypted here and handed to that one run on
+   stdin; it is never written anywhere the runner keeps. One plan at a time. */
+
+let planning = null;
+
+ipcMain.handle("plan:run", async (_event, { folder, userId, message }) => {
+  if (planning) return planning;
+  const target = requireFolder(folder);
+  planning = (async () => {
+    const config = (await readJson(path.join(target, "config.json"))) ?? {};
+    const provider = Array.isArray(config.providers) ? config.providers[0] : null;
+    const secret =
+      provider?.authKind === "api_key" && typeof userId === "string"
+        ? await secretValue(`user/${userId}/provider/${provider.id}`)
+        : null;
+    return runner.plan(target, {
+      stateDir: stateDir(),
+      logFile: path.join(logDir(), "runner.log"),
+      message: typeof message === "string" ? message : "",
+      secret,
+    });
+  })()
+    .catch((err) => ({ status: "failed", detail: String(err.message ?? err), summary: "", flags: [], model: "" }))
+    .finally(() => {
+      planning = null;
+    });
+  return planning;
 });
 
 /* ---------- IPC: the background jobs and Settings & status ----------

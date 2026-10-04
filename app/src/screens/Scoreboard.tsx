@@ -4,16 +4,23 @@
    and nothing that looks like a brief unless it is one.
 
    The brief is the runner's own self-contained page, shown in a sandboxed frame: exactly
-   the page the eleven assertions checked, with its live dial, and no reach into the app. */
+   the page the eleven assertions checked, with its live dial, and no reach into the app.
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { KeyRound, LogOut, RefreshCw, Settings, TerminalSquare } from "lucide-react";
+   "Plan today" asks the chosen model to plan the day (it also does so on its own before
+   the brief time). The model proposes; the runner writes the day state only after the
+   checks, and the result is said in one line — what changed, or why nothing did. */
+
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { KeyRound, Loader2, LogOut, RefreshCw, Settings, Sparkles, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { daybook, type BriefResult, type Connection } from "@/lib/daybook";
+import { daybook, type BriefResult, type Connection, type PlanOutcome } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
 
 export function ScoreboardScreen({
   accountEmail,
+  userId,
+  planOnArrival,
+  onPlannedOnArrival,
   folder,
   connection,
   briefTime,
@@ -24,6 +31,9 @@ export function ScoreboardScreen({
   onSignOut,
 }: {
   accountEmail: string;
+  userId: string;
+  planOnArrival: boolean;
+  onPlannedOnArrival: () => void;
   folder: string;
   connection: Connection | null;
   briefTime: string;
@@ -40,9 +50,35 @@ export function ScoreboardScreen({
     setBrief(await daybook.brief(folder));
   }, [folder]);
 
+  const [planning, setPlanning] = useState(false);
+  const [plan, setPlan] = useState<PlanOutcome | null>(null);
+
+  const planToday = useCallback(async () => {
+    setPlanning(true);
+    setPlan(null);
+    try {
+      const outcome = await daybook.planDay(folder, userId);
+      setPlan(outcome);
+      if (outcome.status === "planned") await load();
+    } catch (err) {
+      setPlan({ status: "failed", detail: (err as Error).message, summary: "", flags: [], model: "" });
+    } finally {
+      setPlanning(false);
+    }
+  }, [folder, userId, load]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The first day is planned as soon as setup is done, rather than waiting for tomorrow.
+  const arrivalPlanned = useRef(false);
+  useEffect(() => {
+    if (!planOnArrival || arrivalPlanned.current || !connection) return;
+    arrivalPlanned.current = true;
+    onPlannedOnArrival();
+    void planToday();
+  }, [planOnArrival, connection, onPlannedOnArrival, planToday]);
 
   const folderName = folder.split("/").filter(Boolean).pop() ?? folder;
 
@@ -64,7 +100,17 @@ export function ScoreboardScreen({
             {connection?.authKind === "api_key" ? <KeyRound className="size-3" /> : <TerminalSquare className="size-3" />}
             {connection ? `${describeChoice(connection)} — change` : "No model chosen — choose"}
           </button>
-          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void load()} disabled={brief === null}>
+          <Button
+            variant="secondary"
+            className="px-3 py-1.5 text-xs"
+            onClick={() => void planToday()}
+            disabled={planning || !connection}
+            title="Your secretary reads your folder and writes today's list. It also does this on its own before your brief."
+          >
+            <Sparkles className="size-3.5" />
+            Plan today
+          </Button>
+          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => void load()} disabled={brief === null || planning}>
             <RefreshCw className="size-3.5" />
             Rebuild
           </Button>
@@ -78,6 +124,8 @@ export function ScoreboardScreen({
           </Button>
         </div>
       </header>
+
+      <PlanLine planning={planning} plan={plan} connection={connection} />
 
       <main className="min-h-0 flex-1">
         <BriefView brief={brief} />
@@ -96,6 +144,35 @@ export function ScoreboardScreen({
           Settings & status
         </button>
       </footer>
+    </div>
+  );
+}
+
+function PlanLine({ planning, plan, connection }: { planning: boolean; plan: PlanOutcome | null; connection: Connection | null }) {
+  if (planning) {
+    return (
+      <p className="flex items-center justify-center gap-2 border-b border-[var(--color-line)] px-5 py-2 text-xs text-[var(--color-ink-soft)]">
+        <Loader2 className="size-3.5 animate-spin" />
+        {connection ? describeChoice(connection) : "Your model"} is reading your folder and planning today — this takes a minute or two.
+      </p>
+    );
+  }
+  if (!plan) return null;
+  const written = plan.status === "planned";
+  return (
+    <div className="border-b border-[var(--color-line)] px-5 py-2 text-center text-xs">
+      <p className={written ? "text-[var(--color-ink-soft)]" : "text-[var(--color-warn)]"}>
+        {written
+          ? `Today's plan is written — ${plan.detail}.${plan.summary ? ` ${plan.summary}` : ""} The previous day state is kept in archive/day-state/.`
+          : plan.status === "skipped"
+            ? plan.detail
+            : `Today's plan wasn't written: ${plan.detail} Your day state is unchanged.`}
+      </p>
+      {plan.flags.length > 0 && (
+        <p className="mt-1 text-[var(--color-warn)]">
+          Text in your folder read like instructions to the AI, and was ignored: {plan.flags.join(" · ")}
+        </p>
+      )}
     </div>
   );
 }

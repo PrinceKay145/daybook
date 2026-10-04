@@ -2,6 +2,7 @@
    assertions and renders it. Spawned by the app on 127.0.0.1 when the scoreboard wants a
    brief, and stopped when the app quits: it is never resident on its own (AGENTS.md,
    "the process model"). Its output goes to one log file, userData/logs/runner.log.
+   Planning the day is a separate one-shot run (`python -m daybook plan`) that exits.
 
    Python: macOS no longer ships it by default, and /usr/bin/python3 without the
    developer tools only opens an "install the tools?" dialog — so that path is used only
@@ -97,32 +98,37 @@ function stop() {
 /* Single-flight: two requests arriving together (the scoreboard mounting twice, a rebuild
    during a start) share one start instead of each spawning a runner — a second one would
    be orphaned and outlive the app. */
-function ensureRunning(folder, logFile) {
+function ensureRunning(folder, logFile, stateDir) {
   if (current && current.folder === folder && current.child.exitCode === null) return Promise.resolve(current);
   if (starting && starting.folder === folder) return starting.promise;
-  const promise = start(folder, logFile).finally(() => {
+  const promise = start(folder, logFile, stateDir).finally(() => {
     if (starting?.promise === promise) starting = null;
   });
   starting = { folder, promise };
   return promise;
 }
 
-async function start(folder, logFile) {
-  stop();
+async function requirePython() {
   const python = await findPython();
-  if (!python) {
-    const error = new Error(
-      "Python 3.9 or newer is needed to build the brief, and none was found on this Mac. " +
-        "Install it (python.org, or Homebrew), then reopen Daybook. Packaged builds will include it.",
-    );
-    error.code = "PYTHON_MISSING";
-    throw error;
-  }
+  if (python) return python;
+  const error = new Error(
+    "Python 3.9 or newer is needed to build the brief, and none was found on this Mac. " +
+      "Install it (python.org, or Homebrew), then reopen Daybook. Packaged builds will include it.",
+  );
+  error.code = "PYTHON_MISSING";
+  throw error;
+}
+
+async function start(folder, logFile, stateDir) {
+  stop();
+  const python = await requirePython();
   const port = await freePort();
   fs.mkdirSync(path.dirname(logFile), { recursive: true });
   const log = fs.openSync(logFile, "a");
   fs.writeSync(log, `\n--- ${new Date().toISOString()} runner start · ${python.binary} (${python.version}) · port ${port}\n`);
-  const child = spawn(python.binary, ["-m", "daybook", "serve", "--folder", folder, "--port", String(port)], {
+  const args = ["-m", "daybook", "serve", "--folder", folder, "--port", String(port)];
+  if (stateDir) args.push("--state-dir", stateDir); // so the brief can say if today's plan failed
+  const child = spawn(python.binary, args, {
     cwd: runnerDir(),
     env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1", PYTHONUNBUFFERED: "1" },
     stdio: ["ignore", log, log],
@@ -146,8 +152,8 @@ async function start(folder, logFile) {
 
 /** The brief for this folder: its data with the eleven results, and the rendered page
     only when every assertion passed — an unverified brief is never handed over. */
-async function brief(folder, logFile) {
-  const { port } = await ensureRunning(folder, logFile);
+async function brief(folder, logFile, stateDir) {
+  const { port } = await ensureRunning(folder, logFile, stateDir);
   const response = await fetch(`http://127.0.0.1:${port}/api/brief`);
   const payload = await response.json();
   if (!response.ok) throw new Error(`The runner could not build the brief: ${payload.error ?? response.status}`);
@@ -161,10 +167,67 @@ async function brief(folder, logFile) {
   };
 }
 
+/* One run of the runner that exits, its outcome printed as JSON on its last line. The
+   input goes in on stdin: a message and an API key never travel as arguments or in the
+   environment, where other processes on the Mac could read them. */
+function runOnce(python, args, input, logFile, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(python.binary, args, {
+      cwd: runnerDir(),
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let out = "";
+    let err = "";
+    const timer = setTimeout(() => child.kill(), timeoutMs);
+    child.stdout.on("data", (chunk) => (out += chunk));
+    child.stderr.on("data", (chunk) => (err += chunk));
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      let outcome = null;
+      try {
+        outcome = JSON.parse(out.trim().split("\n").pop());
+      } catch {
+        /* reported below */
+      }
+      fs.mkdirSync(path.dirname(logFile), { recursive: true });
+      fs.appendFileSync(
+        logFile,
+        `\n--- ${new Date().toISOString()} ${args[2]} · ${outcome ? `${outcome.status}: ${outcome.detail}` : `exit ${code}`}\n${err}`,
+      );
+      if (outcome) resolve(outcome);
+      else reject(new Error(`Planning stopped before it finished (exit ${code}). Its log is at ${logFile}.`));
+    });
+    child.stdin.end(input);
+  });
+}
+
+const PLAN_TIMEOUT_MS = 8 * 60 * 1000; // two attempts at three minutes each, and the checks
+
+/** The chosen model plans the day (runner/daybook/plan.py): it proposes, the runner
+    writes after the eleven checks — or, with `propose`, writes nothing and returns it. */
+async function plan(folder, { stateDir, logFile, message, secret, propose }) {
+  const python = await requirePython();
+  const args = ["-m", "daybook", "plan", "--folder", folder, "--state-dir", stateDir, "--stdin"];
+  if (propose) args.push("--propose");
+  return runOnce(python, args, JSON.stringify({ message: message ?? "", secret: secret ?? "" }), logFile, PLAN_TIMEOUT_MS);
+}
+
+/** Writes a plan returned by `plan` with `propose`, after checking it again. */
+async function applyPlan(folder, proposal, { stateDir, logFile }) {
+  const python = await requirePython();
+  const args = ["-m", "daybook", "apply", "--folder", folder, "--state-dir", stateDir];
+  return runOnce(python, args, JSON.stringify(proposal), logFile, 60 * 1000);
+}
+
 /** The sidecar right now, for Settings & status: its PID and port, or null. */
 function info() {
   if (!current || current.child.exitCode !== null) return null;
   return { pid: current.child.pid, port: current.port, folder: current.folder };
 }
 
-module.exports = { brief, stop, findPython, runnerDir, info };
+module.exports = { brief, plan, applyPlan, stop, findPython, runnerDir, info };

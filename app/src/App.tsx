@@ -41,6 +41,8 @@ export default function App() {
   const [account, setAccount] = useState<Account | null>(null);
   const [settings, setSettings] = useState<UserSettings>({});
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  // Set when setup has just finished, so the scoreboard plans the first day straight away.
+  const [planOnArrival, setPlanOnArrival] = useState(false);
 
   // Launch, sign-in, the browser callback and sign-out can overlap; each routing takes
   // a ticket when it starts, and only the newest one lands.
@@ -219,9 +221,10 @@ export default function App() {
           <SetupQuestionsScreen
             folder={settings.folderPath ?? ""}
             connection={activeConnection}
-            onDone={(briefTime) =>
-              advance({ setupCompletedAt: new Date().toISOString(), briefTime })
-            }
+            onDone={(briefTime) => {
+              setPlanOnArrival(true);
+              void advance({ setupCompletedAt: new Date().toISOString(), briefTime });
+            }}
           />
         </div>
       );
@@ -229,6 +232,9 @@ export default function App() {
       return (
         <ScoreboardScreen
           accountEmail={account.email}
+          userId={account.id}
+          planOnArrival={planOnArrival}
+          onPlannedOnArrival={() => setPlanOnArrival(false)}
           folder={settings.folderPath ?? ""}
           connection={activeConnection}
           briefTime={settings.briefTime ?? "09:00"}

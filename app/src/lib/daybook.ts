@@ -45,6 +45,18 @@ export type BriefResult =
   | { ok: true; passed: boolean; results: CheckResult[]; warnings: string[]; html: string | null; logFile?: string }
   | { ok: false; code: string; message: string; logFile?: string };
 
+/** One run of the chosen model planning the day (runner/daybook/plan.py). "planned": the
+    day state was written after the eleven checks; "failed": the model couldn't be asked;
+    "refused": its answer broke a rule twice; "skipped": no model is chosen. */
+export interface PlanOutcome {
+  status: "planned" | "proposed" | "refused" | "failed" | "skipped";
+  detail: string;
+  summary: string;
+  /** Text in the folder that read like instructions, which the model ignored and named. */
+  flags: string[];
+  model: string;
+}
+
 /** One of Daybook's launchd jobs, as Settings & status shows it. */
 export interface JobStatus {
   label: string;
@@ -160,6 +172,8 @@ interface DaybookBridge {
   deleteSecret(name: string): Promise<boolean>;
   /** Today's brief for this folder — built, verified and rendered by the runner. */
   brief(folder: string): Promise<BriefResult>;
+  /** Asks the chosen model to plan today; the runner writes DAY-STATE.md after the checks. */
+  planDay(folder: string, userId: string, message?: string): Promise<PlanOutcome>;
   /** Installs and loads the tick and watchdog launchd jobs for this folder. */
   scheduleStart(folder: string): Promise<ScheduleResult>;
   /** Unloads and removes them, so nothing comes back at the next login. */
@@ -223,6 +237,7 @@ export const daybook: DaybookBridge = bridge ?? {
   deleteSecret: async () => true,
   // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
   brief: () => fetchBriefFromRunner(),
+  planDay: () => refuse("Planning the day"),
   scheduleStart: async () => ({ ok: false, code: "NEEDS_APP", message: "The background jobs need the Daybook app." }),
   scheduleStop: async () => ({ ok: true }),
   scheduleStatus: () => refuse("Reading what Daybook runs"),
