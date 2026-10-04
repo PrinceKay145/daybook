@@ -171,7 +171,8 @@ known environment:
   (`--output-schema`). Codex has no single "no tools" switch — the list is checked against
   `codex features list` when Codex updates. ⏳ Not yet verified: whether a global
   `~/.codex/AGENTS.md` still reaches the model under these flags.
-- **API keys (Anthropic, OpenAI):** HTTPS from the runner with the standard library. The
+- **API keys (Anthropic, OpenAI)** — built, not offered in Beta 1 (S12; the model step
+  hides them behind `API_KEYS_OFFERED`): HTTPS from the runner with the standard library. The
   key is decrypted by the app and handed to that one run on stdin — never an argument or an
   environment variable — so **an API-key connection plans only while Daybook is open**; the
   unattended morning run says so in the brief instead.

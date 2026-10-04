@@ -19,6 +19,10 @@ import {
 import { CLAUDE_CODE_MODELS, isModelId } from "@/lib/models";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
 
+/* API keys are built but not offered in Beta 1 (S12): the beta runs on Claude Code and
+   Codex, the users' own plans. Turning this on brings the section back unchanged. */
+const API_KEYS_OFFERED = false;
+
 const API_PROVIDERS = [
   { id: "anthropic", label: "Anthropic (Claude)", live: true, hint: "Starts with sk-ant-" },
   { id: "openai", label: "OpenAI", live: true, hint: "Starts with sk-" },
@@ -68,7 +72,9 @@ export function ConnectProviderScreen({
   const [clis, setClis] = useState<CliStatus[] | null>(null);
   const [codexModels, setCodexModels] = useState<ModelOption[] | null>(null);
   const [codexError, setCodexError] = useState<string | null>(null);
-  const [keys, setKeys] = useState<Connection[]>(connections.filter((c) => c.authKind === "api_key"));
+  const [keys, setKeys] = useState<Connection[]>(
+    API_KEYS_OFFERED ? connections.filter((c) => c.authKind === "api_key") : [],
+  );
   const [keyModels, setKeyModels] = useState<Record<string, ModelOption[]>>({});
   const [keyErrors, setKeyErrors] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
@@ -192,10 +198,9 @@ export function ConnectProviderScreen({
         </p>
         <h1 className="mt-1 text-xl font-semibold tracking-tight">Choose your secretary's model</h1>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          Daybook runs on an AI you already have: your Claude or ChatGPT plan through Claude
-          Code or Codex on this Mac, or an API key. Pick a model — you can switch any time from
-          the scoreboard. Daybook never sees your Claude or ChatGPT sign-in; API keys stay in
-          this Mac's keychain.
+          {API_KEYS_OFFERED
+            ? "Daybook runs on an AI you already have: your Claude or ChatGPT plan through Claude Code or Codex on this Mac, or an API key. Pick a model — you can switch any time from the scoreboard. Daybook never sees your Claude or ChatGPT sign-in; API keys stay in this Mac's keychain."
+            : "Daybook runs on an AI you already have: your Claude or ChatGPT plan, through Claude Code or Codex on this Mac. Pick a model — you can switch any time from the scoreboard. Daybook never sees your Claude or ChatGPT sign-in."}
         </p>
       </div>
 
@@ -265,95 +270,99 @@ export function ConnectProviderScreen({
         )}
       </div>
 
-      <p className="mb-2 mt-6 text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-        API keys
-      </p>
-      <div className="space-y-3">
-        {keys.map((connection) => {
-          const live = API_PROVIDERS.some((p) => p.id === connection.id && p.live);
-          return (
-            <SourceCard
-              key={connection.id}
-              icon={<KeyRound className="size-4" />}
-              title={connection.label}
-              status="Stored in this Mac's keychain."
-              ready
-              action={
-                <button
-                  type="button"
-                  aria-label={`Remove ${connection.label}`}
-                  className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
-                  onClick={() => void removeKey(connection)}
+      {API_KEYS_OFFERED && (
+        <>
+          <p className="mb-2 mt-6 text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
+            API keys
+          </p>
+          <div className="space-y-3">
+            {keys.map((connection) => {
+              const live = API_PROVIDERS.some((p) => p.id === connection.id && p.live);
+              return (
+                <SourceCard
+                  key={connection.id}
+                  icon={<KeyRound className="size-4" />}
+                  title={connection.label}
+                  status="Stored in this Mac's keychain."
+                  ready
+                  action={
+                    <button
+                      type="button"
+                      aria-label={`Remove ${connection.label}`}
+                      className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
+                      onClick={() => void removeKey(connection)}
+                    >
+                      <X className="size-4" />
+                    </button>
+                  }
                 >
-                  <X className="size-4" />
-                </button>
-              }
-            >
-              <ModelPicker
-                connectionId={connection.id}
-                models={live ? (keyModels[connection.id] ?? null) : []}
-                loadingText={live && !keyErrors[connection.id] ? "Asking the provider for its models…" : undefined}
-                listError={keyErrors[connection.id] ?? null}
-                choice={choice}
-                onChoose={setChoice}
-                placeholder="a model ID this key can call"
-              />
-            </SourceCard>
-          );
-        })}
+                  <ModelPicker
+                    connectionId={connection.id}
+                    models={live ? (keyModels[connection.id] ?? null) : []}
+                    loadingText={live && !keyErrors[connection.id] ? "Asking the provider for its models…" : undefined}
+                    listError={keyErrors[connection.id] ?? null}
+                    choice={choice}
+                    onChoose={setChoice}
+                    placeholder="a model ID this key can call"
+                  />
+                </SourceCard>
+              );
+            })}
 
-        {adding ? (
-          <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
-            <Field label="Provider">
-              <select className={inputClass} value={providerId} onChange={(event) => setProviderId(event.target.value)}>
-                {API_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-                <option value="custom">Other…</option>
-              </select>
-            </Field>
-            {providerId === "custom" && (
-              <Field label="What do you call it?">
-                <input
-                  className={inputClass}
-                  value={customLabel}
-                  onChange={(event) => setCustomLabel(event.target.value)}
-                  placeholder="e.g. Mistral"
-                />
-              </Field>
+            {adding ? (
+              <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
+                <Field label="Provider">
+                  <select className={inputClass} value={providerId} onChange={(event) => setProviderId(event.target.value)}>
+                    {API_PROVIDERS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                    <option value="custom">Other…</option>
+                  </select>
+                </Field>
+                {providerId === "custom" && (
+                  <Field label="What do you call it?">
+                    <input
+                      className={inputClass}
+                      value={customLabel}
+                      onChange={(event) => setCustomLabel(event.target.value)}
+                      placeholder="e.g. Mistral"
+                    />
+                  </Field>
+                )}
+                <Field
+                  label="API key"
+                  hint={API_PROVIDERS.find((p) => p.id === providerId)?.hint ?? "Stored in your keychain, never shown again."}
+                >
+                  <input
+                    className={inputClass}
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    placeholder="Paste your key"
+                    autoComplete="off"
+                  />
+                </Field>
+                <ErrorNote message={error} />
+                <div className="flex gap-2">
+                  <Button className="flex-1" disabled={busy} onClick={() => void addKey()}>
+                    Store key
+                  </Button>
+                  <Button variant="ghost" onClick={() => setAdding(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="secondary" className="w-full" onClick={() => setAdding(true)}>
+                <Plus className="size-4" />
+                Add an API key
+              </Button>
             )}
-            <Field
-              label="API key"
-              hint={API_PROVIDERS.find((p) => p.id === providerId)?.hint ?? "Stored in your keychain, never shown again."}
-            >
-              <input
-                className={inputClass}
-                type="password"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="Paste your key"
-                autoComplete="off"
-              />
-            </Field>
-            <ErrorNote message={error} />
-            <div className="flex gap-2">
-              <Button className="flex-1" disabled={busy} onClick={() => void addKey()}>
-                Store key
-              </Button>
-              <Button variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Button>
-            </div>
           </div>
-        ) : (
-          <Button variant="secondary" className="w-full" onClick={() => setAdding(true)}>
-            <Plus className="size-4" />
-            Add an API key
-          </Button>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="mt-6 space-y-2">
         <Button className="w-full" disabled={!choice} onClick={finish}>

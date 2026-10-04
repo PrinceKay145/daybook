@@ -56,9 +56,7 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    before it replaces the real file (gate 1); the file it replaces is kept. The model gets no
    file tools and no access to anything, so S10's enforcement is not needed yet. The law
    eval harness (gate 3) covers the prompt before it ships. Also from the scoreboard
-   ("Plan today"), and straight after setup, so the first day is planned at once. An
-   API-key connection plans only while Daybook is open (the key is unlocked by the app);
-   the unattended run says so in the brief. Accept: a refused or failed plan leaves the day
+   ("Plan today"), and straight after setup, so the first day is planned at once. Accept: a refused or failed plan leaves the day
    state untouched and says why in one line; a finished thing never comes back; a made-up
    file path is never shown as a reference; the replaced day state is in
    `archive/day-state/`; the log line is Daybook's words, not the model's.
@@ -69,10 +67,14 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
 4. **An install testers can open.** Unsigned, with the Gatekeeper step documented, and a
    Python bundled — most Macs no longer have one.
 
-**Not in Beta 1** (each waits for tester feedback): a chat with history · reminders (S11) ·
-reading folders outside the connected one (S10's file tools) · the automatic nightly close
-(the message box covers correcting the day) · daily-shifting schedules (D6) · self-serve
-account deletion.
+**Then, once the functionality above is done: a design and UI pass** across every screen
+(owner, 2026-10-05). Until then the screens stay as plain as they are — functionality first.
+
+**Not in Beta 1** (each waits for tester feedback): API keys (built, but the model step
+offers only Claude Code and Codex — the users' own plans) · a chat with history · reminders
+(S11) · reading folders outside the connected one (S10's file tools) · the automatic nightly
+close (the message box covers correcting the day) · daily-shifting schedules (D6) ·
+self-serve account deletion.
 
 ---
 
@@ -110,7 +112,8 @@ warning.
 **Choose your secretary's model.** The user picks a model — Fable 5.1, Opus 5.5, Sonnet 5,
 a GPT model — and the connection follows from it: Claude Code or Codex already signed in
 on this Mac (the user's own plan, through the CLI's own sign-in, which Daybook never sees),
-or an API key (into the OS keychain, never shown again). Each CLI shows its state —
+or an API key (into the OS keychain, never shown again — built, but not offered in Beta 1,
+S12). Each CLI shows its state —
 signed in (and how, and on which plan), signed out (with the exact command to run in
 Terminal), or not installed (with where to get it) — and "Check again" re-reads it. CLIs
 are found wherever their installers put them, not only on `PATH`, and are run only with
@@ -146,7 +149,7 @@ happened, not what was set up. Nothing is deleted either way.
 
 **Scoreboard (home).** Today's brief, built from the folder by the runner and shown only
 when all eleven assertions pass — the runner's own self-contained page, in a sandboxed
-frame, with "Checked before it was shown: 11 of 11" above it. A brief that fails a check is
+frame. The checks run before every brief without being announced; a brief that fails one is
 **withheld**, and the failed checks are named; a brief that cannot be built (no Python, the
 runner failing) says why and where the log is. No sample data: a placeholder that pretends
 to be a real brief would break the only promise this product makes. The model choice

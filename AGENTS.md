@@ -77,7 +77,9 @@ write it at the user's brief time and notify, and **Settings & status** shows an
 everything Daybook runs. **Beta 1** (S12), in the owner's order and nothing else: ✅ the user
 sets the size of today's list; ✅ the chosen model plans the day (it proposes as JSON, Daybook
 writes after the checks — no file tools; `runner/daybook/plan.py`); next, one "tell your
-secretary" message box, also offered in setup; then a tester install with Python bundled. Reminders (S11), read grants
+secretary" message box, also offered in setup; then a tester install with Python bundled;
+then a design and UI pass across every screen — functionality first, so no polish before
+then. API keys are built but not offered in Beta 1 (`API_KEYS_OFFERED` in the model step). Reminders (S11), read grants
 (S10's file tools) and the automatic nightly close wait for tester feedback — do not start
 them. Requirements: `product-requirements.md`, "Beta 1".
 
