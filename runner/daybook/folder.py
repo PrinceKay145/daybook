@@ -76,6 +76,9 @@ class Folder:
     clock: Clock
     config: dict = field(default_factory=dict)
     day_state: ds.DayState = field(default_factory=ds.DayState)
+    # The text the day state was parsed from — what the brief's path check reads, so a
+    # candidate day state can be checked before it is written (plan.py).
+    day_state_text: str = ""
     log: lf.Log = field(default_factory=lf.Log)
     schedule: sch.Schedule = field(default_factory=sch.Schedule)
     heartbeat: Heartbeat = field(default_factory=lambda: Heartbeat(present=False))
@@ -172,7 +175,8 @@ def open_folder(path: str, clock_override: str | None = None) -> Folder:
     # A folder the setup interview has only just written has no reminders yet, and a
     # user may delete any file by hand. An absent file is read as empty and the brief says
     # so; it is never a crash, and never filled in with something plausible.
-    folder.day_state = ds.parse(_read_or_empty(folder, "DAY-STATE.md", "No day has been recorded yet"))
+    folder.day_state_text = _read_or_empty(folder, "DAY-STATE.md", "No day has been recorded yet")
+    folder.day_state = ds.parse(folder.day_state_text)
     folder.log = lf.parse(_read_or_empty(folder, "LOG.md", "Nothing has been logged yet"))
     folder.schedule = sch.parse(
         _read_or_empty(folder, "reminders.json", "No reminders are set yet", empty="{}")

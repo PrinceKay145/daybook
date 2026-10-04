@@ -5,9 +5,15 @@
     python -m daybook serve  --folder <path> [--clock ISO] [--port 8787]
     python -m daybook tick     --folder <path> --state-dir <dir> [--clock ISO] [--no-notify]
     python -m daybook watchdog --folder <path> --state-dir <dir> [--clock ISO] [--no-notify]
+    python -m daybook plan     --folder <path> [--state-dir <dir>] [--propose] [--stdin]
+    python -m daybook apply    --folder <path> [--state-dir <dir>]   (the proposal on stdin)
 
 ``tick`` (launchd, every minute) writes today's brief once its time has passed; ``watchdog``
-(launchd, hourly) notices a stopped tick or a missing brief. ``brief`` and ``serve`` both
+(launchd, hourly) notices a stopped tick or a missing brief. ``plan`` asks the chosen model
+to plan the day — it proposes, Daybook writes after the checks — and prints the outcome as
+JSON; with ``--propose`` it writes nothing and ``apply`` writes it later. ``--stdin`` reads
+{"message", "secret"} as JSON on stdin: an API key never travels as an argument or in the
+environment, where other processes can see it. ``brief`` and ``serve`` both
 build, verify and render. Nothing is written or served
 unless all eleven assertions pass — a brief that renders wrong is worse than no brief.
 """
@@ -100,7 +106,44 @@ def cmd_watchdog(args) -> int:
 def cmd_serve(args) -> int:
     from .server import serve
 
-    serve(args.folder, args.clock, host="127.0.0.1", port=args.port)
+    serve(args.folder, args.clock, host="127.0.0.1", port=args.port, state_dir=args.state_dir)
+    return 0
+
+
+def _record(args, outcome) -> None:
+    """Today's plan, for the tick and the brief. A proposal (--propose) is not the day's
+    plan until it is applied, so asking and failing there changes nothing."""
+    if getattr(args, "propose", False):
+        return
+    if args.state_dir and outcome.status in ("planned", "failed", "refused"):
+        from .tick import record_plan
+
+        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome)
+
+
+def cmd_plan(args) -> int:
+    import json
+
+    from . import plan
+
+    given = json.loads(sys.stdin.read() or "{}") if args.stdin else {}
+    run = plan.propose if args.propose else plan.run
+    outcome = run(args.folder, clock=args.clock, message=given.get("message") or None,
+                  secret=given.get("secret") or None)
+    _record(args, outcome)
+    print(outcome.to_json(), flush=True)
+    return 0
+
+
+def cmd_apply(args) -> int:
+    import json
+
+    from . import plan
+
+    proposal = plan.PlanOutcome(**json.loads(sys.stdin.read()))
+    outcome = plan.apply(args.folder, proposal, clock=args.clock)
+    _record(args, outcome)
+    print(outcome.to_json(), flush=True)
     return 0
 
 
@@ -122,7 +165,17 @@ def main(argv: list[str] | None = None) -> int:
     brief.set_defaults(func=cmd_brief)
     serve = common(sub.add_parser("serve", help="serve the brief on 127.0.0.1"))
     serve.add_argument("--port", type=int, default=8787)
+    serve.add_argument("--state-dir", help="app data, to say in the brief if today's plan failed")
     serve.set_defaults(func=cmd_serve)
+
+    plan_cmd = common(sub.add_parser("plan", help="ask the chosen model to plan the day"))
+    plan_cmd.add_argument("--state-dir", help="app data, to record that today was planned")
+    plan_cmd.add_argument("--propose", action="store_true", help="return the plan; write nothing")
+    plan_cmd.add_argument("--stdin", action="store_true", help='read {"message", "secret"} as JSON on stdin')
+    plan_cmd.set_defaults(func=cmd_plan)
+    apply_cmd = common(sub.add_parser("apply", help="write a plan returned by plan --propose (on stdin)"))
+    apply_cmd.add_argument("--state-dir", help="app data, to record that today was planned")
+    apply_cmd.set_defaults(func=cmd_apply)
 
     def scheduled(p, func):
         p.add_argument("--state-dir", required=True, help="where the run keeps its bookkeeping (app data)")

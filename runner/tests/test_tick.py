@@ -11,6 +11,7 @@ import unittest
 
 from support import FRESH_FIXTURE, FolderCase
 
+from daybook import plan
 from daybook.clock import Clock
 from daybook.tick import run_tick, run_watchdog
 
@@ -28,6 +29,19 @@ class Notes:
         return True
 
 
+class Planner:
+    """Stands in for the model planning the day; records each call."""
+
+    def __init__(self, outcome: "plan.PlanOutcome | None" = None) -> None:
+        self.calls: list[str] = []
+        self.outcome = outcome or plan.PlanOutcome("planned", "2 on the list, 0 on the board",
+                                                   model="Sonnet 5 · Claude Code")
+
+    def __call__(self, folder_path: str, clock: str | None = None) -> "plan.PlanOutcome":
+        self.calls.append(clock or "")
+        return self.outcome
+
+
 class ScheduledCase(FolderCase):
     fixture = FRESH_FIXTURE
 
@@ -35,9 +49,11 @@ class ScheduledCase(FolderCase):
         super().setUp()
         self.state = self.tmp / "state"
         self.notes = Notes()
+        self.planner = Planner()
 
     def tick(self, at: str):
-        return run_tick(str(self.folder), str(self.state), clock=f"{DAY}T{at}:00", notify=self.notes)
+        return run_tick(str(self.folder), str(self.state), clock=f"{DAY}T{at}:00",
+                        notify=self.notes, plan_day=self.planner)
 
     def watchdog(self, at: str):
         return run_watchdog(str(self.folder), str(self.state), clock=f"{DAY}T{at}:00", notify=self.notes)
@@ -163,3 +179,56 @@ class LiveClockTimezone(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TickPlansTheDay(ScheduledCase):
+    """The model plans in the ten minutes before the brief time, once a day; a plan that
+    fails is said in the brief, which is still built from the day state as it stood."""
+
+    def test_nothing_is_planned_before_the_window(self):
+        self.tick("08:19")
+        self.assertEqual([], self.planner.calls)
+
+    def test_the_day_is_planned_once_in_the_window_and_the_brief_waits_for_its_time(self):
+        outcome = self.tick("08:20")
+        self.assertEqual("waiting", outcome.status)
+        self.assertIn("planned", outcome.detail)
+        self.assertFalse(self.brief().exists())
+        self.tick("08:25")
+        self.assertEqual(1, len(self.planner.calls))
+        self.assertEqual("delivered", self.tick("08:30").status)
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_a_mac_asleep_through_the_window_plans_then_briefs_on_waking(self):
+        self.assertEqual("delivered", self.tick("10:05").status)
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_a_failed_plan_is_said_in_the_brief(self):
+        self.planner.outcome = plan.PlanOutcome(
+            "failed", "Claude Code isn't signed in on this Mac.", model="Sonnet 5 · Claude Code")
+        self.tick("08:31")
+        html = self.brief().read_text(encoding="utf-8")
+        self.assertIn("Today&#x27;s plan wasn&#x27;t refreshed by Sonnet 5 · Claude Code", html)
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_a_real_plan_lands_in_the_brief(self):
+        reply = json.dumps({
+            "today_list": [{"title": "Draft the Lumen proposal outline",
+                            "first_click": "Open a new document and write the three section headings."}],
+            "list_reason": "One thing today; the rest waits on replies.",
+            "board": [], "board_note": "", "newly_finished": [], "questions": [],
+            "summary": "", "flags": []})
+        self.planner = lambda path, clock=None: plan.run(path, clock=clock, ask=lambda *a, **k: reply)
+        self.assertEqual("delivered", self.tick("08:31").status)
+        self.assertIn("Draft the Lumen proposal outline", self.brief().read_text(encoding="utf-8"))
+
+    def test_a_failed_retry_does_not_unsay_a_plan_that_was_written(self):
+        from daybook.tick import record_plan
+
+        record_plan(str(self.state), DAY, plan.PlanOutcome("planned", "1 on the list", model="Sonnet 5"))
+        record_plan(str(self.state), DAY, plan.PlanOutcome("failed", "not signed in", model="Sonnet 5"))
+        self.assertEqual("planned", self.saved_state()["plan"]["status"])
+        self.tick("08:31")
+        self.assertNotIn("wasn&#x27;t refreshed", self.brief().read_text(encoding="utf-8"))
+        self.assertEqual([], self.planner.calls)
+

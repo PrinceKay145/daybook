@@ -351,10 +351,13 @@ def _references(folder: Folder, pending: list[str]) -> list[PathReference]:
     from . import markdown as md
 
     for name in ("DAY-STATE.md", "MASTER-PLAN.md"):
-        try:
-            text = folder.scope.read_text(name)
-        except FileNotFoundError:
-            continue
+        if name == "DAY-STATE.md":
+            text = folder.day_state_text
+        else:
+            try:
+                text = folder.scope.read_text(name)
+            except FileNotFoundError:
+                continue
         for span in md.code_spans(text):
             if "/" in span and not span.startswith(("http", "#")) and " " not in span:
                 add(name, span)
