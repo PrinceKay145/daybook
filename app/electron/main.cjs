@@ -26,6 +26,12 @@ app.commandLine.appendSwitch("enable-logging");
    reads userData, including the single-instance lock. */
 if (process.env.DAYBOOK_USER_DATA) {
   app.setPath("userData", path.resolve(process.env.DAYBOOK_USER_DATA));
+} else if (app.isPackaged) {
+  /* The installed app keeps its own app data, ~/Library/Application Support/Daybook —
+     Electron would otherwise name it after package.json's "daybook-app" and share it
+     with a development copy on the same Mac. */
+  app.setName("Daybook");
+  app.setPath("userData", path.join(app.getPath("appData"), "Daybook"));
 }
 
 /* ---------- app-data JSON files (atomic temp+rename, never in the user's folder) ---------- */
@@ -102,6 +108,34 @@ function forwardAuthUrl(rawUrl) {
   }
 }
 
+/* An unsigned app opened from Downloads or the disk image is run by macOS from a
+   temporary, read-only copy that changes every launch — and the brief's launchd jobs
+   would point at a path that is gone tomorrow. So the packaged app offers to move itself
+   into Applications first, and installs no jobs until it lives there. */
+function outsideApplications() {
+  return app.isPackaged && !process.env.DAYBOOK_USER_DATA && !app.isInApplicationsFolder();
+}
+
+async function offerMoveToApplications() {
+  if (!outsideApplications()) return;
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Move to Applications", "Not now"],
+    defaultId: 0,
+    cancelId: 1,
+    message: "Move Daybook to your Applications folder?",
+    detail:
+      "Your morning brief is written by Daybook even when it's closed, from wherever the app lives. " +
+      "Opened from Downloads or the disk image, it can't find its way back tomorrow.",
+  });
+  if (response !== 0) return;
+  try {
+    app.moveToApplicationsFolder(); // relaunches from Applications when it succeeds
+  } catch (err) {
+    dialog.showErrorBox("Daybook couldn't move itself", `${err.message ?? err}\n\nDrag Daybook into Applications, then open it from there.`);
+  }
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -124,7 +158,8 @@ if (!gotLock) {
     forwardAuthUrl(url);
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await offerMoveToApplications();
     // Register in dev too, so the Google round-trip can be tested before packaging.
     const registered = process.defaultApp
       ? app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [
@@ -679,6 +714,9 @@ const logDir = () => path.join(app.getPath("userData"), "logs");
 const stateDir = () => path.join(app.getPath("userData"), "state");
 
 ipcMain.handle("schedule:start", async (_event, folder) => {
+  if (outsideApplications()) {
+    return { ok: false, code: "NOT_IN_APPLICATIONS", message: "Daybook isn't in your Applications folder yet — move it there (and open it from there) so your brief can arrive on its own." };
+  }
   const python = await runner.findPython();
   if (!python) {
     return { ok: false, code: "PYTHON_MISSING", message: "Python 3.9 or newer is needed for the brief to arrive on its own, and none was found on this Mac." };

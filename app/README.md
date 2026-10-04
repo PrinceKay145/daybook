@@ -30,13 +30,44 @@ npm run dev    # Vite on 127.0.0.1:5173 + the Electron window
   opens, with the first Python it finds (Homebrew, python.org, pyenv, conda, or the
   developer tools' `/usr/bin/python3` — only when those tools are really installed, since
   otherwise that path just opens an install dialog). Without one, the scoreboard says so.
-  Packaged builds will bundle a Python. The runner's log: `~/Library/Application
-  Support/daybook-app/logs/runner.log`.
+  The packaged app carries its own (below). The runner's log in development:
+  `~/Library/Application Support/daybook-app/logs/runner.log`.
 - `npm run dev:web` runs the UI in a plain browser tab (folder, keychain and outbound
   links refuse politely — they need the shell). The scoreboard there reads a runner you
   start by hand on port 8787 (`runner/README.md`).
 - `npm run build && npm run app:start` runs the production renderer inside Electron.
 - `npm run typecheck` is the fast correctness gate.
+
+## Building the tester install
+
+```bash
+cd app
+npm run dist:mac    # → release/Daybook-0.1.0-arm64.dmg (and release/mac-arm64/Daybook.app)
+```
+
+- **It uses the real accounts project** from `app/.env` — Vite bakes `VITE_SUPABASE_URL` and
+  the anon key into the bundle at build time (both are public by design).
+- **Python is bundled.** `scripts/fetch-python.mjs` downloads one pinned build of
+  python-build-standalone (3.12, Apple silicon), checks its SHA-256 against the digest
+  recorded in the script, drops the parts the runner never uses (IDLE, Tk, pip) and
+  unpacks it to `build/python-arm64/` (git-ignored, about 48 MB). The app uses it before
+  any Python on the Mac — for the brief, for planning, and in the launchd jobs. No Python
+  Daybook runs writes bytecode: a file written inside the app would break its signature.
+- **runner/ and LAWS.md** are copied into `Resources/runner/` (the laws sit beside the
+  package, where `plan.py` looks first).
+- **Signed ad hoc, not by a developer account** (`mac.identity: "-"`): the signature is
+  valid, so macOS offers "Open Anyway" instead of calling the app damaged. Gatekeeper still
+  rejects it until it is notarized — the one-time approval is in `TESTERS.md`, the guide
+  to send with the disk image. Notarizing needs an Apple Developer account (before any
+  public release).
+- **The installed app keeps its own app data** — `~/Library/Application Support/Daybook`,
+  never the development copy's `daybook-app`. Both use the same launchd labels, so on one
+  Mac whichever installed its jobs last owns them.
+- **It must live in Applications.** Opened from Downloads or the disk image, macOS runs an
+  unsigned app from a temporary copy that moves every launch, which would strand the
+  launchd jobs; the app offers to move itself, and installs no jobs until it has.
+- Apple silicon only for now; an Intel build needs `fetch-python.mjs x64` and an `x64`
+  entry under `mac.target`.
 
 ## Accounts (Supabase)
 
@@ -204,6 +235,6 @@ src/screens/*          Login · ConnectFolder · ConnectProvider · SetupQuestio
 - **No shell actions, no model-authored targets.** Nothing here runs a command on the
   user's behalf. The only programs the app runs are Claude Code and Codex, with commands
   fixed in `electron/cli.cjs`, no shell, and never an argument from model output.
-- **Packaging milestone:** electron-builder + notarization, a strict CSP (the dev warning
-  in the console disappears at that point), and the `daybook stop` / process contract —
-  all still ahead of us.
+- **Still ahead of packaging:** notarization (needs an Apple Developer account), a strict
+  CSP (the dev warning in the console disappears at that point), Daybook's own notifier
+  (notifications are credited to Script Editor), and an in-app uninstall.
