@@ -165,7 +165,7 @@ def user_prompt(folder: Folder, cap: int, message: str | None, nonce: str) -> st
     files: list[tuple[str, str]] = [
         ("config.json (about the person)", json.dumps(_config_for_model(folder.config), indent=2, ensure_ascii=False)),
     ]
-    for name in ("SETUP-CONTEXT.md", "MASTER-PLAN.md", "DAY-STATE.md", "CORRECTIONS.md"):
+    for name in ("SETUP-CONTEXT.md", "HANDOVER.md", "MASTER-PLAN.md", "DAY-STATE.md", "CORRECTIONS.md"):
         try:
             files.append((name, _clip(folder.scope.read_text(name))))
         except (FileNotFoundError, OSError):
@@ -484,7 +484,7 @@ def _scoreboard_lines(folder: Folder, proposal: Proposal) -> list[str] | None:
     now = folder.clock.now
     updates = {u["id"]: u for u in proposal.scoreboard}
     column = "This week" if re.search(r"\|\s*this week\s*\|", folder.day_state_text, re.I) else "Latest"
-    out = ["Shown, not scored. Only numbers you told your secretary, or a file states.", "",
+    out = ["Only numbers you told your secretary. Nothing here is estimated.", "",
            f"| Metric | {column} | Note |", "|---|---|---|"]
     for key, value, note in rows:
         if key in updates:
@@ -513,7 +513,18 @@ def _tick_lines(folder: Folder, proposal: Proposal) -> list[str] | None:
         recorded = set()
     today = folder.today
     recorded |= {(today, habit) for habit in proposal.ticked}
-    return ["Shown, not scored.", "", *ticks.table(habits, recorded, today)]
+    return ["Counted from TICKS.md: the days you said you did each one.", "", *ticks.table(habits, recorded, today)]
+
+
+def _held_back(proposal: Proposal, folder: Folder, from_message: bool) -> Proposal:
+    """What Daybook drops from an answer before writing it, rather than ask again: a number
+    the day state already shows (repeating it would re-date it as if just told), and any
+    tick when the person said nothing — a tick is only ever theirs to give."""
+    current = {m.key: m.value.strip() for m in folder.day_state.metrics}
+    proposal.scoreboard = [u for u in proposal.scoreboard if u["value"].strip() != current.get(u["id"])]
+    if not from_message:
+        proposal.ticked = []
+    return proposal
 
 
 def check_candidate(folder_path: str, candidate: str, clock: str | None = None):
@@ -564,7 +575,7 @@ def propose(folder_path: str, *, clock: str | None = None, message: str | None =
         except AskError as exc:
             return PlanOutcome("failed", str(exc), base=base, model=model)
         try:
-            proposal = validate(parse_reply(reply), cap, folder.config)
+            proposal = _held_back(validate(parse_reply(reply), cap, folder.config), folder, bool(message))
             candidate = render_day_state(folder, proposal, model)
             results = check_candidate(folder_path, candidate, clock)
         except PlanError as exc:

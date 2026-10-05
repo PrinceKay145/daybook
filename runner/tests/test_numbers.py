@@ -56,6 +56,12 @@ class AStatedNumber(PlanCase):
         self.assertIn("scoreboard[1].note", self.model.prompts[1])
         self.assertNotIn("| `applications_sent` | 3 |", self.day_state())
 
+    def test_a_number_the_day_state_already_shows_is_not_redated(self):
+        before = next(l for l in self.read("DAY-STATE.md").splitlines() if "`applications_sent`" in l)
+        self.plan(answer(scoreboard=[number("applications_sent", "2")]), message="Busy day.")
+        self.assertIn(before, self.day_state())
+        self.assertNotIn("from your message", self.day_state())
+
     def test_the_proposal_shows_it_by_its_name(self):
         proposed = plan.propose(str(self.folder), message="Sent 3.",
                                 ask=Model(answer(scoreboard=[number("applications_sent", "3")])))
@@ -78,6 +84,15 @@ class ANewlyTrackedMetric(PlanCase):
         self.assertEqual([], [r.line() for r in results if not r.ok])
         self.assertEqual("Applications sent", data.metric_labels["applications_sent"])
 
+    def test_a_number_told_later_is_read_from_daybooks_own_table(self):
+        self.edit_json("config.json", lambda c: c.__setitem__(
+            "metrics", [{"id": "applications_sent", "label": "Applications sent", "tracking": True}]))
+        self.plan(answer(board=[], questions=[], scoreboard=[number("applications_sent", "3")]), message="Sent 3.")
+        self.assertIn("| Metric | Latest | Note |", self.day_state())
+        _, data, _, results = self.produce()
+        self.assertEqual("3", next(m.value for m in data.scoreboard if m.key == "applications_sent"))
+        self.assertEqual([], [r.line() for r in results if not r.ok])
+
 
 class TicksFromAMessage(PlanCase):
     def setUp(self) -> None:
@@ -94,6 +109,10 @@ class TicksFromAMessage(PlanCase):
         self.assertIn("| Morning walk | 2 of 3 |", self.day_state())
         self.assertIn("| Read 20 pages | 0 of 7 |", self.day_state())
         self.assertAllPass()
+
+    def test_no_tick_without_a_message(self):
+        self.plan(answer(ticked=["morning_walk"]))
+        self.assertIn("| Morning walk | 1 of 3 |", self.day_state())
 
     def test_applying_writes_the_tick_once_a_day(self):
         for _ in range(2):

@@ -69,6 +69,20 @@ def _numbers(reply: dict) -> dict[str, str]:
             for row in reply.get("scoreboard") or [] if isinstance(row, dict)}
 
 
+CURRENT = {"applications_sent": "2", "conversations_had": "1", "invoices_outstanding": "£2,400"}
+
+
+def _changed(reply: dict) -> dict[str, str]:
+    """Numbers that differ from what the sample day state already shows."""
+    return {k: v for k, v in _numbers(reply).items() if CURRENT.get(k) != v.strip()}
+
+
+def _graded(reply: dict) -> str:
+    text = _all_text(reply)
+    return "; ".join(f"{m.group(0)!r} in …{text[max(0, m.start() - 40):m.end() + 20]}…"
+                     for m in GRADING.finditer(text)) or "none"
+
+
 def _common(reply: dict, cap: int) -> list[Check]:
     items = reply.get("today_list") or []
     rows = reply.get("board") or []
@@ -81,7 +95,7 @@ def _common(reply: dict, cap: int) -> list[Check]:
         Check("law 8", "the list stays within the cap", len(items) <= cap, f"{len(items)} of at most {cap}"),
         Check("law 11", "every board row is WAIT or CHASE with a date", not bad_rows,
               f"{len(rows)} row(s)" + (f", {len(bad_rows)} without" if bad_rows else "")),
-        Check("law 18", "no grading words", not graded, ", ".join(sorted(set(graded))) or "none"),
+        Check("law 18", "no grading words", not graded, _graded(reply)),
         Check("law 9", "each item is a concrete first click", not vague,
               f"{len(vague)} vague: {vague[:2]}" if vague else f"{len(items)} item(s)", hard=False),
     ]
@@ -143,8 +157,10 @@ SCENARIOS = [
         "Nothing countable told",
         lambda f: None, "Feeling flat today, slept badly.",
         lambda r: [
-            Check("law 7", "no number without one being told", not _numbers(r),
-                  ", ".join(f"{k}={v}" for k, v in _numbers(r).items()) or "none"),
+            Check("law 7", "no new number without one being told", not _changed(r),
+                  ", ".join(f"{k}={v}" for k, v in _changed(r).items()) or "none"),
+            Check("law 7", "no number repeated from the day state", not _numbers(r),
+                  ", ".join(f"{k}={v}" for k, v in _numbers(r).items()) or "none", hard=False),
             Check("law 7", "no habit ticked on their behalf", not r.get("ticked"),
                   ", ".join(r.get("ticked") or []) or "none"),
         ],
