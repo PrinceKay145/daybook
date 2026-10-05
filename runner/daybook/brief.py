@@ -155,6 +155,11 @@ class BriefData:
     pending_outputs: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     finished_labels: list[str] = field(default_factory=list)
+    # The day's light schedule as (name, "HH:MM") marks for the dial, and the reminders of
+    # the next two days as (title, minutes from this day's midnight), so the page can keep
+    # "Next up" true while it stays open.
+    light_marks: list[tuple[str, str]] = field(default_factory=list)
+    ahead: list[tuple[str, int]] = field(default_factory=list)
 
 
 def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData:
@@ -174,7 +179,8 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         coverage=dial.coverage(blocks),
     )
 
-    upcoming = folder.schedule.next_after(now)
+    soon = folder.schedule.due_between(now, now + timedelta(days=2))
+    upcoming = soon[0] if soon else None
     next_up = None
     if upcoming:
         reminder, moment = upcoming
@@ -220,6 +226,10 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         pending_outputs=pending,
         warnings=list(folder.warnings),
         finished_labels=[f.label for f in state.finished],
+        light_marks=[(name.replace("_", " ").capitalize(), at)
+                     for name, at in (light.entries.items() if light else ())],
+        ahead=[(reminder.title, (moment.date() - folder.today).days * dial.MINUTES_IN_DAY
+                + moment.hour * 60 + moment.minute) for reminder, moment in soon],
     )
 
 

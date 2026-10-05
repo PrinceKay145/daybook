@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import re
 import unittest
 
 from support import FolderCase
@@ -183,6 +184,43 @@ class SelfContained(FolderCase):
         _, _, html, _ = self.produce()
         self.assertIn('name="viewport"', html)
         self.assertIn("@media (max-width: 520px)", html)
+
+
+
+class TheDial(FolderCase):
+    """What is fixed in time is marked and named outside the ring, and the page's script
+    keeps the words around the dial true while it stays open."""
+
+    def test_fixed_times_and_the_light_schedule_are_named_outside_the_ring(self):
+        _, _, html, _ = self.produce()
+        self.assertRegex(html, r'class="dial-mark-label fixed"[^>]*>School run<')
+        self.assertRegex(html, r'class="dial-mark-label light"[^>]*>Sunset<')
+        self.assertIn("<title>School run · 08:20 · non-negotiable</title>", html)
+
+    def test_two_marks_at_one_time_are_both_named_without_overlapping(self):
+        self.edit_json("config.json", lambda c: c["non_negotiables"].append(
+            {"label": "Call the bank", "time": "08:20", "days": ["all"]}))
+        _, _, html, _ = self.produce()
+        ys = {label: y for y, label in re.findall(
+            r'class="dial-mark-label fixed" x="[\d.]+" y="([\d.]+)"[^>]*>([^<]+)<', html)}
+        self.assertIn("School run", ys)
+        self.assertIn("Call the bank", ys)
+        self.assertGreaterEqual(abs(float(ys["School run"]) - float(ys["Call the bank"])), 12)
+
+    def test_no_block_name_can_close_the_script(self):
+        self.edit_json("config.json", lambda c: c["day_shape"][2].__setitem__("block", "Deep </script> work"))
+        _, _, html, results = self.produce()
+        self.assertEqual(1, html.count("</script>"))
+        self.assertIn("Deep \\u003c/script> work", html)
+        self.assertTrue(all(r.ok for r in results), [r.line() for r in results if not r.ok])
+
+    def test_the_reminders_ahead_travel_with_the_page_for_next_up(self):
+        _, data, html, _ = self.produce()
+        self.assertTrue(data.ahead)
+        self.assertEqual(data.next_up.title, data.ahead[0][0])
+        self.assertEqual(sorted(m for _, m in data.ahead), [m for _, m in data.ahead])
+        self.assertIn("var AHEAD = [", html)
+        self.assertIn('id="next-line"', html)
 
 
 if __name__ == "__main__":

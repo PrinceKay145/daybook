@@ -9,13 +9,15 @@ for the rest; SIL Open Font License) are embedded in the file, Latin only, about
 It reads in the spec's order — where am I, what now, what matters, how am I doing, what am
 I keeping up, who am I waiting on, a human note — laid out in two columns when the window
 is wide (the day beside today's list) and one when it is narrow. Light and dark both, and
-phone width, because it will be opened on a phone from a synced folder.
+phone width, because it will be opened on a phone from a synced folder. Left open, its
+small script keeps the dial, the block you are in and "Next up" true as the day moves.
 """
 
 from __future__ import annotations
 
 import base64
 import html
+import json
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
@@ -34,14 +36,21 @@ LATIN = ("U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
          "U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, "
          "U+FEFF, U+FFFD")
 
-# Blocks are tints of Daybook's ink; sleep is the deepest; the block you are in is the
-# accent; unplanned time is the quiet ring underneath, never one more colour.
-BLOCK_TINTS = ("var(--b1)", "var(--b2)", "var(--b3)")
+# Each block takes one of a few muted inks, so blocks can be told apart at a glance — the
+# dial is the one place with several hues, because that is its job. Sleep is the deepest;
+# unplanned time is the quiet track underneath, never one more colour.
+BLOCK_INKS = tuple(f"var(--c{n})" for n in range(1, 7))
 
 CX = CY = 160.0
-R_OUTER, R_INNER = 124.0, 104.0
-R_TICK_IN, R_TICK_OUT = 128.0, 138.0
-R_HAND_IN, R_HAND_OUT = 72.0, 99.0  # the hand stops short of the time in the middle
+R_OUTER, R_INNER = 122.0, 98.0
+R_NUMERALS = 84.0
+# The hand crosses the ring, so it points at the block you are in, and stops before the
+# hour numerals and the time in the middle.
+R_HAND_IN, R_HAND_OUT = 91.0, 131.0
+R_MARK_IN, R_MARK_OUT, R_MARK_LABEL = 125.0, 132.0, 137.0
+# Label room, in the dial's own units: a rough width per character at 10px, the height of
+# a line, and how far a label may run past the dial's box into the page margin.
+CHAR_W, LINE_H, SLACK = 5.0, 12.0, 40.0
 
 
 def esc(text: str) -> str:
@@ -90,9 +99,66 @@ def _label_colours(blocks) -> dict[str, str]:
         elif block.label.lower() == "sleep":
             colours[block.label] = "var(--sleep)"
         else:
-            planned = sum(1 for label in colours if label not in (UNPLANNED,) and label.lower() != "sleep")
-            colours[block.label] = BLOCK_TINTS[planned % len(BLOCK_TINTS)]
+            planned = sum(1 for label in colours if label != UNPLANNED and label.lower() != "sleep")
+            colours[block.label] = BLOCK_INKS[planned % len(BLOCK_INKS)]
     return colours
+
+
+def _marks(data: BriefData) -> list[tuple[int, str, str]]:
+    """What is fixed in time today, as (minute, label, kind): the non-negotiables, and the
+    light schedule (daylight, a prayer timetable, tides)."""
+    marks: list[tuple[int, str, str]] = []
+    for item in data.dial.non_negotiables:
+        at = item.get("time") or item.get("start")
+        if at:
+            marks.append((dial.to_minutes(at), str(item.get("label", "")), "fixed"))
+    for label, at in data.light_marks:
+        try:
+            marks.append((dial.to_minutes(at), label, "light"))
+        except ValueError:
+            continue
+    return sorted(marks)
+
+
+def _fit(label: str, room: float) -> str:
+    chars = int(room // CHAR_W)
+    if len(label) <= chars:
+        return label
+    return label[: max(chars - 1, 1)].rstrip() + "…"
+
+
+def _mark_labels(marks: list[tuple[int, str, str]]) -> list[str]:
+    """Each mark's label beside its tick, outside the ring. A label that would collide with
+    one already placed steps outward a line at a time; one that still collides is left to
+    the tick's tooltip rather than drawn over another."""
+    placed: list[tuple[float, float, float, float]] = []
+    parts: list[str] = []
+    width = CX * 2
+    for minute, label, kind in marks:
+        x, y = dial.polar_point(minute, R_MARK_LABEL, CX, CY)
+        side = (x - CX) / R_MARK_LABEL
+        if abs(side) < 0.3:
+            anchor, room = "middle", 2 * (R_MARK_LABEL * 0.6)
+            y += -5 if y < CY else 10
+        elif side > 0:
+            anchor, room = "start", width + SLACK - x
+        else:
+            anchor, room = "end", x + SLACK
+        text = _fit(label, room)
+        w = len(text) * CHAR_W
+        step = LINE_H if y > CY else -LINE_H
+        for _ in range(3):
+            x0 = x - w / 2 if anchor == "middle" else (x if anchor == "start" else x - w)
+            box = (x0 - 2, y - 9, x0 + w + 2, y + 3)
+            if not any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in placed):
+                placed.append(box)
+                parts.append(
+                    f'<text class="dial-mark-label {kind}" x="{x:.2f}" y="{y:.2f}" '
+                    f'text-anchor="{anchor}">{esc(text)}</text>'
+                )
+                break
+            y += step
+    return parts
 
 
 def _dial_svg(data: BriefData) -> str:
@@ -100,14 +166,17 @@ def _dial_svg(data: BriefData) -> str:
     blocks = data.dial.blocks
     colours = _label_colours(blocks)
 
-    # The ring's two edges, faint and dotted, so even a wholly unplanned day draws a dial.
-    for r in (R_OUTER, R_INNER):
-        parts.append(f'<circle class="dial-edge" cx="{CX}" cy="{CY}" r="{r}" />')
+    # The track under the blocks, so even a wholly unplanned day draws a whole dial, and
+    # the face inside it.
+    parts.append(
+        f'<circle class="dial-track" cx="{CX}" cy="{CY}" r="{(R_OUTER + R_INNER) / 2}" '
+        f'style="stroke-width:{R_OUTER - R_INNER}" />'
+        f'<circle class="dial-face" cx="{CX}" cy="{CY}" r="{R_INNER}" />'
+    )
 
     for block in blocks:
-        colour = _colour(data, block, colours)
+        colour = colours[block.label]
         title = f"<title>{esc(block.label)} · {_hours(block)}</title>"
-        live = " dial-arc-now" if block is data.dial.current else ""
         for start, end in block.spans():
             if end <= start:
                 continue
@@ -115,45 +184,47 @@ def _dial_svg(data: BriefData) -> str:
                 # A block that is the whole day: an arc from a point back to itself draws
                 # nothing, so the whole ring is one circle.
                 parts.append(
-                    f'<circle class="dial-ring{live}" cx="{CX}" cy="{CY}" r="{(R_OUTER + R_INNER) / 2}" '
+                    f'<circle class="dial-ring" cx="{CX}" cy="{CY}" r="{(R_OUTER + R_INNER) / 2}" '
                     f'style="stroke:{colour};stroke-width:{R_OUTER - R_INNER}">{title}</circle>'
                 )
                 continue
             path = dial.arc_path(start, end, R_OUTER, R_INNER, CX, CY)
-            parts.append(f'<path class="dial-arc{live}" d="{path}" style="fill:{colour}">{title}</path>')
+            parts.append(f'<path class="dial-arc" d="{path}" style="fill:{colour}">{title}</path>')
 
-    for hour in range(0, 24, 3):
+    # Every hour on the inside of the ring, every third one numbered.
+    for hour in range(24):
         minute = hour * 60
-        x1, y1 = dial.polar_point(minute, R_OUTER + 3, CX, CY)
-        x2, y2 = dial.polar_point(minute, R_OUTER + 7, CX, CY)
-        parts.append(f'<line class="dial-hour" x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" />')
-        if hour % 6 == 0:
-            lx, ly = dial.polar_point(minute, R_OUTER + 21, CX, CY)
-            parts.append(f'<text class="dial-hour-label" x="{lx:.2f}" y="{ly:.2f}">{hour:02d}</text>')
+        major = hour % 3 == 0
+        x1, y1 = dial.polar_point(minute, R_INNER - 2, CX, CY)
+        x2, y2 = dial.polar_point(minute, R_INNER - (7 if major else 4.5), CX, CY)
+        parts.append(
+            f'<line class="dial-hour{" major" if major else ""}" x1="{x1:.2f}" y1="{y1:.2f}" '
+            f'x2="{x2:.2f}" y2="{y2:.2f}" />'
+        )
+        if major:
+            lx, ly = dial.polar_point(minute, R_NUMERALS, CX, CY)
+            parts.append(f'<text class="dial-numeral" x="{lx:.2f}" y="{ly:.2f}">{hour:02d}</text>')
 
-    # Non-negotiables tick OUTSIDE the ring, never as arcs within it. They are not blocks
-    # that can be moved or shortened, and drawing them as blocks invites treating them as
-    # negotiable.
-    for item in data.dial.non_negotiables:
-        marks: list[int] = []
-        if item.get("time"):
-            marks.append(dial.to_minutes(item["time"]))
-        elif item.get("start"):
-            marks.append(dial.to_minutes(item["start"]))
-        for minute in marks:
-            x1, y1 = dial.polar_point(minute, R_TICK_IN, CX, CY)
-            x2, y2 = dial.polar_point(minute, R_TICK_OUT, CX, CY)
-            parts.append(
-                f'<line class="dial-fixed" x1="{x1:.2f}" y1="{y1:.2f}" '
-                f'x2="{x2:.2f}" y2="{y2:.2f}">'
-                f'<title>{esc(item.get("label", ""))} · non-negotiable</title></line>'
-            )
+    # What is fixed in time ticks OUTSIDE the ring, never as arcs within it. Non-negotiables
+    # are not blocks that can be moved or shortened, and drawing them as blocks invites
+    # treating them as negotiable.
+    marks = _marks(data)
+    for minute, label, kind in marks:
+        x1, y1 = dial.polar_point(minute, R_MARK_IN, CX, CY)
+        x2, y2 = dial.polar_point(minute, R_MARK_OUT, CX, CY)
+        what = "non-negotiable" if kind == "fixed" else "today's times"
+        parts.append(
+            f'<line class="dial-mark {kind}" x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
+            f"<title>{esc(label)} · {dial.to_hhmm(minute)} · {what}</title></line>"
+        )
+    parts.extend(_mark_labels(marks))
 
     hx1, hy1 = dial.polar_point(data.dial.now_minutes, R_HAND_IN, CX, CY)
     hx2, hy2 = dial.polar_point(data.dial.now_minutes, R_HAND_OUT, CX, CY)
     parts.append(
         f'<line id="hand" class="dial-hand" x1="{hx1:.2f}" y1="{hy1:.2f}" '
         f'x2="{hx2:.2f}" y2="{hy2:.2f}" />'
+        f'<circle id="hand-tip" class="dial-hand-tip" cx="{hx2:.2f}" cy="{hy2:.2f}" r="3.4" />'
     )
 
     current = data.dial.current
@@ -164,18 +235,10 @@ def _dial_svg(data: BriefData) -> str:
     return f"""<svg class="dial" viewBox="0 0 320 320" role="img"
      aria-label="The day as a 24-hour dial, midnight at the top">
   {''.join(parts)}
-  <text id="dial-now" class="dial-now" x="{CX}" y="{CY - 4}">{esc(now_text)}</text>
-  <text class="dial-block" x="{CX}" y="{CY + 17}">{esc(block_text)}</text>
-  <text class="dial-until" x="{CX}" y="{CY + 33}">{esc(until_text)}</text>
+  <text id="dial-now" class="dial-now" x="{CX}" y="{CY + 2}">{esc(now_text)}</text>
+  <text id="dial-block" class="dial-block" x="{CX}" y="{CY + 22}">{esc(block_text)}</text>
+  <text id="dial-until" class="dial-until" x="{CX}" y="{CY + 38}">{esc(until_text)}</text>
 </svg>"""
-
-
-def _colour(data: BriefData, block, colours: dict[str, str]) -> str:
-    """The block you are in takes the accent — unless it is unplanned time, which is not a
-    plan and never looks like one."""
-    if block is data.dial.current and block.label != UNPLANNED:
-        return "var(--accent)"
-    return colours[block.label]
 
 
 def _hours(block) -> str:
@@ -188,28 +251,33 @@ def _legend(data: BriefData) -> str:
     """Each block of the day with its hours, in the order the day shape lists them."""
     colours = _label_colours(data.dial.blocks)
     rows = []
-    for block in data.dial.blocks:
+    for index, block in enumerate(data.dial.blocks):
         now = block is data.dial.current
         rows.append(
-            f'<li class="{"now" if now else ""}"><i style="background:{_colour(data, block, colours)}"></i>'
+            f'<li data-block="{index}" class="{"now" if now else ""}">'
+            f'<i style="background:{colours[block.label]}"></i>'
             f"<span>{esc(block.label)}</span><time>{_hours(block)}</time></li>"
         )
     return f'<ul class="legend">{"".join(rows)}</ul>'
 
 
+def _until(minutes: int) -> str:
+    """How long until something, the same way the page's script says it."""
+    if minutes <= 0:
+        return "now"
+    if minutes < 60:
+        return f"in {minutes} minutes"
+    hours, rest = divmod(minutes, 60)
+    return f"in {hours}h" if not rest else f"in {hours}h {rest}m"
+
+
 def _next_up(data: BriefData) -> str:
     nxt = data.next_up
     if not nxt:
-        return '<p class="next-line empty">Nothing else is scheduled today.</p>'
-    if nxt.in_minutes <= 0:
-        when = "now"
-    elif nxt.in_minutes < 60:
-        when = f"in {nxt.in_minutes} minutes"
-    else:
-        hours, minutes = divmod(nxt.in_minutes, 60)
-        when = f"in {hours}h" if not minutes else f"in {hours}h {minutes}m"
-    return (f'<p class="next-line"><strong>{esc(nxt.title)}</strong> at '
-            f"<time>{esc(nxt.at)}</time>, {when}</p>")
+        return '<p id="next-line" class="next-line empty">Nothing else is scheduled today.</p>'
+    later = " tomorrow" if data.ahead and data.ahead[0][1] >= dial.MINUTES_IN_DAY else ""
+    return (f'<p id="next-line" class="next-line"><strong>{esc(nxt.title)}</strong> at '
+            f"<time>{esc(nxt.at)}</time>{later}, {_until(nxt.in_minutes)}</p>")
 
 
 def _section_today_list(data: BriefData) -> str:
@@ -324,6 +392,16 @@ def _questions(data: BriefData) -> str:
     return "".join(blocks)
 
 
+def _spans(data: BriefData) -> list[list]:
+    return [[start, end, block.label, index, block.end]
+            for index, block in enumerate(data.dial.blocks) for start, end in block.spans()]
+
+
+def _script_json(value) -> str:
+    """Data for the page's script. ``<`` is escaped so no label can close the script."""
+    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
+
+
 def _clock_note(data: BriefData) -> str:
     """Which clock the times come from (law 5), said plainly."""
     if data.clock_frozen:
@@ -338,7 +416,8 @@ STYLE = """
   --bg: #f2f3ef; --surface: #fbfbf9; --sunken: #e8eae4;
   --ink: #16191c; --ink-soft: #4c535a; --ink-faint: #687078; --line: #d9dcd5;
   --accent: #26487a; --warn: #8f3b2a; --wait: #556884; --chase: #8a5410;
-  --b1: #c9d3e0; --b2: #a9b9cf; --b3: #8aa0bd; --sleep: #5b6f8c; --unplanned: #e2e5de;
+  --c1: #7f9cc8; --c2: #d6ab60; --c3: #8db39f; --c4: #c98f78; --c5: #a594c7; --c6: #72adb1;
+  --sleep: #4d6187; --unplanned: #e3e6df;
   --display: "Newsreader", "Iowan Old Style", Georgia, serif;
   --text: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -347,14 +426,16 @@ STYLE = """
     --bg: #121416; --surface: #1a1d20; --sunken: #202428;
     --ink: #e7e9ea; --ink-soft: #a8afb5; --ink-faint: #838b92; --line: #2a2f34;
     --accent: #93b2e6; --warn: #e3a08a; --wait: #93a6c4; --chase: #d8a45c;
-    --b1: #3a4757; --b2: #4a5d78; --b3: #5b7395; --sleep: #2c3b50; --unplanned: #24282c;
+    --c1: #6482ad; --c2: #b38c4d; --c3: #6b9382; --c4: #a5715e; --c5: #8475a6; --c6: #5a9095;
+    --sleep: #394d6c; --unplanned: #24282c;
   }
 }
 :root[data-theme="dark"] {
   --bg: #121416; --surface: #1a1d20; --sunken: #202428;
   --ink: #e7e9ea; --ink-soft: #a8afb5; --ink-faint: #838b92; --line: #2a2f34;
   --accent: #93b2e6; --warn: #e3a08a; --wait: #93a6c4; --chase: #d8a45c;
-  --b1: #3a4757; --b2: #4a5d78; --b3: #5b7395; --sleep: #2c3b50; --unplanned: #24282c;
+  --c1: #6482ad; --c2: #b38c4d; --c3: #6b9382; --c4: #a5715e; --c5: #8475a6; --c6: #5a9095;
+  --sleep: #394d6c; --unplanned: #24282c;
 }
 * { box-sizing: border-box; }
 body {
@@ -373,27 +454,36 @@ h1 {
   font: 500 46px/1 var(--display); letter-spacing: -.02em; margin: 0; text-wrap: balance;
 }
 .clock { color: var(--ink-faint); font-size: 12px; text-align: right; margin: 0; max-width: 34ch; }
-.grid { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 44px; }
-.dial { width: 260px; max-width: 100%; height: auto; display: block; margin: -8px 0 0 -10px; }
-.dial-edge { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 1.5 4; }
-.dial-arc { stroke: var(--bg); stroke-width: 2; }
+.grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 44px; }
+.dial { width: 300px; max-width: 100%; height: auto; display: block; overflow: visible; margin: -6px 0 -14px; }
+.dial-track { fill: none; stroke: var(--unplanned); }
+.dial-face { fill: var(--surface); }
+.dial-arc { stroke: var(--bg); stroke-width: 1.5; }
 .dial-ring { fill: none; }
-.dial-hour { stroke: var(--line); stroke-width: 1.5; }
-.dial-hour-label {
-  fill: var(--ink-faint); font: 10px var(--text); text-anchor: middle;
-  dominant-baseline: middle; font-variant-numeric: tabular-nums;
+.dial-hour { stroke: var(--line); stroke-width: 1; }
+.dial-hour.major { stroke: var(--ink-faint); stroke-width: 1.2; }
+.dial-numeral {
+  fill: var(--ink-faint); font: 500 9.5px var(--text); text-anchor: middle;
+  dominant-baseline: central; font-variant-numeric: tabular-nums; letter-spacing: .02em;
 }
-.dial-fixed { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
-.dial-hand { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.dial-mark { stroke-linecap: round; }
+.dial-mark.fixed { stroke: var(--ink); stroke-width: 2.2; }
+.dial-mark.light { stroke: var(--ink-faint); stroke-width: 1.6; }
+.dial-mark-label { font: 500 10px var(--text); }
+.dial-mark-label.fixed { fill: var(--ink-soft); }
+.dial-mark-label.light { fill: var(--ink-faint); }
+.dial-hand { stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; }
+.dial-hand-tip { fill: var(--ink); stroke: var(--bg); stroke-width: 1.5; }
 .dial-now {
-  fill: var(--ink); font: 600 28px var(--text); text-anchor: middle; font-variant-numeric: tabular-nums;
+  fill: var(--ink); font: 500 36px var(--display); letter-spacing: -.01em;
+  text-anchor: middle; font-variant-numeric: tabular-nums lining-nums;
 }
-.dial-block { fill: var(--ink-soft); font: 12px var(--text); text-anchor: middle; }
-.dial-until { fill: var(--ink-faint); font: 11px var(--text); text-anchor: middle; font-variant-numeric: tabular-nums; }
-.legend { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; }
+.dial-block { fill: var(--ink); font: 600 12.5px var(--text); text-anchor: middle; }
+.dial-until { fill: var(--ink-faint); font: 11.5px var(--text); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; }
 .legend li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 9px; align-items: center; color: var(--ink-soft); }
 .legend li.now { color: var(--ink); font-weight: 600; }
-.legend i { width: 10px; height: 10px; border-radius: 2px; display: block; box-shadow: inset 0 0 0 1px rgba(128,128,128,.18); }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: block; }
 .legend time { color: var(--ink-faint); font-size: 12px; font-weight: 400; }
 .next { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
 .next-line { margin: 0; font-size: 14.5px; }
@@ -448,12 +538,14 @@ h1 {
 @media (max-width: 760px) {
   .grid, .lower { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .dial { margin: 0 auto; }
+  .legend { max-width: 340px; margin-left: auto; margin-right: auto; }
 }
 @media (max-width: 520px) {
   .page { padding: 22px 16px 40px; }
   .head { flex-direction: column; align-items: flex-start; gap: 8px; }
   .clock { text-align: left; }
   h1 { font-size: 38px; }
+  .dial { width: 264px; }
 }
 """
 
@@ -534,7 +626,12 @@ def render(data: BriefData) -> str:
   "use strict";
   var FROZEN = {str(data.clock_frozen).lower()};
   var BASE_MINUTES = {data.dial.now_minutes};
+  var DAY = "{data.generated_for.isoformat()}";
   var CX = {CX}, CY = {CY}, R_IN = {R_HAND_IN}, R_OUT = {R_HAND_OUT};
+  // Each block's spans as [start, end, block, the block's own end]; the reminders ahead as
+  // [title, minutes from this day's midnight].
+  var SPANS = {_script_json(_spans(data))};
+  var AHEAD = {_script_json(data.ahead)};
 
   function pointAt(minutes, r) {{
     var theta = 2 * Math.PI * ((minutes % 1440) / 1440);
@@ -542,27 +639,96 @@ def render(data: BriefData) -> str:
   }}
 
   function pad(n) {{ return (n < 10 ? "0" : "") + n; }}
+  function hhmm(m) {{ m = ((m % 1440) + 1440) % 1440; return pad(Math.floor(m / 60)) + ":" + pad(m % 60); }}
+
+  function until(m) {{
+    if (m <= 0) {{ return "now"; }}
+    if (m < 60) {{ return "in " + m + " minutes"; }}
+    var h = Math.floor(m / 60), rest = m % 60;
+    return rest ? "in " + h + "h " + rest + "m" : "in " + h + "h";
+  }}
+
+  // Days between this brief's day and today on this Mac: a brief opened on another day
+  // keeps its own day's words and only moves the hand.
+  function daysSince(now) {{
+    var p = DAY.split("-");
+    var then = new Date(+p[0], +p[1] - 1, +p[2]);
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((today - then) / 86400000);
+  }}
+
+  function setText(id, text) {{
+    var el = document.getElementById(id);
+    if (el && el.textContent !== text) {{ el.textContent = text; }}
+    return el;
+  }}
+
+  // A long block name shrinks to fit inside the face rather than running into the ring.
+  function fit(el, widest, size, smallest) {{
+    if (!el || !el.getComputedTextLength) {{ return; }}
+    el.style.fontSize = size + "px";
+    while (el.getComputedTextLength() > widest && size > smallest) {{
+      size -= 0.5;
+      el.style.fontSize = size + "px";
+    }}
+  }}
+
+  function words(minutes) {{
+    var block = null, i;
+    for (i = 0; i < SPANS.length; i++) {{
+      if (SPANS[i][0] <= minutes && minutes < SPANS[i][1]) {{ block = SPANS[i]; break; }}
+    }}
+    fit(setText("dial-block", block ? block[2] : "no block"), 136, 12.5, 9);
+    setText("dial-until", block ? "until " + hhmm(block[4]) : "day shape has a gap");
+    var rows = document.querySelectorAll(".legend li");
+    for (i = 0; i < rows.length; i++) {{
+      rows[i].className = block && rows[i].getAttribute("data-block") === String(block[3]) ? "now" : "";
+    }}
+
+    var line = document.getElementById("next-line"), next = null;
+    for (i = 0; i < AHEAD.length; i++) {{
+      if (AHEAD[i][1] >= minutes) {{ next = AHEAD[i]; break; }}
+    }}
+    if (!line) {{ return; }}
+    if (!next) {{
+      line.className = "next-line empty";
+      line.textContent = "Nothing else is scheduled today.";
+      return;
+    }}
+    line.className = "next-line";
+    line.textContent = "";
+    var title = document.createElement("strong"), at = document.createElement("time");
+    title.textContent = next[0];
+    at.textContent = hhmm(next[1]);
+    line.appendChild(title);
+    line.appendChild(document.createTextNode(" at "));
+    line.appendChild(at);
+    line.appendChild(document.createTextNode((next[1] >= 1440 ? " tomorrow" : "") + ", " + until(next[1] - minutes)));
+  }}
 
   function tick() {{
-    var minutes;
+    var minutes, days = 0;
     if (FROZEN) {{
       minutes = BASE_MINUTES;
     }} else {{
       var now = new Date();
       minutes = now.getHours() * 60 + now.getMinutes();
+      days = daysSince(now);
     }}
     var a = pointAt(minutes, R_IN), b = pointAt(minutes, R_OUT);
-    var hand = document.getElementById("hand");
+    var hand = document.getElementById("hand"), tip = document.getElementById("hand-tip");
     if (hand) {{
       hand.setAttribute("x1", a.x.toFixed(2));
       hand.setAttribute("y1", a.y.toFixed(2));
       hand.setAttribute("x2", b.x.toFixed(2));
       hand.setAttribute("y2", b.y.toFixed(2));
     }}
-    var label = document.getElementById("dial-now");
-    if (label) {{
-      label.textContent = pad(Math.floor(minutes / 60)) + ":" + pad(minutes % 60);
+    if (tip) {{
+      tip.setAttribute("cx", b.x.toFixed(2));
+      tip.setAttribute("cy", b.y.toFixed(2));
     }}
+    setText("dial-now", hhmm(minutes));
+    if (days === 0) {{ words(minutes); }}
   }}
 
   tick();
