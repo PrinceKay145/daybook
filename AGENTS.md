@@ -79,8 +79,9 @@ sets the size of today's list; ✅ the chosen model plans the day (it proposes a
 writes after the checks — no file tools; `runner/daybook/plan.py`); ✅ the "tell your
 secretary" box (propose → Apply/Discard) and setup in the user's own words; ✅ a tester
 install (`npm run dist:mac`, Python bundled, signed ad hoc; the guide is `TESTERS.md`);
-next, a design and UI pass across every screen — functionality first, so no polish before
-then. API keys are built but not offered in Beta 1 (`API_KEYS_OFFERED` in the model step). Reminders (S11), read grants
+✅ a design and UI pass across every screen and the brief (`design-system.md`: Newsreader
+and Hanken Grotesk bundled, the dial mark as the logo in `brand/`, light and dark). Next:
+put the build in testers' hands and listen. API keys are built but not offered in Beta 1 (`API_KEYS_OFFERED` in the model step). Reminders (S11), read grants
 (S10's file tools) and the automatic nightly close wait for tester feedback — do not start
 them. Requirements: `product-requirements.md`, "Beta 1".
 

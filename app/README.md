@@ -223,6 +223,10 @@ src/lib/dayShape.ts    the day's blocks, with the gaps filled as Unplanned
 src/lib/api.ts         a browser tab's route to a runner started by hand
 src/lib/auth.ts        Supabase client; dev-mode fallback; daybook://auth completion
 src/screens/*          Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
+src/index.css          the design tokens (palette, light and dark, type, corners) — design-system.md
+src/fonts.css          Newsreader and Hanken Grotesk from src/assets/fonts (bundled, SIL OFL)
+src/components/        the Daybook mark (Logo.tsx), onboarding and page frames, ui/ primitives
+resources/icon.png     the app icon, rendered from brand/daybook-app-icon.svg
 ```
 
 
