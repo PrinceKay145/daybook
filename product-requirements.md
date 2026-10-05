@@ -177,14 +177,17 @@ no rebuild button: the brief is fetched again whenever the window comes back to 
 Settings.
 
 **Settings & status** (required by the process model). **Built:** the brief time and the
-size of today's list, saved to `config.json`; the background jobs' state in a sentence
-(last check, last brief, last error) with a working **Stop** that unloads the launchd jobs
-*and removes their files* (`pkill` alone restarts within 60s; a file left behind returns at
-the next login) and a **Start** that restores them — the app never restarts jobs the user
-stopped; the folder (show in Finder) and the model (change); the account and **Sign out**;
-and **Details — everything Daybook runs**: every job by its macOS label with what it does,
-whether it is loaded and its last exit code, the app's and the runner's PIDs, and the one
-log directory, openable in Finder. **⏳ Still to come:** folder re-selection, and **folder access** — the connected
+size of today's list, saved to `config.json`; **"Write my brief even when Daybook is
+closed"** as one switch, with the last brief written and the last error, if any — off
+unloads the launchd jobs *and removes their files* (`pkill` alone restarts within 60s; a
+file left behind returns at the next login), on restores them, and the app never restarts
+jobs the user stopped; **Appearance** — the same as this Mac, light, or dark, for the whole
+app and the brief inside it; the folder (show in Finder) and the model (change); the
+account and **Sign out**; and "Something not working? Show Daybook's logs in Finder". Every
+word is one a person uses: the owner asked that nothing meant for developers shows to
+users. Development builds also show **For developers — everything Daybook runs**: every job
+by its macOS label with what it does, whether it is loaded and its last exit code, the
+app's and the runner's PIDs, and the log directory. **⏳ Still to come:** folder re-selection, and **folder access** — the connected
 folder's approval mode, the read-only folders granted, a revoke button for each, and the
 activity log (with the file tools, S10).
 

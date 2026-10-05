@@ -111,9 +111,11 @@ guessing, without sudo, and without knowing how it was built.
   sidecar runner are ever resident, and the runner dies with the app.
 - **Never a permanently-resident menu-bar daemon.** A crash costs one tick, not forever.
 - User-level `~/Library/LaunchAgents/` only. Processes are named after the product.
-- `status` prints every process with PID, purpose and log path. `stop` **unloads the launchd
-  jobs** — `pkill` alone restarts the tick in 60 seconds, and the docs must say so. One
-  documented log location. Uninstall removes our jobs and app data, leaves the folder alone,
+- Settings says in plain words what runs and has one switch that really stops it: off
+  **unloads the launchd jobs** — `pkill` alone restarts the tick in 60 seconds, and the docs
+  must say so. Every user can open the one documented log location from Settings; the
+  machinery itself (each job by its macOS label, every PID and the log path) is shown in
+  development builds only — the owner's call, so users never see developer detail. Uninstall removes our jobs and app data, leaves the folder alone,
   and says so before doing it.
 - Distribution: signed ad hoc (not notarized) for the friends alpha, with the one-time "Open
   Anyway" step in `TESTERS.md`, the guide sent with the disk image; notarize before any

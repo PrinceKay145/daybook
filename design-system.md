@@ -44,7 +44,9 @@ size.
   `var(--color-*)` and never hard-code a colour.
 - **Light and dark both, following the Mac** (`color-scheme: light dark`, a
   `prefers-color-scheme` override of the same variables, `:root[data-theme="dark"]` to force
-  it). Light was designed first; dark is graphite, drawn rather than inverted. Every new
+  it). Settings → Appearance can pin light or dark instead; the main process sets
+  Electron's `nativeTheme.themeSource`, so every page — the brief's frame too — and the
+  native controls follow, with no second mechanism. Light was designed first; dark is graphite, drawn rather than inverted. Every new
   colour needs both values, and every text colour must pass WCAG AA (4.5:1) on the canvas
   and on surfaces, in both themes — the current set does.
 
@@ -145,6 +147,11 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   (Settings, changing the model) with the wordmark and a way back.
 - **Grouped sections** (setup, Settings) — the group's name and one-line purpose on the
   left (190 wide), its fields on the right, a rule above each group.
+- **Segmented** (`ui/segmented.tsx`) — a choice among a few words (Appearance: Same as
+  this Mac · Light · Dark; setup's way of answering): a sunken track, the chosen word raised
+  on the surface.
+- **Switch** (same file) — on or off for one thing that runs, labelled by the sentence
+  beside it ("Write my brief even when Daybook is closed"). Accent when on.
 - **Radio lists** (choosing a model) — one bordered list with dividers, a radio dot per row,
   the selected row on `--color-sunken`, "Recommended" in accent text. No pills.
 - **Statuses** — WAIT and CHASE are words in small caps with a dot before them, never
@@ -158,9 +165,12 @@ Copied into `src/components/`, not installed — owned and restyled freely.
 ## Layout
 
 - The window is 1020 × 720, minimum 880 × 600; every screen works at both.
-- **Sign-in:** two columns — the mark, the big wordmark and one line of what Daybook is on
-  the left; the form on the right.
-- **Onboarding:** the rail and the step (`OnboardingFrame`); actions in a sticky bar.
+- **Sign-in:** two columns — the mark, the big wordmark and one line of what Daybook is,
+  centred in the left half, with what the account can and cannot see at its foot; the
+  form on the right.
+- **Onboarding:** the rail and the step, centred in what is left (`OnboardingFrame`);
+  actions in a sticky bar. Settings and changing the model are a centred column under a
+  bar with the wordmark and the way back (`PageFrame`).
 - **Scoreboard:** the brief is the page. A 48-high bar above (wordmark, the model as a text
   button, Plan again, Settings) and the message box below with the status line over it. The
   proposed day floats between the brief and the box.
@@ -193,6 +203,7 @@ Copied into `src/components/`, not installed — owned and restyled freely.
 
 ## Motion
 
-Colour and opacity transitions only (150 ms). Something new appears by fading in
+Colour and opacity transitions only (150 ms) — and a switch's knob, which slides because
+that is what a switch is. Something new appears by fading in
 (`fade-in`, the proposed day), never by sliding. A spinner appears only while the model is
 actually working. The app never looks busy while waiting on nothing.
