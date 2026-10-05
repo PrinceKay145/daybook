@@ -27,6 +27,15 @@ import { cn } from "@/lib/utils";
 
 const REFRESH_AFTER_MS = 60_000; // coming back to the window refetches the brief at most once a minute
 
+/* A date as a person reads it ("Wed 7 Oct"), as the brief shows it; anything else as written. */
+function readableDay(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!match) return iso;
+  const day = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const part = (options: Intl.DateTimeFormatOptions) => day.toLocaleDateString("en-GB", options);
+  return `${part({ weekday: "short" })} ${day.getDate()} ${part({ month: "short" })}`;
+}
+
 export function ScoreboardScreen({
   userId,
   planOnArrival,
@@ -349,7 +358,7 @@ function ProposalCard({
                     <span className={cn("text-[11px] font-semibold tracking-[0.08em]", row.status === "WAIT" ? "text-[var(--color-wait)]" : "text-[var(--color-chase)]")}>
                       {row.status}
                     </span>
-                    <span className="tnum text-[12px] text-[var(--color-ink-faint)]">{row.date}</span>
+                    <span className="tnum text-[12px] text-[var(--color-ink-faint)]">{readableDay(row.date)}</span>
                   </li>
                 ))}
               </ul>
