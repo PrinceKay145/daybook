@@ -1,6 +1,7 @@
 /* Login / Sign-up. Identity only — the screen says what the account is for and what it
    is not for, because "why does a file app need a login?" deserves a straight answer.
-   Two columns: the brand on the left (the app's one big wordmark), the form on the right. */
+   Two columns: the brand on the left, centred in its half (the app's one big wordmark),
+   the form on the right. */
 
 import { useState } from "react";
 import {
@@ -125,16 +126,17 @@ export function LoginScreen({
   const note = "rounded-[var(--radius-control)] border px-3 py-2 text-[12.5px]";
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[1.1fr_1fr]">
-      {/* The one brand moment: the mark, the name, and what the product is. */}
-      <section className="flex flex-col justify-between gap-10 border-b border-[var(--color-line)] px-10 py-12 md:border-b-0 md:border-r md:px-14 md:py-14">
-        <div>
-          <Mark className="size-14" />
+      {/* The one brand moment: the mark, the name, and what the product is — centred in
+          its half, with what the account can and cannot see at the foot. */}
+      <section className="grid grid-rows-[1fr_auto] justify-items-center gap-10 border-b border-[var(--color-line)] px-10 py-12 text-center md:border-b-0 md:border-r md:px-14 md:py-14">
+        <div className="self-center">
+          <Mark className="mx-auto size-14" />
           <h1 className="mt-7 font-display text-[60px] leading-none font-medium tracking-[-0.03em]">Daybook</h1>
-          <p className="mt-4 max-w-[30ch] text-[17px] text-[var(--color-ink-soft)]">
+          <p className="mx-auto mt-4 max-w-[30ch] text-[17px] text-[var(--color-ink-soft)] text-balance">
             Your day, planned each morning from a folder you own.
           </p>
         </div>
-        <p className="max-w-[42ch] text-[12.5px] text-[var(--color-ink-faint)]">
+        <p className="max-w-[42ch] text-[12.5px] text-[var(--color-ink-faint)] text-balance">
           The account only knows who you are. Your files stay in your folder on this Mac, and it
           never sees them.
         </p>
