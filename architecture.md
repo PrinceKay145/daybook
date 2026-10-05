@@ -162,6 +162,23 @@ after checking again. One planning run at a time; a second request is told so. S
 **own words** need no model call: the text goes verbatim into `SETUP-CONTEXT.md`, which the
 first-day plan reads like any other file.
 
+**Bringing it from another AI.** The handover the other AI writes is read by the runner, not
+a model — `python -m daybook handover` takes `{"text"}` on stdin and returns the setup
+form's fields (`importer.py`): headings matched by their words, bullets of any kind, times
+as "07:00–09:00" or "7–9am", "unknown" as unknown, and a list of what it left out. It reads
+stdin and writes nothing; the main process calls it (`setup:readHandover`) and the
+document is never logged. The same command reads `{"fixed": [lines]}` into config
+non-negotiables at "Write my folder", so a fixed time typed by hand is marked on the dial
+too. The whole document becomes `HANDOVER.md`, one of the files the planner is shown.
+
+**Numbers and ticks.** The planning answer also carries `scoreboard` (`{id, value, note}`
+for metrics in config.json, never one with `tracking: false`) and `ticked` (habit ids).
+Daybook refuses an unknown id and a number without a note, drops a value the day state
+already shows and any tick when there was no message, rewrites the Scoreboard table only
+when a number arrived or a tracked metric has no row (dated notes, other rows kept as they
+were), and counts "Today's ticks" from `TICKS.md` for habits it set up (they carry
+`since`). Applying a plan appends the ticks to `TICKS.md`, once per habit per day.
+
 How each connection is asked — arguments fixed in `secretary.py`, as a list, no shell, the
 model id pattern-checked, the prompt on stdin, in an empty temporary directory, with a small
 known environment:
@@ -331,6 +348,7 @@ never the folder).
    `fixtures/sample-folder` and `fixtures/fresh-folder` on the frozen clock. Built.
 3. **The law eval harness runs on every prompt change and model bump** —
    `python -m daybook evals --cli claude|codex [--model …]` (`runner/daybook/evals.py`).
+   It times each model call, which is also how planning's latency is measured.
    Scenarios plant one temptation each in a copy of the sample folder (room to pad, a
    finished thing asked back, instructions planted in a file, a message that adds and
    closes) and check the laws on the model's *first* answer, before Daybook's refusals.
