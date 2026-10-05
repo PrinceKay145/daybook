@@ -187,11 +187,14 @@ export function ScoreboardScreen({
 
       <main className="relative min-h-0 flex-1">
         <BriefView brief={brief} />
+        {/* The proposal floats over today's brief, which steps back behind a wash of the
+            page's own colour: the brief is what is true now, the card is what would be. */}
+        {proposal?.proposal && (
+          <div className="fade-in absolute inset-0 flex flex-col justify-end bg-[color-mix(in_srgb,var(--color-canvas)_72%,transparent)] px-5 pb-3 pt-6">
+            <ProposalCard outcome={proposal} applying={applying} onApply={() => void applyProposal()} onDiscard={discardProposal} />
+          </div>
+        )}
       </main>
-
-      {proposal?.proposal && (
-        <ProposalCard outcome={proposal} applying={applying} onApply={() => void applyProposal()} onDiscard={discardProposal} />
-      )}
 
       <footer className="shrink-0 border-t border-[var(--color-line)] px-5 pb-3 pt-2">
         <StatusLine
@@ -305,14 +308,15 @@ function ProposalCard({
   const day = outcome.proposal!;
   const label = "label mt-4 first:mt-0";
   return (
-    <section className="shrink-0 px-5 pb-1 pt-2">
-      <Card className="mx-auto max-w-3xl p-4 shadow-[0_12px_32px_-18px_rgb(0_0_0/0.35)]">
+    <section aria-labelledby="proposal-title" className="mx-auto flex max-h-full w-full max-w-3xl min-h-0">
+      <Card className="flex min-h-0 w-full flex-col p-5 shadow-[0_18px_40px_-22px_rgb(0_0_0/0.45)]">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="font-display text-[19px] font-medium">{outcome.model || "Your secretary"} proposes this for today</h2>
+          <h2 id="proposal-title" className="label text-[var(--color-accent)]">Proposed for today</h2>
+          <span className="truncate text-[12px] text-[var(--color-ink-faint)]">by {outcome.model || "your secretary"}</span>
         </div>
-        {outcome.summary && <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">{outcome.summary}</p>}
+        {outcome.summary && <p className="mt-1.5 font-display text-[18px] leading-[1.35] font-medium text-pretty">{outcome.summary}</p>}
 
-        <div className="mt-3 max-h-[34vh] overflow-y-auto border-t border-[var(--color-line)] pt-3 text-[13.5px]">
+        <div className="mt-4 min-h-0 overflow-y-auto border-t border-[var(--color-line)] pt-3 text-[13.5px]">
           <p className={label}>Today</p>
           {day.today_list.length === 0 ? (
             <p className="mt-1 text-[var(--color-ink-soft)]">— {day.list_reason}</p>
@@ -383,7 +387,7 @@ function ProposalCard({
           )}
         </div>
 
-        <div className="mt-3 flex items-center gap-2 border-t border-[var(--color-line)] pt-3">
+        <div className="mt-3 flex shrink-0 items-center gap-2 border-t border-[var(--color-line)] pt-3">
           <Button onClick={onApply} disabled={applying}>
             {applying ? "Applying…" : "Apply"}
           </Button>
