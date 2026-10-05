@@ -276,18 +276,20 @@ def read_handover(text: str) -> dict:
     fixed = _items(sections.get("fixed", []))[:20]
     draft["fixed"] = fixed
     unread = [line for line in fixed if read_fixed(line) is None]
-    if unread:
-        draft["notes"].append(
-            f"{len(unread)} fixed thing(s) name no time, so they're kept as words: " + "; ".join(unread[:3]))
+    if len(unread) == 1:
+        draft["notes"].append(f"“{unread[0][:80]}” names no time, so it's kept as words rather than marked on your dial.")
+    elif unread:
+        draft["notes"].append(f"{len(unread)} fixed things name no time, so they're kept as words rather than "
+                              "marked on your dial: " + "; ".join(u[:60] for u in unread[:3]))
 
     accepted: list[dict] = []
     for line in _items(sections.get("day", [])):
         block = read_block(line)
         if block is None:
-            draft["notes"].append(f"A line of your day had no clear times and was left out: \"{line[:80]}\"")
+            draft["notes"].append(f"“{line[:80]}” has no clear times, so it was left out of your day.")
             continue
         if max(_covers([*accepted, block])) > 1:
-            draft["notes"].append(f"\"{block['block']}\" overlaps an earlier block, so it was left out.")
+            draft["notes"].append(f"“{block['block']}” overlaps an earlier block, so it was left out of your day.")
             continue
         accepted.append(block)
     draft["day_shape"] = accepted

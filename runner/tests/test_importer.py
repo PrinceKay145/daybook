@@ -7,9 +7,10 @@ whatever shape the person used.
 
 from __future__ import annotations
 
+import re
 import unittest
 
-import support  # noqa: F401 — puts the runner on the path
+from support import REPO
 
 from daybook import importer
 
@@ -74,7 +75,7 @@ class AHandover(unittest.TestCase):
 
     def test_says_what_it_left_out_rather_than_guessing(self):
         notes = " ".join(self.draft["notes"])
-        self.assertIn('"Lunch" overlaps an earlier block', notes)
+        self.assertIn("“Lunch” overlaps an earlier block", notes)
         self.assertIn("Evenings free", notes)
         self.assertIn("Sunday off", notes)
 
@@ -105,6 +106,18 @@ class OtherShapes(unittest.TestCase):
     def test_two_things_with_one_name_get_two_ids(self):
         draft = importer.read_handover("## Habits\n- Walk\n- Walk!\n")
         self.assertEqual(["walk", "walk_2"], [h["id"] for h in draft["habits"]])
+
+
+class ThePrompt(unittest.TestCase):
+    """The app's prompt and this reader agree: an AI that only echoes the template back,
+    instructions and examples included, fills nothing."""
+
+    def test_the_template_echoed_back_fills_nothing(self):
+        source = (REPO / "app" / "src" / "lib" / "handover.ts").read_text(encoding="utf-8")
+        prompt = re.search(r"HANDOVER_PROMPT = `(.*?)`;", source, re.S).group(1)
+        draft = importer.read_handover(prompt[prompt.index("# Daybook handover"):])
+        self.assertEqual([], draft["found"])
+        self.assertEqual([], draft["habits"])
 
 
 class OneLineOfFixedTime(unittest.TestCase):
