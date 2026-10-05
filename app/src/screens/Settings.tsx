@@ -1,18 +1,19 @@
-/* Settings & status. The process model's promise made visible: a user can find, inspect
-   and stop everything Daybook runs, without guessing and without knowing how it was built
-   (AGENTS.md). Stop is in plain view and really stops — it removes the jobs, so nothing
-   returns at the next login; "Details" names every job as macOS knows it, with what it
-   does, its last exit and where it logs, and every process with its PID. The brief time
-   and the size of today's list edit config.json, where the tick reads them within a
-   minute. (The close time stays in config.json but isn't asked for until the nightly
-   close exists.) Signing out lives here too. */
+/* Settings & status. The process model's promise, in words a person uses: what runs on
+   this Mac is said plainly, and one switch really stops it — it removes the background
+   jobs, so nothing returns at the next login (AGENTS.md). The machinery itself (each job by
+   its macOS label, every PID, the log directory) is shown in development builds only;
+   everyone gets a way to open the logs to send them to us. The brief time and the size of
+   today's list edit config.json, where the tick reads them within a minute. (The close
+   time stays in config.json but isn't asked for until the nightly close exists.)
+   Appearance and signing out live here too. */
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, ChevronRight, FolderOpen, LogOut, RefreshCw } from "lucide-react";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { Segmented, Switch } from "@/components/ui/segmented";
 import { PageFrame } from "@/components/OnboardingFrame";
 import { cn } from "@/lib/utils";
-import { daybook, LIST_MAX, type Connection, type SystemStatus } from "@/lib/daybook";
+import { daybook, LIST_MAX, type Appearance, type Connection, type SystemStatus } from "@/lib/daybook";
 import { LIST_MAX_HINT, ListMaxSelect, things } from "@/components/ListMaxSelect";
 import { describeChoice } from "@/lib/models";
 
@@ -21,6 +22,20 @@ function clockTime(iso?: string): string {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? iso : at.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
 }
+
+/* "2026-10-06" → "Tue 6 Oct"; anything else as written. */
+function readableDay(text: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if (!match) return text;
+  const day = new Date(+match[1], +match[2] - 1, +match[3]);
+  return `${day.toLocaleDateString("en-GB", { weekday: "short" })} ${day.getDate()} ${day.toLocaleDateString("en-GB", { month: "short" })}`;
+}
+
+const APPEARANCE_OPTIONS = [
+  ["system", "Same as this Mac"],
+  ["light", "Light"],
+  ["dark", "Dark"],
+] as const;
 
 export function SettingsScreen({
   folder,
@@ -48,6 +63,7 @@ export function SettingsScreen({
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [appearance, setAppearance] = useState<Appearance>("system");
 
   const refresh = useCallback(async () => {
     try {
@@ -59,6 +75,7 @@ export function SettingsScreen({
 
   useEffect(() => {
     void refresh();
+    daybook.getAppearance().then(setAppearance).catch(() => {});
     daybook
       .readSchedule(folder)
       .then((s) => {
@@ -89,21 +106,28 @@ export function SettingsScreen({
     }
   }
 
+  async function chooseAppearance(value: Appearance) {
+    setError(null);
+    setAppearance(value);
+    try {
+      setAppearance(await daybook.setAppearance(value));
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   async function saveSchedule() {
     setError(null);
     setSavedNote(null);
     try {
       const saved = await daybook.setSchedule(folder, { briefTime, closeTime, listMax });
       onSaved({ briefTime: saved.briefTime });
-      setSavedNote(
-        `Saved to config.json — the next brief arrives at ${saved.briefTime}, with at most ${things(saved.listMax)} on today's list.`,
-      );
+      setSavedNote(`Saved. Your next brief arrives at ${saved.briefTime}, with at most ${things(saved.listMax)} on today's list.`);
     } catch (err) {
       setError((err as Error).message);
     }
   }
 
-  const running = status?.jobs.every((j) => j.loaded) ?? false;
   const state = status?.state ?? {};
 
   const folderName = folder.split("/").filter(Boolean).pop() ?? folder;
@@ -112,7 +136,7 @@ export function SettingsScreen({
   return (
     <PageFrame
       title="Settings"
-      intro="Your day, your folder and model, and everything Daybook runs on this Mac — with a way to stop it."
+      intro="Your day, how Daybook looks, your folder and model, and your account."
       back={
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft />
@@ -120,82 +144,101 @@ export function SettingsScreen({
         </Button>
       }
     >
-      <div className="max-w-3xl">
-        <Section title="Your day" description="When the brief arrives, and how long today's list can be.">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Morning brief at">
-              <input id="settings-brief-time" className={cn(inputClass, "tnum")} type="time" value={briefTime} onChange={(e) => setBriefTime(e.target.value)} />
-            </Field>
-            <Field label="Today's list holds at most" hint={LIST_MAX_HINT}>
-              <ListMaxSelect value={listMax} onChange={setListMax} />
-            </Field>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="secondary" onClick={() => void saveSchedule()} disabled={!briefTime || !closeTime}>
-              Save
-            </Button>
-            {savedNote && <span className="text-[12.5px] text-[var(--color-ink-soft)]">{savedNote}</span>}
-          </div>
-        </Section>
+      <Section title="Your day" description="When the brief arrives, and how long today's list can be.">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Morning brief at">
+            <input id="settings-brief-time" className={cn(inputClass, "tnum")} type="time" value={briefTime} onChange={(e) => setBriefTime(e.target.value)} />
+          </Field>
+          <Field label="Today's list holds at most" hint={LIST_MAX_HINT}>
+            <ListMaxSelect value={listMax} onChange={setListMax} />
+          </Field>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" onClick={() => void saveSchedule()} disabled={!briefTime || !closeTime}>
+            Save
+          </Button>
+          {savedNote && <span className="text-[12.5px] text-[var(--color-ink-soft)]">{savedNote}</span>}
+        </div>
+      </Section>
 
-        <Section title="Your brief, on its own" description="Written at its time even when this window is closed.">
-          <p className="text-[14px] text-[var(--color-ink-soft)]">
-            {running
-              ? <>Daybook checks once a minute and writes your brief at <span className="tnum">{briefTime || "its time"}</span>. Each check runs for a moment and exits; nothing stays running.</>
-              : "The background jobs are stopped, so your brief is only built when you open Daybook."}
-          </p>
-          <p className="text-[12.5px] text-[var(--color-ink-faint)]">
-            Last check {clockTime(state.last_tick)} · last brief written {state.last_brief ?? "none yet"}
-            {state.last_error ? ` · last error: ${state.last_error}` : ""}
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant={backgroundJobs === "off" ? "primary" : "secondary"} disabled={busy} onClick={() => void toggleJobs()}>
-              {backgroundJobs === "off" ? "Start the background jobs" : "Stop the background jobs"}
-            </Button>
-            <span className="text-[12.5px] text-[var(--color-ink-faint)]">
-              {backgroundJobs === "off"
-                ? "Adds two small jobs to ~/Library/LaunchAgents and loads them."
-                : "Removes them, so nothing comes back at the next login."}
-            </span>
+      <Section title="Your brief, on its own" description="Written at its time, even when this window is closed.">
+        <div className="flex items-start justify-between gap-6">
+          <div className="min-w-0">
+            <p id="settings-jobs-label" className="text-[14px] font-semibold">Write my brief even when Daybook is closed</p>
+            <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">
+              {backgroundJobs === "on"
+                ? <>Your brief is written at <span className="tnum">{briefTime || "its time"}</span> each morning. Nothing stays running in between.</>
+                : "Off: your brief is only written when you open Daybook."}
+            </p>
           </div>
-        </Section>
+          <Switch
+            id="settings-jobs"
+            labelledBy="settings-jobs-label"
+            checked={backgroundJobs === "on"}
+            disabled={busy}
+            onChange={() => void toggleJobs()}
+          />
+        </div>
+        <p className="text-[12.5px] text-[var(--color-ink-faint)]">
+          Last brief written: {state.last_brief ? readableDay(state.last_brief) : "none yet"}
+        </p>
+        {state.last_error && (
+          <p className="text-[12.5px] text-[var(--color-warn)]">The last try didn't work: {state.last_error}</p>
+        )}
+      </Section>
 
-        <Section title="Folder and model" description="Where your secretary works, and the AI it uses.">
-          <div className="text-[14px]">
-            <p className="font-semibold">{folderName}</p>
-            <p className="truncate font-mono text-[12px] text-[var(--color-ink-faint)]" title={folder}>{folder}</p>
-            <button type="button" className={cn(link, "mt-1 inline-flex items-center gap-1 text-[13px] text-[var(--color-ink-soft)]")} onClick={() => void daybook.revealFolder(folder)}>
-              <FolderOpen className="size-3.5" />
-              Show in Finder
-            </button>
-          </div>
-          <p className="text-[14px]">
-            {connection ? describeChoice(connection) : "No model chosen"}{" "}
-            <button type="button" className={cn(link, "ml-1 text-[13px] text-[var(--color-ink-soft)]")} onClick={onChangeAI}>
-              Change
-            </button>
-          </p>
-        </Section>
+      <Section title="Appearance" description="Light, dark, or the same as your Mac.">
+        <Segmented label="Appearance" value={appearance} options={APPEARANCE_OPTIONS} onChange={(value) => void chooseAppearance(value)} />
+      </Section>
 
-        <Section title="Account" description="Who you are signed in as. It never sees your files.">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[14px]">{accountEmail}</p>
-            <Button variant="secondary" onClick={onSignOut}>
-              <LogOut />
-              Sign out
-            </Button>
-          </div>
-        </Section>
+      <Section title="Folder and model" description="Where your secretary works, and the AI it uses.">
+        <div className="flex flex-wrap items-baseline gap-x-3 text-[14px]">
+          <p className="font-semibold" title={folder}>{folderName}</p>
+          <button type="button" className={cn(link, "inline-flex items-center gap-1 text-[13px] text-[var(--color-ink-soft)]")} onClick={() => void daybook.revealFolder(folder)}>
+            <FolderOpen className="size-3.5" />
+            Show in Finder
+          </button>
+        </div>
+        <p className="text-[14px]">
+          {connection ? describeChoice(connection) : "No model chosen"}{" "}
+          <button type="button" className={cn(link, "ml-1 text-[13px] text-[var(--color-ink-soft)]")} onClick={onChangeAI}>
+            Change
+          </button>
+        </p>
+      </Section>
 
-        <section className="border-t border-[var(--color-line)] py-6">
+      <Section title="Account" description="Who you are signed in as. It never sees your files.">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[14px]">{accountEmail}</p>
+          <Button variant="secondary" onClick={onSignOut}>
+            <LogOut />
+            Sign out
+          </Button>
+        </div>
+      </Section>
+
+      <p className="border-t border-[var(--color-line)] pt-5 text-[12.5px] text-[var(--color-ink-faint)]">
+        Something not working?{" "}
+        {status ? (
+          <button type="button" className={link} onClick={() => void daybook.revealLog(`${status.logDir}/tick.log`)}>
+            Show Daybook's logs in Finder
+          </button>
+        ) : (
+          "Daybook's logs"
+        )}{" "}
+        — sending them to us helps find the problem.
+      </p>
+
+      {import.meta.env.DEV && (
+        <section className="mt-6 border-t border-[var(--color-line)] py-6">
           <details className="group">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-[14px] font-semibold">
               <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
-              Details — everything Daybook runs
+              For developers — everything Daybook runs
             </summary>
             <div className="mt-4 space-y-4 pl-6 text-[13px] text-[var(--color-ink-soft)]">
               <div className="flex items-center justify-between gap-3">
-                <p>Each process, as macOS knows it.</p>
+                <p>Each process, as macOS knows it. Shown in development builds only.</p>
                 <Button variant="ghost" onClick={() => void refresh()}>
                   <RefreshCw />
                   Refresh
@@ -222,24 +265,15 @@ export function SettingsScreen({
                     : "not running (it starts with today's brief, and stops when Daybook quits)"}
                 </li>
               </ul>
-              {status && (
-                <p className="text-[12.5px] text-[var(--color-ink-faint)]">
-                  All logs: <code className="font-mono">{status.logDir}</code>{" "}
-                  <button type="button" className={link} onClick={() => void daybook.revealLog(`${status.logDir}/tick.log`)}>
-                    Show in Finder
-                  </button>
-                </p>
-              )}
               <p className="text-[12.5px] text-[var(--color-ink-faint)]">
-                Folder access (read-only folders you grant, and how changes are approved) arrives with
-                the secretary's file tools.
+                Last check {clockTime(state.last_tick)}{status && <> · logs in <code className="font-mono">{status.logDir}</code></>}
               </p>
             </div>
           </details>
         </section>
+      )}
 
-        <ErrorNote message={error} />
-      </div>
+      <ErrorNote message={error} />
     </PageFrame>
   );
 }

@@ -214,6 +214,9 @@ interface DaybookBridge {
   listModels(provider: ListableModelProvider, secret: string): Promise<ModelOption[]>;
   /** Name/path the OS reports as the daybook:// handler; empty when none. */
   protocolHandler(): Promise<string>;
+  /** Light, dark, or following the Mac — for the whole app, the brief included. */
+  getAppearance(): Promise<Appearance>;
+  setAppearance(value: Appearance): Promise<Appearance>;
   /** Returns the unsubscribe. */
   onAuthCallback(callback: (url: string) => void): () => void;
 }
@@ -223,7 +226,21 @@ const bridge = (window as { daybook?: DaybookBridge }).daybook ?? null;
 /** True when running inside the Electron shell; false in a plain browser tab. */
 export const isDesktop = bridge !== null;
 
+if (!bridge) {
+  const saved = localStorage.getItem("daybook.appearance");
+  if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
+}
+
 const LS_KEY = "daybook.users";
+
+export type Appearance = "system" | "light" | "dark";
+
+/* In a browser tab there is no Electron to set the colour scheme, so the page's own
+   data-theme attribute stands in (the brief's frame keeps following the system). */
+function browserAppearance(): Appearance {
+  const saved = localStorage.getItem("daybook.appearance");
+  return saved === "light" || saved === "dark" ? saved : "system";
+}
 
 function browserUsers(): Record<string, UserSettings> {
   try {
@@ -277,6 +294,13 @@ export const daybook: DaybookBridge = bridge ?? {
   listModels: () => refuse("Listing a provider's models"),
   startAuthLoopback: () => refuse("Listening for the sign-in"),
   protocolHandler: async () => "",
+  getAppearance: async () => browserAppearance(),
+  setAppearance: async (value) => {
+    localStorage.setItem("daybook.appearance", value);
+    if (value === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = value;
+    return value;
+  },
   /* In a browser, Supabase handles the redirect itself. */
   onAuthCallback: () => () => {},
 };

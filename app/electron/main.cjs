@@ -3,7 +3,7 @@
    and to this IPC bridge, never to the filesystem directly, so it stays runnable in a
    plain browser and wrappable in another shell. */
 
-const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, nativeTheme } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
@@ -59,6 +59,35 @@ async function writeTextAtomic(file, text) {
   await fsp.rename(tmp, file);
 }
 
+/* ---------- appearance: light, dark, or the Mac's own setting ----------
+   One switch for the whole app. Electron's themeSource sets prefers-color-scheme for every
+   page it shows, the brief's frame included, and for the native controls, so nothing
+   else needs telling. Kept beside the accounts in settings.json: it belongs to the Mac,
+   not to an account. */
+
+const APPEARANCES = ["system", "light", "dark"];
+
+function canvasColour() {
+  return nativeTheme.shouldUseDarkColors ? "#121416" : "#f2f3ef";
+}
+
+function applyAppearance(value) {
+  nativeTheme.themeSource = APPEARANCES.includes(value) ? value : "system";
+  if (win && !win.isDestroyed()) win.setBackgroundColor(canvasColour());
+  return nativeTheme.themeSource;
+}
+
+ipcMain.handle("appearance:get", () => nativeTheme.themeSource);
+
+ipcMain.handle("appearance:set", (_event, value) =>
+  serially(async () => {
+    if (!APPEARANCES.includes(value)) throw new Error("Appearance is system, light or dark.");
+    const store = await readStore();
+    await writeJsonAtomic(settingsPath(), { ...store, appearance: value });
+    return applyAppearance(value);
+  }),
+);
+
 /* ---------- window ---------- */
 
 let win = null;
@@ -70,7 +99,7 @@ function createWindow() {
     minWidth: 880,
     minHeight: 600,
     title: "Daybook",
-    backgroundColor: "#f6f5f3",
+    backgroundColor: canvasColour(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -165,6 +194,7 @@ if (!gotLock) {
       const icon = path.join(__dirname, "..", "resources", "icon.png");
       if (fs.existsSync(icon)) app.dock.setIcon(icon);
     }
+    applyAppearance((await readJson(settingsPath()))?.appearance);
     await offerMoveToApplications();
     // Register in dev too, so the Google round-trip can be tested before packaging.
     const registered = process.defaultApp
@@ -240,7 +270,7 @@ ipcMain.handle("settings:save", (_event, { userId, patch }) =>
     const id = requireUserId(userId);
     const store = await readStore();
     const next = { ...(store.users[id] ?? {}), ...(patch ?? {}) };
-    await writeJsonAtomic(settingsPath(), { version: 2, users: { ...store.users, [id]: next } });
+    await writeJsonAtomic(settingsPath(), { ...store, version: 2, users: { ...store.users, [id]: next } });
     return next;
   }),
 );
