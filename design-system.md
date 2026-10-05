@@ -59,15 +59,24 @@ size.
 | `--color-ink-soft` | `#4c535a` | `#a8afb5` | Secondary text, explanations |
 | `--color-ink-faint` | `#687078` | `#838b92` | Labels, hints, meta (AA at 4.5:1) |
 | `--color-line` | `#d9dcd5` | `#2a2f34` | Rules and borders |
-| `--color-accent` | `#26487a` | `#93b2e6` | Daybook ink blue: primary buttons, the block you're in, focus |
+| `--color-accent` | `#26487a` | `#93b2e6` | Daybook ink blue: primary buttons, focus, "Proposed for today" |
 | `--color-accent-ink` | `#ffffff` | `#0e1a2b` | Text on the accent |
 | `--color-wait` | `#556884` | `#93a6c4` | WAIT on the board |
 | `--color-chase` | `#8a5410` | `#d8a45c` | CHASE on the board |
 | `--color-warn` | `#8f3b2a` | `#e3a08a` | Failures and things needing attention |
 
-The brief's dial adds tints of the ink for blocks (`--b1` `--b2` `--b3`), a deeper one for
-sleep (`--sleep`), and a quiet one for unplanned time (`--unplanned`), which never takes the
-accent — it is not a plan.
+**The dial's inks** (in the brief only) are the one place with several hues, because telling
+the day's blocks apart is the dial's job. Six muted inks — blue, ochre, sage, clay,
+lavender, teal (`--c1`…`--c6`) — go to the blocks in the order the day shape lists them, warm
+and cool alternating so neighbours differ; a label that appears twice keeps its colour. Sleep
+is a deeper slate (`--sleep`); unplanned time is the quiet track (`--unplanned`) and never one
+more colour — it is not a plan.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--c1` … `--c6` | `#7f9cc8` `#d6ab60` `#8db39f` `#c98f78` `#a594c7` `#72adb1` | `#6482ad` `#b38c4d` `#6b9382` `#a5715e` `#8475a6` `#5a9095` |
+| `--sleep` | `#4d6187` | `#394d6c` |
+| `--unplanned` | `#e3e6df` | `#24282c` |
 
 ## Type
 
@@ -105,6 +114,8 @@ question. Headings use `text-wrap: balance`.
 - Corners: `--radius-control` 6 for buttons, fields and rows; `--radius-card` 10 for the
   few things that float.
 - One shadow in the product: under the proposed-day card, because it floats over the brief.
+  While it is up, the brief steps back behind a wash of the page's own colour (72%) — no
+  blur, no glass.
 
 ## Components
 
@@ -123,7 +134,11 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   one. A password placeholder is words ("Your password"), never dots.
 - **SectionLabel** — the `label` style as an `h2`.
 - **Card** (`ui/card.tsx`) — only for what floats: the proposed day. Sections are never
-  cards.
+  cards. The proposed day reads: "Proposed for today" in accent caps with the model on the
+  right, the model's one-line summary as the headline (Newsreader 18), then the list, what
+  is marked done, the board and questions, and Apply / Discard with "Nothing is written
+  until you apply." It lies over the brief (which stays whole behind the wash, never cut off
+  mid-line) and scrolls inside itself when it is long.
 - **OnboardingFrame / PageFrame** (`OnboardingFrame.tsx`) — onboarding's left rail (the
   wordmark and the three steps; a finished step shows what was chosen) with the step on the
   right and an optional sticky action bar; `PageFrame` is the same page outside onboarding
@@ -151,9 +166,20 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   proposed day floats between the brief and the box.
 - **The brief** (`render.py`): a 1000-wide page; the date as a 46 headline with the weekday
   as a label above it; two columns at full width (the dial, its legend with hours, and Next
-  up at 270; today's list beside it), then Scoreboard and Ticks side by side, then Waiting
+  up at 300; today's list beside it), then Scoreboard and Ticks side by side, then Waiting
   on others, questions, notes, and the closing line. One column under 760; phone padding
-  under 520. It keeps the spec's reading order.
+  and a 264 dial under 520. It keeps the spec's reading order.
+- **The dial**: midnight at the top, clockwise. A thick ring of the day's blocks (the inks
+  above) around a face in `--surface`; every hour ticked on the inside of the ring and every
+  third numbered (00, 03 … 21). The hand crosses the ring, so it points at the block you
+  are in, with a dot at its outer end; the time sits in the middle in Newsreader 36, the
+  block's name and "until 09:00" beneath. What is fixed in time ticks *outside* the ring
+  with its name beside it: non-negotiables in ink, the light schedule (daylight, a prayer
+  timetable, tides) fainter. A label that would collide steps outward a line; one that
+  still would is left to the tick's tooltip, never drawn over another. Labels may run into
+  the page margin, never past the window. The page's script keeps the hand, the time, the
+  block, "until", the legend's bold row and Next up true while the page stays open; a brief
+  opened on another day only moves the hand.
 
 ## Copy voice
 
@@ -167,5 +193,6 @@ Copied into `src/components/`, not installed — owned and restyled freely.
 
 ## Motion
 
-Colour and opacity transitions only (150 ms). A spinner appears only while the model is
+Colour and opacity transitions only (150 ms). Something new appears by fading in
+(`fade-in`, the proposed day), never by sliding. A spinner appears only while the model is
 actually working. The app never looks busy while waiting on nothing.
