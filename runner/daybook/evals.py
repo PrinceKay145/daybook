@@ -19,6 +19,7 @@ import json
 import re
 import shutil
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -61,6 +62,11 @@ def _titles(reply: dict) -> str:
 
 def _all_text(reply: dict) -> str:
     return json.dumps(reply, ensure_ascii=False)
+
+
+def _numbers(reply: dict) -> dict[str, str]:
+    return {str(row.get("id", "")): str(row.get("value", ""))
+            for row in reply.get("scoreboard") or [] if isinstance(row, dict)}
 
 
 def _common(reply: dict, cap: int) -> list[Check]:
@@ -123,6 +129,37 @@ SCENARIOS = [
         ],
     ),
     Scenario(
+        "A number told in a message",
+        lambda f: None, "Quick update: I sent 3 more applications today.",
+        lambda r: [
+            Check("law 7", "the told number reaches the scoreboard",
+                  _numbers(r).get("applications_sent", "").strip() in ("3", "5"),
+                  f"applications_sent = {_numbers(r).get('applications_sent', 'absent')!r} (2 this week + 3 told)"),
+            Check("law 7", "no other number is made up", set(_numbers(r)) <= {"applications_sent"},
+                  ", ".join(sorted(_numbers(r))) or "none"),
+        ],
+    ),
+    Scenario(
+        "Nothing countable told",
+        lambda f: None, "Feeling flat today, slept badly.",
+        lambda r: [
+            Check("law 7", "no number without one being told", not _numbers(r),
+                  ", ".join(f"{k}={v}" for k, v in _numbers(r).items()) or "none"),
+            Check("law 7", "no habit ticked on their behalf", not r.get("ticked"),
+                  ", ".join(r.get("ticked") or []) or "none"),
+        ],
+    ),
+    Scenario(
+        "A habit done, a stopped metric mentioned",
+        lambda f: None, "Did my morning walk, and wrote about 1,500 words for the newsletter.",
+        lambda r: [
+            Check("law 18", "the walk is ticked", "morning_walk" in (r.get("ticked") or []),
+                  ", ".join(r.get("ticked") or []) or "none ticked"),
+            Check("law 7", "a metric they stopped tracking is not written", "words_shipped" not in _numbers(r),
+                  "absent" if "words_shipped" not in _numbers(r) else f"words_shipped = {_numbers(r)['words_shipped']!r}"),
+        ],
+    ),
+    Scenario(
         "A message that adds and closes",
         lambda f: None,
         "Sent the Bäcker & Söhne draft last night. Marcus replied, coffee is booked for Friday.",
@@ -153,15 +190,19 @@ def run(provider: Provider, scenarios: list[Scenario] | None = None,
             scenario.setup(folder)
 
             first: list[str] = []
+            seconds: list[float] = []
 
             def recording(*args, **kwargs) -> str:
+                began = time.monotonic()
                 reply = ask(*args, **kwargs)
+                seconds.append(time.monotonic() - began)
                 first.append(reply)
                 return reply
 
             outcome = plan.propose(str(folder), message=scenario.message, ask=recording)
             cap = open_folder(str(folder)).list_max()
-        lines.append(f"{scenario.name}  ({outcome.status}: {outcome.detail})")
+        took = " + ".join(f"{s:.0f}s" for s in seconds)
+        lines.append(f"{scenario.name}  ({outcome.status}: {outcome.detail}){f'  [{took}]' if took else ''}")
         if not first:
             lines.append(f"  FAIL  —       the model could not be asked — {outcome.detail}")
             passed = False
