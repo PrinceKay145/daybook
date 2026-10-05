@@ -105,17 +105,22 @@ def _dial_svg(data: BriefData) -> str:
         parts.append(f'<circle class="dial-edge" cx="{CX}" cy="{CY}" r="{r}" />')
 
     for block in blocks:
-        colour = "var(--accent)" if block is data.dial.current else colours[block.label]
+        colour = _colour(data, block, colours)
+        title = f"<title>{esc(block.label)} · {_hours(block)}</title>"
+        live = " dial-arc-now" if block is data.dial.current else ""
         for start, end in block.spans():
             if end <= start:
                 continue
+            if end - start >= dial.MINUTES_IN_DAY:
+                # A block that is the whole day: an arc from a point back to itself draws
+                # nothing, so the whole ring is one circle.
+                parts.append(
+                    f'<circle class="dial-ring{live}" cx="{CX}" cy="{CY}" r="{(R_OUTER + R_INNER) / 2}" '
+                    f'style="stroke:{colour};stroke-width:{R_OUTER - R_INNER}">{title}</circle>'
+                )
+                continue
             path = dial.arc_path(start, end, R_OUTER, R_INNER, CX, CY)
-            live = " dial-arc-now" if block is data.dial.current else ""
-            parts.append(
-                f'<path class="dial-arc{live}" d="{path}" style="fill:{colour}">'
-                f"<title>{esc(block.label)} · {dial.to_hhmm(block.start)}"
-                f"–{dial.to_hhmm(block.end)}</title></path>"
-            )
+            parts.append(f'<path class="dial-arc{live}" d="{path}" style="fill:{colour}">{title}</path>')
 
     for hour in range(0, 24, 3):
         minute = hour * 60
@@ -165,17 +170,29 @@ def _dial_svg(data: BriefData) -> str:
 </svg>"""
 
 
+def _colour(data: BriefData, block, colours: dict[str, str]) -> str:
+    """The block you are in takes the accent — unless it is unplanned time, which is not a
+    plan and never looks like one."""
+    if block is data.dial.current and block.label != UNPLANNED:
+        return "var(--accent)"
+    return colours[block.label]
+
+
+def _hours(block) -> str:
+    if block.length >= dial.MINUTES_IN_DAY:
+        return "all day"
+    return f"{dial.to_hhmm(block.start)}–{dial.to_hhmm(block.end)}"
+
+
 def _legend(data: BriefData) -> str:
-    """Each block of the day with its hours, in the order the day runs from now."""
+    """Each block of the day with its hours, in the order the day shape lists them."""
     colours = _label_colours(data.dial.blocks)
     rows = []
     for block in data.dial.blocks:
         now = block is data.dial.current
-        colour = "var(--accent)" if now else colours[block.label]
         rows.append(
-            f'<li class="{"now" if now else ""}"><i style="background:{colour}"></i>'
-            f"<span>{esc(block.label)}</span>"
-            f"<time>{dial.to_hhmm(block.start)}–{dial.to_hhmm(block.end)}</time></li>"
+            f'<li class="{"now" if now else ""}"><i style="background:{_colour(data, block, colours)}"></i>'
+            f"<span>{esc(block.label)}</span><time>{_hours(block)}</time></li>"
         )
     return f'<ul class="legend">{"".join(rows)}</ul>'
 
@@ -360,6 +377,7 @@ h1 {
 .dial { width: 260px; max-width: 100%; height: auto; display: block; margin: -8px 0 0 -10px; }
 .dial-edge { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 1.5 4; }
 .dial-arc { stroke: var(--bg); stroke-width: 2; }
+.dial-ring { fill: none; }
 .dial-hour { stroke: var(--line); stroke-width: 1.5; }
 .dial-hour-label {
   fill: var(--ink-faint); font: 10px var(--text); text-anchor: middle;
