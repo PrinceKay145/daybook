@@ -150,6 +150,11 @@ export async function verifyAccount(): Promise<{ account: Account | null; reason
   }
 }
 
+/** Signing up with an email that already has an account. */
+export class AccountExists extends Error {}
+/** Signing in to an account whose confirmation link hasn't been opened yet. */
+export class EmailNotConfirmed extends Error {}
+
 export async function signInWithPassword(email: string, password: string): Promise<void> {
   if (!supabase) {
     localStorage.setItem(DEV_KEY, email);
@@ -162,8 +167,20 @@ export async function signInWithPassword(email: string, password: string): Promi
         "That email and password didn't match. If this account usually signs in with Google, use Continue with Google instead.",
       );
     }
+    if (/email not confirmed/i.test(error.message)) {
+      throw new EmailNotConfirmed(
+        "This account isn't confirmed yet. Open the link in the email we sent you, on this Mac, and you'll come straight back signed in.",
+      );
+    }
     throw new Error(error.message);
   }
+}
+
+/** Sends the sign-up confirmation email again. */
+export async function resendConfirmation(email: string): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: authRedirect() } });
+  if (error) throw new Error(error.message);
 }
 
 /* Where Supabase sends the browser after the confirmation email: back into the app on the
@@ -187,15 +204,19 @@ export async function signUpWithPassword(email: string, password: string): Promi
     password,
     options: { emailRedirectTo: authRedirect() },
   });
+  const exists =
+    "An account with this email already exists. Sign in instead — or, if you created it with Google, use Continue with Google.";
   if (error) {
     // One human, one account: an email that already exists (by password or via a
     // linked Google identity) must never silently become a second identity.
-    if (/already registered|already exists/i.test(error.message)) {
-      throw new Error(
-        "An account with this email already exists. Sign in instead — or, if you created it with Google, use Continue with Google.",
-      );
-    }
+    if (/already registered|already exists/i.test(error.message)) throw new AccountExists(exists);
     throw new Error(error.message);
+  }
+  // With email confirmation on, Supabase answers a sign-up for an email that already has a
+  // confirmed account with a stand-in user that has no identities, and sends nothing — so
+  // "check your inbox" would send the person to wait for an email that never comes.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    throw new AccountExists(exists);
   }
   return data.session
     ? ""

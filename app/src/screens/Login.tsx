@@ -10,6 +10,9 @@ import {
   signInWithPassword,
   signUpWithPassword,
   signInWithGoogle,
+  resendConfirmation,
+  AccountExists,
+  EmailNotConfirmed,
   type Account,
 } from "@/lib/auth";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
@@ -30,6 +33,7 @@ export function LoginScreen({
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState(false);
 
   async function finish() {
     setNotice(null);
@@ -53,18 +57,48 @@ export function LoginScreen({
     }
     setNotice(null);
     setError(null);
+    setUnconfirmed(false);
     setBusy(true);
     try {
       if (mode === "signup") {
-        const message = await signUpWithPassword(email.trim(), password);
-        if (message) {
-          setNotice(message);
-          return;
+        try {
+          const message = await signUpWithPassword(email.trim(), password);
+          if (message) {
+            setNotice(message);
+            return;
+          }
+        } catch (err) {
+          if (!(err instanceof AccountExists)) throw err;
+          // They already have an account. With its password, that's simply signing in;
+          // otherwise the form turns into sign-in, keeping the email they typed.
+          try {
+            await signInWithPassword(email.trim(), password);
+          } catch {
+            setMode("signin");
+            setPassword("");
+            setNotice("You already have an account with this email. Sign in with its password — or, if you made it with Google, use Continue with Google.");
+            return;
+          }
         }
       } else {
         await signInWithPassword(email.trim(), password);
       }
       await finish();
+    } catch (err) {
+      setUnconfirmed(err instanceof EmailNotConfirmed);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendLinkAgain() {
+    setError(null);
+    setBusy(true);
+    try {
+      await resendConfirmation(email.trim());
+      setUnconfirmed(false);
+      setNotice("Sent again. Open the link in the newest email, on this Mac.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -176,6 +210,12 @@ export function LoginScreen({
             </Field>
 
             <ErrorNote message={error} />
+            {unconfirmed && (
+              <button type="button" disabled={busy} onClick={() => void sendLinkAgain()}
+                className="text-[13px] text-[var(--color-accent)] underline decoration-1 underline-offset-[3px]">
+                Send the link again
+              </button>
+            )}
             {notice && <p className="text-[13px] text-[var(--color-ink-soft)]">{notice}</p>}
 
             <Button type="submit" size="lg" className="w-full" disabled={busy}>
@@ -192,6 +232,7 @@ export function LoginScreen({
                 setMode(mode === "signin" ? "signup" : "signin");
                 setError(null);
                 setNotice(null);
+                setUnconfirmed(false);
               }}
             >
               {mode === "signin" ? "Create an account" : "Sign in"}
