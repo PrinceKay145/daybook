@@ -1,6 +1,6 @@
 /* The frame every onboarding step shares: the wordmark and the three steps on the left —
-   each finished step says what was chosen — and the step itself on the right. A step that
-   needs a sticky action bar passes it as `footer`. */
+   each finished step says what was chosen — and the step itself, centred, on the right. A
+   step that needs a sticky action bar passes it as `footer`. */
 
 import type { ReactNode } from "react";
 import { Check } from "lucide-react";
@@ -61,14 +61,16 @@ export function OnboardingFrame({
 
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto px-8 py-8 md:px-11">
-          <p className="label md:hidden">Step {step} of 3</p>
-          <h1 className="font-display text-[32px] leading-[1.1] font-medium tracking-[-0.015em]">{title}</h1>
-          {intro && <div className="mt-2 max-w-[60ch] text-[14.5px] text-[var(--color-ink-soft)]">{intro}</div>}
-          <div className="mt-7">{children}</div>
+          <div className="mx-auto max-w-3xl">
+            <p className="label md:hidden">Step {step} of 3</p>
+            <h1 className="font-display text-[32px] leading-[1.1] font-medium tracking-[-0.015em]">{title}</h1>
+            {intro && <div className="mt-2 max-w-[60ch] text-[14.5px] text-[var(--color-ink-soft)]">{intro}</div>}
+            <div className="mt-7">{children}</div>
+          </div>
         </div>
         {footer && (
-          <div className="flex shrink-0 items-center justify-between gap-4 border-t border-[var(--color-line)] px-8 py-2.5 text-[12.5px] text-[var(--color-ink-soft)] md:px-11">
-            {footer}
+          <div className="shrink-0 border-t border-[var(--color-line)] px-8 py-2.5 text-[12.5px] text-[var(--color-ink-soft)] md:px-11">
+            <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">{footer}</div>
           </div>
         )}
       </main>
@@ -76,8 +78,8 @@ export function OnboardingFrame({
   );
 }
 
-/* The same frame for a page outside onboarding (changing the model later): the wordmark
-   and a way back, then the page. */
+/* The same frame for a page outside onboarding (Settings, changing the model later): the
+   wordmark and a way back, then the page in a centred column. */
 export function PageFrame({ back, title, intro, children }: {
   back?: ReactNode;
   title: string;
@@ -91,7 +93,7 @@ export function PageFrame({ back, title, intro, children }: {
         <span className="ml-auto">{back}</span>
       </header>
       <main className="flex-1 overflow-y-auto px-8 py-8 md:px-11">
-        <div className="max-w-3xl">
+        <div className="mx-auto max-w-3xl">
           <h1 className="font-display text-[32px] leading-[1.1] font-medium tracking-[-0.015em]">{title}</h1>
           {intro && <div className="mt-2 max-w-[60ch] text-[14.5px] text-[var(--color-ink-soft)]">{intro}</div>}
           <div className="mt-7">{children}</div>
