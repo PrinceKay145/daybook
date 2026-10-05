@@ -323,6 +323,11 @@ function seedConfig(existing, payload) {
     throw new Error("The day shape must cover the whole day exactly once — nothing was written.");
   }
   next.day_shape = payload.dayShape.map((b) => ({ block: b.block, start: b.start, end: b.end }));
+  const metrics = trackedLabels(payload.metrics);
+  const habits = trackedLabels(payload.habits);
+  if (metrics.length) next.metrics = withTracked(next.metrics, metrics, { tracking: true });
+  if (habits.length) next.habits = withTracked(next.habits, habits, { since: today(payload.timezone) });
+  if (Array.isArray(payload.fixedTimes) && payload.fixedTimes.length) next.non_negotiables = payload.fixedTimes;
   return withProvider(next, payload.connection);
 }
 
@@ -429,12 +434,75 @@ function today(timeZone) {
   }
 }
 
+/* What the person tracks: labels from the form become config entries with stable ids
+   ("Applications sent" → applications_sent), so the same label always means the same
+   metric, and a metric already in config.json — even one they stopped tracking — is left
+   exactly as it is. A new habit records the day it began, which its count needs. */
+function slugOf(label) {
+  return (
+    label
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "item"
+  );
+}
+
+function trackedLabels(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value
+    .filter((label) => typeof label === "string")
+    .map((label) => label.trim().replace(/\s+/g, " ").slice(0, 60))
+    .filter((label) => label && !seen.has(label.toLowerCase()) && seen.add(label.toLowerCase()))
+    .slice(0, 12);
+}
+
+function withTracked(existing, labels, extra) {
+  const list = Array.isArray(existing) ? existing.filter((item) => item && typeof item.id === "string") : [];
+  const ids = new Set(list.map((item) => item.id));
+  for (const label of labels) {
+    const id = slugOf(label);
+    if (ids.has(id)) continue;
+    ids.add(id);
+    list.push({ id, label, ...extra });
+  }
+  return list;
+}
+
+function handoverText(payload) {
+  return typeof payload.handover === "string" ? payload.handover.trim().slice(0, 60000) : "";
+}
+
 function seedsFor(payload) {
   const alias = configAlias(payload.folder);
   const ownWords = typeof payload.ownWords === "string" ? payload.ownWords.trim().slice(0, 20000) : "";
+  const handover = handoverText(payload);
+  const metrics = trackedLabels(payload.metrics);
+  const habits = trackedLabels(payload.habits);
   const list = (items) =>
     items.filter((line) => line.trim().length > 0).map((line) => `- ${line.trim()}`).join("\n") ||
     "- (nothing recorded yet)";
+
+  const tracked = metrics.length || habits.length
+    ? `
+
+## What you track
+
+Numbers: ${metrics.join(", ") || "none yet"}. Habits: ${habits.join(", ") || "none yet"}.
+A number or a habit done goes on the scoreboard when the person tells the secretary so.
+`
+    : "";
+  const fromHandover = handover
+    ? `
+
+## From the AI you used before
+
+What it knew about you is in HANDOVER.md, exactly as it wrote it.
+`
+    : "";
 
   return [
     {
@@ -442,6 +510,29 @@ function seedsFor(payload) {
       merge: (existing) => JSON.stringify(seedConfig(existing, payload), null, 2) + "\n",
       onlyIfAbsent: false,
     },
+    ...(handover
+      ? [{
+          file: "HANDOVER.md",
+          onlyIfAbsent: false,
+          text: `# Handover
+
+What the AI you used before knew about you, exactly as it wrote it, brought into Daybook
+on ${today(payload.timezone)}. Your secretary reads it when it plans; the other files in this
+folder are newer and win where they disagree.
+
+---
+
+${handover}
+`,
+        }]
+      : []),
+    ...(habits.length
+      ? [{
+          file: "TICKS.md",
+          onlyIfAbsent: true,
+          text: "# Ticks\n\nAppend-only. One line per habit done, per day, from what you told your secretary. Daybook counts the last seven days from here; nothing is estimated.\n",
+        }]
+      : []),
     {
       file: "SETUP-CONTEXT.md",
       onlyIfAbsent: true,
@@ -455,7 +546,7 @@ the files in this folder are the source of truth.
 ## In their own words
 
 ${ownWords}
-`
+${tracked}${fromHandover}`
         : `# Setup context
 
 Written by Daybook on ${today(payload.timezone)} from the setup interview. The answers below are the
@@ -472,7 +563,7 @@ ${list(payload.nonNegotiables)}
 ## In flight — waiting on other people
 
 ${list(payload.inFlight)}
-`,
+${tracked}${fromHandover}`,
     },
     {
       file: "MASTER-PLAN.md",
@@ -494,7 +585,23 @@ ${ownWords ? "- (in SETUP-CONTEXT.md, in the user's own words — the secretary 
 
 Nothing has been recorded about a day yet. The nightly close writes this file from what
 actually happened; nothing here is invented to fill the page.
-`,
+${metrics.length ? `
+## Scoreboard
+
+Only numbers you told your secretary. Nothing here is estimated.
+
+| Metric | Latest | Note |
+|---|---|---|
+${metrics.map((label) => `| \`${slugOf(label)}\` | — | No number yet. Tell your secretary when you have one. |`).join("\n")}
+` : ""}${habits.length ? `
+## Today's ticks
+
+Counted from TICKS.md: the days you said you did each one.
+
+| Habit | Last 7 days |
+|---|---|
+${habits.map((label) => `| ${label} | 0 of 1 |`).join("\n")}
+` : ""}`,
     },
     {
       file: "LOG.md",
@@ -522,7 +629,7 @@ mistake waiting to be repeated.
 /* Starting over replaces what the interview wrote, never what the days wrote: the previous
    SETUP-CONTEXT.md and MASTER-PLAN.md move to archive/setup/<stamp>/ first, and
    DAY-STATE.md, LOG.md and CORRECTIONS.md stay exactly as they are. */
-const REDONE_BY_START_OVER = ["SETUP-CONTEXT.md", "MASTER-PLAN.md"];
+const REDONE_BY_START_OVER = ["SETUP-CONTEXT.md", "MASTER-PLAN.md", "HANDOVER.md"];
 
 async function archivePreviousSetup(folder) {
   const present = REDONE_BY_START_OVER.filter((file) => fs.existsSync(path.join(folder, file)));
@@ -563,8 +670,29 @@ ipcMain.handle("folder:recordConnection", async (_event, { folder, connection })
   return ["config.json"];
 });
 
-ipcMain.handle("folder:writeSetup", async (_event, payload) => {
-  const folder = requireFolder(payload?.folder);
+/* Lines of fixed time ("School run 08:20 on weekdays") become config non-negotiables, so
+   the brief's dial marks them; the runner reads them, the same reading as a handover's.
+   A line with no time stays words in SETUP-CONTEXT.md. Without Python they all do. */
+async function fixedTimesOf(lines) {
+  const given = Array.isArray(lines) ? lines.filter((l) => typeof l === "string" && l.trim()).slice(0, 40) : [];
+  if (given.length === 0) return [];
+  try {
+    const read = await runner.handover({ fixed: given }, { logFile: path.join(logDir(), "runner.log") });
+    return Array.isArray(read.non_negotiables) ? read.non_negotiables : [];
+  } catch (err) {
+    console.warn(`[daybook] setup: fixed times kept as words only (${err.message ?? err})`);
+    return [];
+  }
+}
+
+ipcMain.handle("setup:readHandover", async (_event, text) => {
+  if (typeof text !== "string" || !text.trim()) throw new Error("Paste the document your other AI wrote first.");
+  return runner.handover({ text: text.slice(0, 60000) }, { logFile: path.join(logDir(), "runner.log") });
+});
+
+ipcMain.handle("folder:writeSetup", async (_event, input) => {
+  const folder = requireFolder(input?.folder);
+  const payload = { ...input, fixedTimes: await fixedTimesOf(input.nonNegotiables) };
   const archived = payload.startOver ? await archivePreviousSetup(folder) : null;
   const written = [];
   for (const seed of seedsFor(payload)) {
