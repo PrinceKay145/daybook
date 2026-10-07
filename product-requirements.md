@@ -109,6 +109,14 @@ offers only Claude Code and Codex — the users' own plans) · a chat with histo
 close (the message box covers correcting the day) · daily-shifting schedules (D6) ·
 self-serve account deletion.
 
+**Noted for later** (owner, not yet scheduled):
+- ⬜ **Which account is signed in isn't visible** (2026-10-07). Once signed in, nothing on
+  the main screen says whose account it is; only Settings → Account shows the email. Show
+  it where it can be seen without opening Settings.
+- ⬜ **Planning is slow** (2026-10-06): 41–109 seconds a plan on Sonnet 5 through Claude
+  Code, measured by the law evals. Likely the model's default thinking; Claude Code's
+  `--effort` is the lever to try, measured, with the law evals re-run.
+
 ---
 
 ## The v1 flow (normative)
