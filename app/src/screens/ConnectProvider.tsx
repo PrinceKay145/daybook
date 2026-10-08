@@ -7,7 +7,7 @@
    this renderer. Switching later reopens this same step from the scoreboard. */
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Check, KeyRound, Plus, RefreshCw, TerminalSquare, X } from "lucide-react";
+import { ArrowLeft, Plus, RefreshCw, X } from "lucide-react";
 import {
   daybook,
   secretName,
@@ -17,7 +17,9 @@ import {
   type ModelOption,
 } from "@/lib/daybook";
 import { CLAUDE_CODE_MODELS, isModelId } from "@/lib/models";
-import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { Button, ErrorNote, Field, SectionLabel, inputClass } from "@/components/ui/button";
+import { OnboardingFrame, PageFrame } from "@/components/OnboardingFrame";
+import { cn } from "@/lib/utils";
 
 /* API keys are built but not offered in Beta 1 (S12): the beta runs on Claude Code and
    Codex, the users' own plans. Turning this on brings the section back unchanged. */
@@ -58,11 +60,18 @@ export function ConnectProviderScreen({
   userId,
   connections,
   activeId,
+  onboarding,
+  folderName,
+  onBack,
   onDone,
 }: {
   userId: string;
   connections: Connection[];
   activeId?: string;
+  /** Part of first-run setup (step 2 of 3), or a change of model later. */
+  onboarding: boolean;
+  folderName?: string;
+  onBack?: () => void;
   onDone: (connections: Connection[], activeConnectionId: string) => void;
 }) {
   const saved = connections.find((c) => c.id === activeId) ?? connections[0];
@@ -190,191 +199,188 @@ export function ConnectProviderScreen({
     onDone([...cliConnections, ...keyConnections].map(withChoice), choice.connectionId);
   }
 
-  return (
-    <div className="mx-auto w-full max-w-xl py-10">
-      <div className="mb-6">
-        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-          Step 2 of 3
-        </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">Choose your secretary's model</h1>
-        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          {API_KEYS_OFFERED
-            ? "Daybook runs on an AI you already have: your Claude or ChatGPT plan through Claude Code or Codex on this Mac, or an API key. Pick a model — you can switch any time from the scoreboard. Daybook never sees your Claude or ChatGPT sign-in; API keys stay in this Mac's keychain."
-            : "Daybook runs on an AI you already have: your Claude or ChatGPT plan, through Claude Code or Codex on this Mac. Pick a model — you can switch any time from the scoreboard. Daybook never sees your Claude or ChatGPT sign-in."}
-        </p>
-      </div>
+  const intro = API_KEYS_OFFERED
+    ? "Daybook runs on an AI you already have: your Claude or ChatGPT plan through Claude Code or Codex on this Mac, or an API key. You can switch any time."
+    : "Daybook runs on an AI you already have: your Claude or ChatGPT plan, through Claude Code or Codex on this Mac. You can switch any time.";
 
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-          On this Mac
-        </p>
-        <Button variant="ghost" className="px-2 py-1 text-xs" disabled={clis === null} onClick={() => void check()}>
-          <RefreshCw className="size-3.5" />
+  const body = (
+    <div className="max-w-2xl space-y-8">
+      <div className="flex items-center justify-between">
+        <SectionLabel>On this Mac</SectionLabel>
+        <Button variant="ghost" disabled={clis === null} onClick={() => void check()}>
+          <RefreshCw />
           Check again
         </Button>
       </div>
 
-      <div className="space-y-3">
-        {clis === null ? (
-          <p className="rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-faint)]">
-            Looking for Claude Code and Codex…
-          </p>
-        ) : (
-          clis.map((status) => {
-            const info = CLI_INFO[status.name];
-            const models = status.name === "claude" ? CLAUDE_CODE_MODELS : codexModels;
-            return (
-              <SourceCard
-                key={status.name}
-                icon={<TerminalSquare className="size-4" />}
-                title={info.label}
-                meta={status.version}
-                status={
-                  !status.found ? (
-                    <>
-                      Not found on this Mac.{" "}
-                      <button
-                        type="button"
-                        className="underline underline-offset-2 hover:text-[var(--color-ink)]"
-                        onClick={() => void daybook.openExternal(info.install)}
-                      >
-                        How to install it
-                      </button>
-                      , then check again.
-                    </>
-                  ) : status.signedIn ? (
-                    signedInAs(status)
-                  ) : (
-                    <>
-                      {status.error ?? "Not signed in."} Open Terminal, run{" "}
-                      <code className="text-[0.75rem]">{info.signIn}</code>, then check again.
-                    </>
-                  )
-                }
-                ready={Boolean(status.found && status.signedIn)}
-              >
-                {status.found && status.signedIn && (
-                  <ModelPicker
-                    connectionId={info.id}
-                    models={models}
-                    loadingText={status.name === "codex" && !codexError ? "Asking Codex for its models…" : undefined}
-                    listError={status.name === "codex" ? codexError : null}
-                    choice={choice}
-                    onChoose={setChoice}
-                    placeholder={status.name === "codex" ? "a Codex model ID" : "claude-sonnet-5"}
-                  />
-                )}
-              </SourceCard>
-            );
-          })
-        )}
-      </div>
-
-      {API_KEYS_OFFERED && (
-        <>
-          <p className="mb-2 mt-6 text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-            API keys
-          </p>
-          <div className="space-y-3">
-            {keys.map((connection) => {
-              const live = API_PROVIDERS.some((p) => p.id === connection.id && p.live);
-              return (
-                <SourceCard
-                  key={connection.id}
-                  icon={<KeyRound className="size-4" />}
-                  title={connection.label}
-                  status="Stored in this Mac's keychain."
-                  ready
-                  action={
+      {clis === null ? (
+        <p className="text-[13px] text-[var(--color-ink-faint)]">Looking for Claude Code and Codex…</p>
+      ) : (
+        clis.map((status) => {
+          const info = CLI_INFO[status.name];
+          const models = status.name === "claude" ? CLAUDE_CODE_MODELS : codexModels;
+          return (
+            <Source
+              key={status.name}
+              title={info.label}
+              meta={status.version}
+              ready={Boolean(status.found && status.signedIn)}
+              status={
+                !status.found ? (
+                  <>
+                    Not found on this Mac.{" "}
                     <button
                       type="button"
-                      aria-label={`Remove ${connection.label}`}
-                      className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
-                      onClick={() => void removeKey(connection)}
+                      className="text-[var(--color-accent)] underline decoration-1 underline-offset-[3px]"
+                      onClick={() => void daybook.openExternal(info.install)}
                     >
-                      <X className="size-4" />
+                      How to install it
                     </button>
-                  }
-                >
-                  <ModelPicker
-                    connectionId={connection.id}
-                    models={live ? (keyModels[connection.id] ?? null) : []}
-                    loadingText={live && !keyErrors[connection.id] ? "Asking the provider for its models…" : undefined}
-                    listError={keyErrors[connection.id] ?? null}
-                    choice={choice}
-                    onChoose={setChoice}
-                    placeholder="a model ID this key can call"
-                  />
-                </SourceCard>
-              );
-            })}
-
-            {adding ? (
-              <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
-                <Field label="Provider">
-                  <select className={inputClass} value={providerId} onChange={(event) => setProviderId(event.target.value)}>
-                    {API_PROVIDERS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                    <option value="custom">Other…</option>
-                  </select>
-                </Field>
-                {providerId === "custom" && (
-                  <Field label="What do you call it?">
-                    <input
-                      className={inputClass}
-                      value={customLabel}
-                      onChange={(event) => setCustomLabel(event.target.value)}
-                      placeholder="e.g. Mistral"
-                    />
-                  </Field>
-                )}
-                <Field
-                  label="API key"
-                  hint={API_PROVIDERS.find((p) => p.id === providerId)?.hint ?? "Stored in your keychain, never shown again."}
-                >
-                  <input
-                    className={inputClass}
-                    type="password"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    placeholder="Paste your key"
-                    autoComplete="off"
-                  />
-                </Field>
-                <ErrorNote message={error} />
-                <div className="flex gap-2">
-                  <Button className="flex-1" disabled={busy} onClick={() => void addKey()}>
-                    Store key
-                  </Button>
-                  <Button variant="ghost" onClick={() => setAdding(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button variant="secondary" className="w-full" onClick={() => setAdding(true)}>
-                <Plus className="size-4" />
-                Add an API key
-              </Button>
-            )}
-          </div>
-        </>
+                    , then check again.
+                  </>
+                ) : status.signedIn ? (
+                  signedInAs(status)
+                ) : (
+                  <>
+                    {status.error ?? "Not signed in."} Open Terminal, run{" "}
+                    <code className="rounded bg-[var(--color-sunken)] px-1 py-0.5 font-mono text-[12px] text-[var(--color-ink)]">{info.signIn}</code>, then check again.
+                  </>
+                )
+              }
+            >
+              {status.found && status.signedIn && (
+                <ModelPicker
+                  connectionId={info.id}
+                  models={models}
+                  loadingText={status.name === "codex" && !codexError ? "Asking Codex for its models…" : undefined}
+                  listError={status.name === "codex" ? codexError : null}
+                  choice={choice}
+                  onChoose={setChoice}
+                  placeholder={status.name === "codex" ? "e.g. a Codex model ID" : "e.g. claude-sonnet-5"}
+                />
+              )}
+            </Source>
+          );
+        })
       )}
 
-      <div className="mt-6 space-y-2">
-        <Button className="w-full" disabled={!choice} onClick={finish}>
-          {choice ? `Continue with ${choice.modelLabel}` : "Choose a model to continue"}
-        </Button>
-      </div>
+      {API_KEYS_OFFERED && (
+        <div className="space-y-3">
+          <SectionLabel>API keys</SectionLabel>
+          {keys.map((connection) => {
+            const live = API_PROVIDERS.some((p) => p.id === connection.id && p.live);
+            return (
+              <Source
+                key={connection.id}
+                title={connection.label}
+                status="Stored in this Mac's keychain."
+                ready
+                action={
+                  <button
+                    type="button"
+                    aria-label={`Remove ${connection.label}`}
+                    className="text-[var(--color-ink-faint)] hover:text-[var(--color-warn)]"
+                    onClick={() => void removeKey(connection)}
+                  >
+                    <X className="size-4" />
+                  </button>
+                }
+              >
+                <ModelPicker
+                  connectionId={connection.id}
+                  models={live ? (keyModels[connection.id] ?? null) : []}
+                  loadingText={live && !keyErrors[connection.id] ? "Asking the provider for its models…" : undefined}
+                  listError={keyErrors[connection.id] ?? null}
+                  choice={choice}
+                  onChoose={setChoice}
+                  placeholder="e.g. a model ID this key can call"
+                />
+              </Source>
+            );
+          })}
+          {adding ? (
+            <div className="space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
+              <Field label="Provider">
+                <select className={inputClass} value={providerId} onChange={(event) => setProviderId(event.target.value)}>
+                  {API_PROVIDERS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                  <option value="custom">Other…</option>
+                </select>
+              </Field>
+              {providerId === "custom" && (
+                <Field label="What do you call it?">
+                  <input className={inputClass} value={customLabel} onChange={(event) => setCustomLabel(event.target.value)} placeholder="e.g. Mistral" />
+                </Field>
+              )}
+              <Field label="API key" hint={API_PROVIDERS.find((p) => p.id === providerId)?.hint ?? "Stored in your keychain, never shown again."}>
+                <input className={inputClass} type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Paste your key" autoComplete="off" />
+              </Field>
+              <ErrorNote message={error} />
+              <div className="flex gap-2">
+                <Button disabled={busy} onClick={() => void addKey()}>Store key</Button>
+                <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" onClick={() => setAdding(true)}>
+              <Plus />
+              Add an API key
+            </Button>
+          )}
+        </div>
+      )}
     </div>
+  );
+
+  const action = (
+    <Button size="lg" disabled={!choice} onClick={finish}>
+      {choice ? `Continue with ${choice.modelLabel}` : "Choose a model to continue"}
+    </Button>
+  );
+
+  if (onboarding) {
+    return (
+      <OnboardingFrame
+        step={2}
+        chosen={{ folder: folderName }}
+        title="Choose your secretary's model"
+        intro={intro}
+        footer={
+          <>
+            <span>Daybook never sees your Claude or ChatGPT sign-in.</span>
+            {action}
+          </>
+        }
+      >
+        {body}
+      </OnboardingFrame>
+    );
+  }
+  return (
+    <PageFrame
+      title="Choose your secretary's model"
+      intro={intro}
+      back={
+        onBack && (
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft />
+            Back to today
+          </Button>
+        )
+      }
+    >
+      {body}
+      <div className="mt-8">{action}</div>
+    </PageFrame>
   );
 }
 
-function SourceCard({
-  icon,
+/* One way of running the secretary — a CLI on this Mac, or a key: its name and state, then
+   its models. A section, not a card. */
+function Source({
   title,
   meta,
   status,
@@ -382,7 +388,6 @@ function SourceCard({
   action,
   children,
 }: {
-  icon: ReactNode;
   title: string;
   meta?: string;
   status: ReactNode;
@@ -391,23 +396,25 @@ function SourceCard({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
-      <div className="flex items-start gap-2">
-        <span className={`mt-0.5 ${ready ? "text-[var(--color-accent)]" : "text-[var(--color-ink-faint)]"}`}>{icon}</span>
+    <section className="space-y-3">
+      <div className="flex items-start gap-3">
+        <span className={cn("mt-[7px] size-2 shrink-0 rounded-full", ready ? "bg-[var(--color-accent)]" : "bg-[var(--color-line)]")} aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">
+          <h2 className="text-[15px] font-semibold">
             {title}
-            {meta && <span className="ml-2 text-xs font-normal text-[var(--color-ink-faint)]">{meta}</span>}
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">{status}</p>
+            {meta && <span className="ml-2 font-mono text-[11.5px] font-normal text-[var(--color-ink-faint)]">{meta}</span>}
+          </h2>
+          <p className="text-[13px] text-[var(--color-ink-soft)]">{status}</p>
         </div>
         {action}
       </div>
-      {children && <div className="mt-3">{children}</div>}
-    </div>
+      {children && <div className="pl-5">{children}</div>}
+    </section>
   );
 }
 
+/* The models as one list of radio rows. The model id stays out of the way (it is the
+   row's tooltip); another id can still be typed, behind "Use another model". */
 function ModelPicker({
   connectionId,
   models,
@@ -418,7 +425,7 @@ function ModelPicker({
   placeholder,
 }: {
   connectionId: string;
-  models: (ModelOption & { note?: string })[] | null;
+  models: (ModelOption & { note?: string; recommended?: boolean })[] | null;
   loadingText?: string;
   listError: string | null;
   choice: Choice | null;
@@ -429,6 +436,7 @@ function ModelPicker({
   const [customError, setCustomError] = useState<string | null>(null);
   const chosenHere = choice?.connectionId === connectionId ? choice.model : null;
   const chosenIsCustom = chosenHere !== null && !(models ?? []).some((m) => m.id === chosenHere);
+  const [showCustom, setShowCustom] = useState(chosenIsCustom);
 
   function chooseCustom() {
     const value = custom.trim();
@@ -441,52 +449,62 @@ function ModelPicker({
   }
 
   return (
-    <div className="space-y-1.5">
-      {models === null && loadingText && <p className="text-xs text-[var(--color-ink-faint)]">{loadingText}</p>}
-      {listError && (
-        <p className="text-xs text-[var(--color-warn)]">
-          {listError} You can still type a model ID below.
-        </p>
+    <div className="space-y-2">
+      {models === null && loadingText && <p className="text-[12.5px] text-[var(--color-ink-faint)]">{loadingText}</p>}
+      {listError && <p className="text-[12.5px] text-[var(--color-warn)]">{listError} You can still type a model ID below.</p>}
+      {(models ?? []).length > 0 && (
+        <div role="radiogroup" aria-label="Models" className="divide-y divide-[var(--color-line)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)]">
+          {(models ?? []).map((model) => {
+            const selected = chosenHere === model.id;
+            return (
+              <button
+                key={model.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                title={model.id}
+                onClick={() => onChoose({ connectionId, model: model.id, modelLabel: model.label })}
+                className={cn("flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors",
+                  selected ? "bg-[var(--color-sunken)]" : "hover:bg-[var(--color-sunken)]/60")}
+              >
+                <span className={cn("grid size-4 shrink-0 place-items-center rounded-full border",
+                  selected ? "border-[var(--color-accent)]" : "border-[var(--color-ink-faint)]")}>
+                  {selected && <span className="size-2 rounded-full bg-[var(--color-accent)]" />}
+                </span>
+                <span className="text-[14px] font-medium">{model.label}</span>
+                {model.note && <span className="text-[12.5px] text-[var(--color-ink-faint)]">{model.note}</span>}
+                {model.isDefault && <span className="text-[12.5px] text-[var(--color-ink-faint)]">Codex's default</span>}
+                {model.recommended && <span className="ml-auto text-[12px] font-medium text-[var(--color-accent)]">Recommended</span>}
+              </button>
+            );
+          })}
+        </div>
       )}
-      {(models ?? []).map((model) => {
-        const selected = chosenHere === model.id;
-        return (
-          <button
-            key={model.id}
-            type="button"
-            onClick={() => onChoose({ connectionId, model: model.id, modelLabel: model.label })}
-            className={`flex w-full items-center gap-2 rounded-[var(--radius-card)] border px-3 py-2 text-left text-sm transition-colors ${
-              selected
-                ? "border-[var(--color-accent)]"
-                : "border-[var(--color-line)] hover:border-[var(--color-ink-faint)]"
-            }`}
-          >
-            <Check className={`size-4 shrink-0 ${selected ? "text-[var(--color-accent)]" : "text-transparent"}`} />
-            <span className="font-medium">{model.label}</span>
-            {model.note && <span className="text-xs text-[var(--color-ink-faint)]">{model.note}</span>}
-            {model.isDefault && <span className="text-xs text-[var(--color-ink-faint)]">default</span>}
-            <code className="ml-auto text-[0.7rem] text-[var(--color-ink-faint)]">{model.id}</code>
-          </button>
-        );
-      })}
-      <div className="flex gap-2 pt-1">
-        <input
-          className={`${inputClass} py-1.5 text-xs`}
-          value={custom}
-          onChange={(event) => setCustom(event.target.value)}
-          placeholder={`Other: ${placeholder}`}
-          aria-label="Other model ID"
-        />
-        <Button variant="secondary" className="px-3 py-1.5 text-xs" disabled={!custom.trim()} onClick={chooseCustom}>
-          Use
-        </Button>
-      </div>
+      {showCustom ? (
+        <div className="flex gap-2 pt-1">
+          <input
+            className={cn(inputClass, "h-8 py-1 text-[13px]")}
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+            placeholder={placeholder}
+            aria-label="Another model ID"
+          />
+          <Button variant="secondary" disabled={!custom.trim()} onClick={chooseCustom}>
+            Use
+          </Button>
+        </div>
+      ) : (
+        <button type="button" className="text-[12.5px] text-[var(--color-ink-soft)] underline decoration-1 underline-offset-[3px] hover:text-[var(--color-ink)]"
+          onClick={() => setShowCustom(true)}>
+          Use another model
+        </button>
+      )}
       {chosenIsCustom && (
-        <p className="text-xs text-[var(--color-ink-soft)]">
-          Using <code>{chosenHere}</code>.
+        <p className="text-[12.5px] text-[var(--color-ink-soft)]">
+          Using <code className="font-mono">{chosenHere}</code>.
         </p>
       )}
-      {customError && <p className="text-xs text-[var(--color-warn)]">{customError}</p>}
+      {customError && <p className="text-[12.5px] text-[var(--color-warn)]">{customError}</p>}
     </div>
   );
 }

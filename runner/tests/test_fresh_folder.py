@@ -64,3 +64,19 @@ class FreshFolder(FolderCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AWholeDayUnplanned(FolderCase):
+    """A folder with no day shape is one Unplanned block from midnight to midnight. It must
+    still draw a ring, say "all day", and never take the accent — it is not a plan."""
+
+    fixture = FRESH_FIXTURE
+
+    def test_the_ring_is_drawn_and_reads_all_day(self):
+        self.edit_json("config.json", lambda c: c.pop("day_shape", None))
+        _, _, html, results = self.produce()
+        self.assertIn('class="dial-ring', html)
+        self.assertIn("<time>all day</time>", html)
+        self.assertNotIn("stroke:var(--accent)", html)
+        self.assertEqual([], [r.line() for r in results if not r.ok])
+

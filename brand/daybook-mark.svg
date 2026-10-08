@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Daybook">
+  <!-- The Daybook mark: the day as a dial. A ring for the 24 hours, the part of the day
+       that is planned in Daybook's ink blue, and a short hand. Adapts to light and dark. -->
+  <style>
+    .ring { stroke: #d9dcd5 } .day { stroke: #26487a } .hand { stroke: #16191c } .pin { fill: #16191c }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #2a2f34 } .day { stroke: #93b2e6 } .hand { stroke: #e7e9ea } .pin { fill: #e7e9ea }
+    }
+  </style>
+  <circle class="ring" cx="12" cy="12" r="9" fill="none" stroke-width="2.4"/>
+  <path class="day" d="M12 3 A9 9 0 0 1 20.2 15.7" fill="none" stroke-width="2.4" stroke-linecap="round"/>
+  <path class="hand" d="M12 12 L15.6 7.6" fill="none" stroke-width="2" stroke-linecap="round"/>
+  <circle class="pin" cx="12" cy="12" r="1.7"/>
+</svg>

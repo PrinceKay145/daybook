@@ -363,8 +363,12 @@ app/src/lib/models.ts       the Claude Code model catalog; model-id check
 app/src/lib/dayShape.ts     the day's blocks + Unplanned gaps (covers 24h exactly once)
 app/src/lib/auth.ts         Supabase client; dev-mode fallback; callback completion
 app/src/lib/api.ts          a browser tab's route to a hand-started runner (127.0.0.1:8787)
-app/src/screens/*           Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard
-app/src/components/ui/*     copied-in shadcn-style primitives
+app/src/screens/*           Login · ConnectFolder · ConnectProvider · SetupQuestions · Scoreboard · Settings
+app/src/components/ui/*     copied-in shadcn-style primitives (Button, Field, Card)
+app/src/components/*        the Daybook mark (Logo), the onboarding and page frames
+app/src/assets/fonts/       Newsreader and Hanken Grotesk, bundled (SIL OFL)
+brand/                      the mark as SVG and the macOS icon; app/resources/icon.png is its render
+runner/daybook/fonts/       the brief's embedded fonts (Latin subsets)
 runner/                     the Python runner: brief data, the eleven assertions, the HTML
                             brief, 127.0.0.1 server — the base the brief stage builds on
 fixtures/sample-folder/     the invented test folder; develop against it

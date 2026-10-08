@@ -1,5 +1,7 @@
 /* Login / Sign-up. Identity only — the screen says what the account is for and what it
-   is not for, because "why does a file app need a login?" deserves a straight answer. */
+   is not for, because "why does a file app need a login?" deserves a straight answer.
+   Two columns: the brand on the left, centred in its half (the app's one big wordmark),
+   the form on the right. */
 
 import { useState } from "react";
 import {
@@ -9,14 +11,21 @@ import {
   signInWithPassword,
   signUpWithPassword,
   signInWithGoogle,
+  resendConfirmation,
+  AccountExists,
+  EmailNotConfirmed,
   type Account,
 } from "@/lib/auth";
 import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { Mark } from "@/components/Logo";
 
 export function LoginScreen({
   onSignedIn,
+  authNotice,
 }: {
   onSignedIn: (account: Account) => void;
+  /** Why the user is here again (e.g. the account was deleted), shown above the form. */
+  authNotice?: string | null;
 }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -25,6 +34,7 @@ export function LoginScreen({
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState(false);
 
   async function finish() {
     setNotice(null);
@@ -48,18 +58,48 @@ export function LoginScreen({
     }
     setNotice(null);
     setError(null);
+    setUnconfirmed(false);
     setBusy(true);
     try {
       if (mode === "signup") {
-        const message = await signUpWithPassword(email.trim(), password);
-        if (message) {
-          setNotice(message);
-          return;
+        try {
+          const message = await signUpWithPassword(email.trim(), password);
+          if (message) {
+            setNotice(message);
+            return;
+          }
+        } catch (err) {
+          if (!(err instanceof AccountExists)) throw err;
+          // They already have an account. With its password, that's simply signing in;
+          // otherwise the form turns into sign-in, keeping the email they typed.
+          try {
+            await signInWithPassword(email.trim(), password);
+          } catch {
+            setMode("signin");
+            setPassword("");
+            setNotice("You already have an account with this email. Sign in with its password — or, if you made it with Google, use Continue with Google.");
+            return;
+          }
         }
       } else {
         await signInWithPassword(email.trim(), password);
       }
       await finish();
+    } catch (err) {
+      setUnconfirmed(err instanceof EmailNotConfirmed);
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendLinkAgain() {
+    setError(null);
+    setBusy(true);
+    try {
+      await resendConfirmation(email.trim());
+      setUnconfirmed(false);
+      setNotice("Sent again. Open the link in the newest email, on this Mac.");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -83,108 +123,125 @@ export function LoginScreen({
     }
   }
 
+  const note = "rounded-[var(--radius-control)] border px-3 py-2 text-[12.5px]";
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col justify-center">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Daybook</h1>
-        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          Your chief of staff. It holds your week in a folder you own, wakes up on its own,
-          and is built so it cannot state something false about your day.
-        </p>
-      </div>
-
-      <div className="space-y-4 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6">
-        {authInitError && (
-          <p className="rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
-            The Supabase credentials in <code>.env</code> were rejected: {authInitError}. The
-            URL should look like <code>https://…​.supabase.co</code>. Fix it and restart.
+    <div className="grid min-h-screen grid-cols-1 md:grid-cols-[1.1fr_1fr]">
+      {/* The one brand moment: the mark, the name, and what the product is — centred in
+          its half, with what the account can and cannot see at the foot. */}
+      <section className="grid grid-rows-[1fr_auto] justify-items-center gap-10 border-b border-[var(--color-line)] px-10 py-12 text-center md:border-b-0 md:border-r md:px-14 md:py-14">
+        <div className="self-center">
+          <Mark className="mx-auto size-14" />
+          <h1 className="mt-7 font-display text-[60px] leading-none font-medium tracking-[-0.03em]">Daybook</h1>
+          <p className="mx-auto mt-4 max-w-[30ch] text-[17px] text-[var(--color-ink-soft)] text-balance">
+            Your day, planned each morning from a folder you own.
           </p>
-        )}
-
-        {!authConfigured && !authInitError && (
-          <p className="rounded-[var(--radius-card)] border border-[var(--color-warn)]/40 px-3 py-2 text-xs text-[var(--color-warn)]">
-            Developer mode — no Supabase credentials configured, so nothing is checked.
-            Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> (see
-            app/README.md) to enable real sign-in.
-          </p>
-        )}
-
-        <Button className="w-full" disabled={busy} onClick={() => void finishOnGoogle()}>
-          Continue with Google
-        </Button>
-
-        {waiting && (
-          <p className="rounded-[var(--radius-card)] border border-[var(--color-line)] px-3 py-2 text-xs text-[var(--color-ink-soft)]">
-            Google is open in your browser. After you approve, the browser may ask
-            permission to hand the link back to Daybook — allow it. This window continues
-            on its own the moment the link arrives.
-          </p>
-        )}
-
-        <div className="flex items-center gap-3 text-xs text-[var(--color-ink-faint)]">
-          <span className="h-px flex-1 bg-[var(--color-line)]" />
-          or with email
-          <span className="h-px flex-1 bg-[var(--color-line)]" />
         </div>
+        <p className="max-w-[42ch] text-[12.5px] text-[var(--color-ink-faint)] text-balance">
+          The account only knows who you are. Your files stay in your folder on this Mac, and it
+          never sees them.
+        </p>
+      </section>
 
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <Field label="Email">
-            <input
-              className={inputClass}
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-            />
-          </Field>
-          <Field
-            label="Password"
-            hint={mode === "signup" ? "At least 6 characters." : undefined}
-          >
-            <input
-              className={inputClass}
-              type="password"
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-            />
-          </Field>
+      <section className="flex flex-col justify-center px-10 py-12 md:px-16">
+        <div className="mx-auto w-full max-w-sm space-y-4">
+          <h2 className="font-display text-[26px] font-medium tracking-[-0.01em]">
+            {mode === "signin" ? "Sign in" : "Create your account"}
+          </h2>
 
-          <ErrorNote message={error} />
-          {notice && <p className="text-sm text-[var(--color-ink-soft)]">{notice}</p>}
+          {notice === null && authNotice && (
+            <p className={`${note} border-[var(--color-warn)]/40 text-[var(--color-warn)]`}>{authNotice}</p>
+          )}
+          {authInitError && (
+            <p className={`${note} border-[var(--color-warn)]/40 text-[var(--color-warn)]`}>
+              The Supabase credentials in <code>.env</code> were rejected: {authInitError}. The
+              URL should look like <code>https://…​.supabase.co</code>. Fix it and restart.
+            </p>
+          )}
+          {!authConfigured && !authInitError && (
+            <p className={`${note} border-[var(--color-warn)]/40 text-[var(--color-warn)]`}>
+              Developer mode — no Supabase credentials configured, so nothing is checked.
+              Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> (see
+              app/README.md) to enable real sign-in.
+            </p>
+          )}
 
-          <Button type="submit" className="w-full" disabled={busy}>
-            {mode === "signin" ? "Sign in" : "Create account"}
+          <Button variant="secondary" size="lg" className="w-full" disabled={busy} onClick={() => void finishOnGoogle()}>
+            Continue with Google
           </Button>
-        </form>
 
-        <button
-          type="button"
-          className="w-full text-center text-xs text-[var(--color-ink-faint)] hover:text-[var(--color-ink)]"
-          onClick={() => {
-            setMode(mode === "signin" ? "signup" : "signin");
-            setError(null);
-            setNotice(null);
-          }}
-        >
-          {mode === "signin"
-            ? "New here? Create an account"
-            : "Already have an account? Sign in"}
-        </button>
-      </div>
+          {waiting && (
+            <p className={`${note} border-[var(--color-line)] text-[var(--color-ink-soft)]`}>
+              Google is open in your browser. After you approve, this window continues on its own.
+            </p>
+          )}
 
-      <p className="mt-4 text-center text-xs text-[var(--color-ink-faint)]">
-        The account is for identity and licensing only. Your files stay in your folder on
-        this Mac — the account never sees them.
-      </p>
+          <div className="flex items-center gap-3 text-xs text-[var(--color-ink-faint)]">
+            <span className="h-px flex-1 bg-[var(--color-line)]" />
+            or with email
+            <span className="h-px flex-1 bg-[var(--color-line)]" />
+          </div>
+
+          <form
+            className="space-y-3.5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+          >
+            <Field label="Email">
+              <input
+                id="login-email"
+                className={inputClass}
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="e.g. you@example.com"
+              />
+            </Field>
+            <Field label="Password" hint={mode === "signup" ? "At least 6 characters." : undefined}>
+              <input
+                id="login-password"
+                className={inputClass}
+                type="password"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={mode === "signup" ? "Choose a password" : "Your password"}
+              />
+            </Field>
+
+            <ErrorNote message={error} />
+            {unconfirmed && (
+              <button type="button" disabled={busy} onClick={() => void sendLinkAgain()}
+                className="text-[13px] text-[var(--color-accent)] underline decoration-1 underline-offset-[3px]">
+                Send the link again
+              </button>
+            )}
+            {notice && <p className="text-[13px] text-[var(--color-ink-soft)]">{notice}</p>}
+
+            <Button type="submit" size="lg" className="w-full" disabled={busy}>
+              {mode === "signin" ? "Sign in" : "Create account"}
+            </Button>
+          </form>
+
+          <p className="text-center text-[13px] text-[var(--color-ink-soft)]">
+            {mode === "signin" ? "New here? " : "Already have an account? "}
+            <button
+              type="button"
+              className="text-[var(--color-accent)] underline decoration-1 underline-offset-[3px]"
+              onClick={() => {
+                setMode(mode === "signin" ? "signup" : "signin");
+                setError(null);
+                setNotice(null);
+                setUnconfirmed(false);
+              }}
+            >
+              {mode === "signin" ? "Create an account" : "Sign in"}
+            </button>
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

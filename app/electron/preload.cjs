@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld("daybook", {
   listModels: (provider, secret) =>
     ipcRenderer.invoke("connections:listModels", { provider, secret }),
   protocolHandler: () => ipcRenderer.invoke("protocol:handler"),
+  getAppearance: () => ipcRenderer.invoke("appearance:get"),
+  setAppearance: (value) => ipcRenderer.invoke("appearance:set", value),
   onAuthCallback: (callback) => {
     const listener = (_event, url) => callback(url);
     ipcRenderer.on("daybook:auth-callback", listener);

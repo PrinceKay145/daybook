@@ -75,8 +75,11 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    into Applications and installs no background jobs until it lives there. Apple silicon
    only.
 
-**Then, once the functionality above is done: a design and UI pass** across every screen
-(owner, 2026-10-05). Until then the screens stay as plain as they are — functionality first.
+✅ **Then a design and UI pass** across every screen and the brief (owner, 2026-10-05;
+built). The owner's choices: refine the calm look; light and dark following the Mac; the
+"Morning paper" typefaces (Newsreader and Hanken Grotesk, bundled); the dial mark as the
+logo and app icon; nothing that looks generated. The system is `design-system.md`; the brief
+for the pass is `docs/design/design-pass-prompt.md`.
 
 **Not in Beta 1** (each waits for tester feedback): API keys (built, but the model step
 offers only Claude Code and Codex — the users' own plans) · a chat with history · reminders
@@ -134,7 +137,8 @@ anyone's subscription, ever.
 
 **Secretary setup questions.** Name/address-as, goals, non-negotiables, what's in flight
 (or all three **in the user's own words**, one box, saved as written),
-**the user's brief time and close time**, **how many things today's list holds at most**
+**the user's brief time** (the close time keeps its default in `config.json` and isn't
+asked for until the nightly close exists), **how many things today's list holds at most**
 (1–10, default 3 — never padded to reach it), **the shape of their day** (optional — the blocks
 they name; every minute they leave out is written as *Unplanned*, so the dial's day shape
 always covers 00:00–24:00 exactly once and claims no plan they did not make; overlaps are
@@ -161,22 +165,29 @@ when all eleven assertions pass — the runner's own self-contained page, in a s
 frame. The checks run before every brief without being announced; a brief that fails one is
 **withheld**, and the failed checks are named; a brief that cannot be built (no Python, the
 runner failing) says why and where the log is. No sample data: a placeholder that pretends
-to be a real brief would break the only promise this product makes. The model choice
-("Sonnet 5 · Claude Code — change"), **Plan today**, a rebuild button and sign-out sit
-above it, and under them the **tell your secretary** box (Enter sends; the proposed day
-appears with Apply and Discard). While the model plans, one line says so; afterwards one line says what changed
-("Today's plan is written — 2 on the list, 1 on the board", with the model's one-sentence
-summary) or why nothing did, and names any text in the folder that read like instructions
-and was ignored.
+to be a real brief would break the only promise this product makes. The brief is the page:
+a slim bar above it (the wordmark, the model as a text button to change it, **Plan
+again**, Settings) and the **tell your secretary** box below it (Enter sends; the proposed
+day floats above the box with Apply and Discard). One status line over the box says what
+the model is doing, what changed ("Today is planned: 2 on the list, 1 on the board", with
+the model's one-sentence summary) or why nothing did, names any text in the folder that
+read like instructions and was ignored, and otherwise says when the brief arrives. There is
+no rebuild button: the brief is fetched again whenever the window comes back to the front
+(at most once a minute), so a hand edit to the folder shows on its own. Sign-out is in
+Settings.
 
-**Settings & status** (required by the process model). **Built:** every job Daybook runs,
-by its macOS label, with what it does, whether it is loaded, its last exit code and the
-tick's last run, last brief and last error; the app's and the runner's PIDs; the one log
-directory, openable in Finder; a working **Stop** that unloads the launchd jobs *and removes
-their files* (`pkill` alone restarts within 60s; a file left behind returns at the next
-login) and a **Start** that restores them — the app never restarts jobs the user stopped;
-brief and close times and the size of today's list, saved to `config.json`; the folder (open in Finder) and the model
-(change). **⏳ Still to come:** folder re-selection, and **folder access** — the connected
+**Settings & status** (required by the process model). **Built:** the brief time and the
+size of today's list, saved to `config.json`; **"Write my brief even when Daybook is
+closed"** as one switch, with the last brief written and the last error, if any — off
+unloads the launchd jobs *and removes their files* (`pkill` alone restarts within 60s; a
+file left behind returns at the next login), on restores them, and the app never restarts
+jobs the user stopped; **Appearance** — the same as this Mac, light, or dark, for the whole
+app and the brief inside it; the folder (show in Finder) and the model (change); the
+account and **Sign out**; and "Something not working? Show Daybook's logs in Finder". Every
+word is one a person uses: the owner asked that nothing meant for developers shows to
+users. Development builds also show **For developers — everything Daybook runs**: every job
+by its macOS label with what it does, whether it is loaded and its last exit code, the
+app's and the runner's PIDs, and the log directory. **⏳ Still to come:** folder re-selection, and **folder access** — the connected
 folder's approval mode, the read-only folders granted, a revoke button for each, and the
 activity log (with the file tools, S10).
 

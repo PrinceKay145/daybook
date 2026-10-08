@@ -19,7 +19,8 @@ import {
   UNPLANNED,
   type DayBlock,
 } from "@/lib/dayShape";
-import { Button, ErrorNote, Field, inputClass } from "@/components/ui/button";
+import { Button, ErrorNote, Field, SectionLabel, inputClass } from "@/components/ui/button";
+import { OnboardingFrame } from "@/components/OnboardingFrame";
 import { LIST_MAX_HINT, ListMaxSelect } from "@/components/ListMaxSelect";
 import { cn } from "@/lib/utils";
 
@@ -147,94 +148,106 @@ export function SetupQuestionsScreen({
     }
   }
 
+  const chosen = { folder: folderName, model: connection ? describeChoice(connection) : undefined };
+
   if (written) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col justify-center">
-        <h1 className="text-xl font-semibold tracking-tight">Written to your folder</h1>
-        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          Open <code className="text-xs">{folder}</code> in Finder — every answer is a plain
-          file you own, readable with no app installed.
-        </p>
-        <ul className="mt-4 space-y-1.5">
+      <OnboardingFrame
+        step={3}
+        chosen={chosen}
+        title="Your folder is ready"
+        intro={<>Every answer is a plain file in “{folderName}” that you own and can read with no app installed.</>}
+        footer={
+          <>
+            <button type="button" className="underline decoration-1 underline-offset-[3px] hover:text-[var(--color-ink)]"
+              onClick={() => void daybook.revealFolder(folder)}>
+              Show the folder in Finder
+            </button>
+            <Button size="lg" onClick={() => onDone(briefTime)}>
+              Open Daybook
+            </Button>
+          </>
+        }
+      >
+        <SectionLabel>Written</SectionLabel>
+        <ul className="mt-3 max-w-md divide-y divide-[var(--color-line)] border-y border-[var(--color-line)]">
           {written.map((file) => (
-            <li key={file} className="rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-2 text-sm">
-              <code>{file}</code>
+            <li key={file} className="py-2 font-mono text-[12.5px] text-[var(--color-ink-soft)]">
+              {file}
             </li>
           ))}
         </ul>
-        <Button className="mt-5" onClick={() => onDone(briefTime)}>
-          Open my scoreboard
-        </Button>
-      </div>
+      </OnboardingFrame>
     );
   }
 
   if (existing === undefined) {
-    return <p className="mx-auto max-w-md py-16 text-sm text-[var(--color-ink-faint)]">Checking the folder…</p>;
+    return <OnboardingFrame step={3} chosen={chosen} title="Checking the folder…">{null}</OnboardingFrame>;
   }
 
   if (existing && !startOver) {
     return (
-      <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col justify-center">
-        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-          Step 3 of 3
-        </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">This folder already has a setup</h1>
-        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          It was set up for {existing.ownerName} — brief at {existing.briefTime}, nightly close
-          at {existing.closeTime}. Keep it, or answer the questions again.
-        </p>
-        <div className="mt-5 space-y-3 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
-          <Button className="w-full" disabled={busy} onClick={() => void keepExisting(existing)}>
-            Use this setup
-          </Button>
-          <p className="text-xs text-[var(--color-ink-faint)]">
-            Every file stays as it is. Your AI choice is recorded in config.json.
-          </p>
-          <Button
-            variant="secondary"
-            className="w-full"
-            disabled={busy}
-            onClick={() => beginStartOver(existing)}
-          >
-            Start over
-          </Button>
-          <p className="text-xs text-[var(--color-ink-faint)]">
-            The questions again. The current SETUP-CONTEXT.md and MASTER-PLAN.md move to
-            archive/setup/ first — nothing is deleted. Your log, day state and corrections stay
-            as they are.
-          </p>
-          <ErrorNote message={error} />
+      <OnboardingFrame
+        step={3}
+        chosen={chosen}
+        title="This folder already has a setup"
+        intro={<>It was set up for {existing.ownerName}, with the brief at <span className="tnum">{existing.briefTime}</span>. Keep it, or answer the questions again.</>}
+      >
+        <div className="max-w-xl divide-y divide-[var(--color-line)] border-y border-[var(--color-line)]">
+          <div className="flex items-start justify-between gap-6 py-4">
+            <div>
+              <h2 className="text-[15px] font-semibold">Use this setup</h2>
+              <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">Every file stays as it is. Only your choice of model is recorded.</p>
+            </div>
+            <Button size="lg" disabled={busy} onClick={() => void keepExisting(existing)}>Use this setup</Button>
+          </div>
+          <div className="flex items-start justify-between gap-6 py-4">
+            <div>
+              <h2 className="text-[15px] font-semibold">Start over</h2>
+              <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">
+                The questions again. The current SETUP-CONTEXT.md and MASTER-PLAN.md move to
+                archive/setup/ first, and nothing is deleted. Your log, day state and corrections stay.
+              </p>
+            </div>
+            <Button variant="secondary" size="lg" disabled={busy} onClick={() => beginStartOver(existing)}>Start over</Button>
+          </div>
         </div>
-      </div>
+        <div className="mt-4"><ErrorNote message={error} /></div>
+      </OnboardingFrame>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-md py-10">
-      <div className="mb-6">
-        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-          Step 3 of 3
-        </p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">
-          {startOver ? "Starting over" : "A few questions"}
-        </h1>
-        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          The secretary's starting picture of your week. Answers are written to your folder,
-          locally — never sent anywhere.
-        </p>
-      </div>
-
+    <OnboardingFrame
+      step={3}
+      chosen={chosen}
+      title={startOver ? "Starting over" : "About you and your days"}
+      intro="Your secretary's starting picture. Everything is written into your folder as plain files on this Mac and sent nowhere."
+      footer={
+        <>
+          <span className="min-w-0" title={folder}>
+            {startOver
+              ? `Replaces the old setup in “${folderName}”; the previous files move to archive/setup/ first.`
+              : `Saved in “${folderName}” as plain files you can open and edit.`}
+          </span>
+          <Button type="submit" form="setup-form" size="lg" disabled={busy || !connection}>
+            Write my folder
+          </Button>
+        </>
+      }
+    >
       <form
-        className="space-y-6 rounded-[var(--radius-card)] border border-[var(--color-line)] bg-[var(--color-surface)] p-6"
+        id="setup-form"
+        className="max-w-3xl"
         onSubmit={(event) => {
           event.preventDefault();
           void save();
         }}
       >
-        <Section title="About you">
+        <Section title="You" description="How it should address you.">
           <Field label="Your name">
             <input
+              id="setup-name"
               className={inputClass}
               value={ownerName}
               onChange={(event) => setOwnerName(event.target.value)}
@@ -244,6 +257,7 @@ export function SetupQuestionsScreen({
           </Field>
           <Field label="What should it call you?" hint="Leave empty to use your first name." optional>
             <input
+              id="setup-address-as"
               className={inputClass}
               value={addressAs}
               onChange={(event) => setAddressAs(event.target.value)}
@@ -253,11 +267,11 @@ export function SetupQuestionsScreen({
           </Field>
         </Section>
 
-        <Section title="What you're working with">
-          <div className="flex gap-1 rounded-[var(--radius-card)] border border-[var(--color-line)] p-1 text-xs" role="radiogroup" aria-label="How to answer">
+        <Section title="What you're working with" description="Answer three questions, or tell it in your own words.">
+          <div className="inline-flex gap-0.5 rounded-[7px] bg-[var(--color-sunken)] p-[3px]" role="radiogroup" aria-label="How to answer">
             {(
               [
-                ["questions", "Answer three questions"],
+                ["questions", "Three questions"],
                 ["words", "In your own words"],
               ] as const
             ).map(([value, text]) => (
@@ -268,9 +282,9 @@ export function SetupQuestionsScreen({
                 aria-checked={answerMode === value}
                 onClick={() => setAnswerMode(value)}
                 className={cn(
-                  "flex-1 rounded-[calc(var(--radius-card)-4px)] px-3 py-1.5",
+                  "rounded-[5px] px-3 py-1.5 text-[13px] transition-colors",
                   answerMode === value
-                    ? "bg-[var(--color-surface)] font-medium text-[var(--color-ink)]"
+                    ? "bg-[var(--color-surface)] font-semibold text-[var(--color-ink)] shadow-[0_0_0_1px_var(--color-line)]"
                     : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
                 )}
               >
@@ -281,10 +295,11 @@ export function SetupQuestionsScreen({
           {answerMode === "words" ? (
             <Field
               label="Tell your secretary about your life"
-              hint="What you're working toward, what's fixed in your week, who you're waiting on — however it comes out. Saved as you wrote it; your secretary reads it when it plans. You can dictate: press the dictation key, or Fn twice."
+              hint="What you're working toward, what's fixed in your week, who you're waiting on — however it comes out. Saved as you wrote it. You can dictate: press the dictation key, or Fn twice."
             >
               <textarea
-                className={`${inputClass} min-h-40 resize-y`}
+                id="setup-own-words"
+                className={`${inputClass} min-h-44 resize-y`}
                 value={ownWords}
                 onChange={(event) => setOwnWords(event.target.value)}
                 placeholder={"e.g. I'm trying to land a product role by summer and keep the newsletter going weekly. School run is 08:20 on weekdays, gym Tuesday and Thursday mornings. Still waiting to hear back on the contract renewal I sent on 4 March."}
@@ -292,24 +307,27 @@ export function SetupQuestionsScreen({
             </Field>
           ) : (
             <>
-              <Field label="What are you working toward?" hint="One goal per line — they seed your master plan.">
+              <Field label="What are you working toward?" hint="One goal per line; they start your master plan.">
                 <textarea
+                  id="setup-goals"
                   className={`${inputClass} min-h-20 resize-y`}
                   value={goals}
                   onChange={(event) => setGoals(event.target.value)}
                   placeholder={"Land a product role by summer\nShip the newsletter weekly"}
                 />
               </Field>
-              <Field label="What's non-negotiable in your week?" hint="One per line — the fixed points it plans around.">
+              <Field label="What's fixed in your week?" hint="One per line; it plans around these.">
                 <textarea
+                  id="setup-fixed"
                   className={`${inputClass} min-h-16 resize-y`}
                   value={nonNegotiables}
                   onChange={(event) => setNonNegotiables(event.target.value)}
                   placeholder={"School run 08:20 on weekdays\nGym Tue/Thu 07:00"}
                 />
               </Field>
-              <Field label="Who are you waiting on?" hint="One per line — replies, decisions, invoices." optional>
+              <Field label="Who are you waiting on?" hint="One per line: replies, decisions, invoices." optional>
                 <textarea
+                  id="setup-waiting"
                   className={`${inputClass} min-h-16 resize-y`}
                   value={inFlight}
                   onChange={(event) => setInFlight(event.target.value)}
@@ -320,34 +338,24 @@ export function SetupQuestionsScreen({
           )}
         </Section>
 
-        <Section title="Your day">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Morning brief at" hint="Changeable later.">
+        <Section title="Your day" description="When the brief arrives, and what fills the day.">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Morning brief at" hint="You can change it later.">
               <input
-                className={inputClass}
+                id="setup-brief-time"
+                className={cn(inputClass, "tnum")}
                 type="time"
                 value={briefTime}
                 onChange={(event) => setBriefTime(event.target.value)}
               />
             </Field>
-            <Field label="Nightly close at" hint="When the day is written down.">
-              <input
-                className={inputClass}
-                type="time"
-                value={closeTime}
-                onChange={(event) => setCloseTime(event.target.value)}
-              />
+            <Field label="Today's list holds at most" hint={LIST_MAX_HINT}>
+              <ListMaxSelect value={listMax} onChange={setListMax} />
             </Field>
           </div>
-          <Field label="How many things on today's list, at most?" hint={LIST_MAX_HINT}>
-            <ListMaxSelect value={listMax} onChange={setListMax} />
-          </Field>
           <DayShapeEditor blocks={blocks} onChange={setBlocks} />
-          <Field
-            label="Time zone"
-            hint="Set from this Mac's clock. Change it if you live by a different zone."
-          >
-            <select className={inputClass} value={timezone} onChange={(event) => setTimezone(event.target.value)}>
+          <Field label="Time zone" hint="Set from this Mac's clock. Change it if you live by a different zone.">
+            <select id="setup-timezone" className={inputClass} value={timezone} onChange={(event) => setTimezone(event.target.value)}>
               {zones.map((zone) => (
                 <option key={zone.id} value={zone.id}>
                   {zone.label}
@@ -357,19 +365,9 @@ export function SetupQuestionsScreen({
           </Field>
         </Section>
 
-        <p className="text-xs text-[var(--color-ink-soft)]" title={folder}>
-          {startOver
-            ? `Your new answers replace the old setup in “${folderName}” — the previous files move to archive/setup/ first, and your log, day state and corrections are kept.`
-            : `Your answers are saved in “${folderName}” as plain files you can open and edit — nothing already there is overwritten.`}
-          {connection ? ` Your model, ${describeChoice(connection)}, is recorded too.` : ""}
-        </p>
-
         <ErrorNote message={error} />
-        <Button type="submit" className="w-full" disabled={busy || !connection}>
-          Write my folder
-        </Button>
       </form>
-    </div>
+    </OnboardingFrame>
   );
 }
 
@@ -384,11 +382,11 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
 
   return (
     <div>
-      <p className="text-sm font-medium text-[var(--color-ink)]">
+      <p className="text-[13.5px] font-semibold text-[var(--color-ink)]">
         The shape of your day
         <span className="ml-1.5 font-normal text-[var(--color-ink-faint)]">(optional)</span>
       </p>
-      <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">
+      <p className="mt-0.5 text-[12.5px] text-[var(--color-ink-soft)]">
         Add the blocks you know — the school run, deep work, the gym. Anything you leave out
         shows as {UNPLANNED}. A block can run past midnight, like Sleep 23:00–07:00.
       </p>
@@ -411,14 +409,14 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
               placeholder="e.g. Deep work"
             />
             <input
-              className={cn(inputClass, "w-28 shrink-0")}
+              className={cn(inputClass, "tnum w-28 shrink-0")}
               type="time"
               value={block.start}
               onChange={(event) => update(index, { start: event.target.value })}
               aria-label={`${block.block || "Block"} starts`}
             />
             <input
-              className={cn(inputClass, "w-28 shrink-0")}
+              className={cn(inputClass, "tnum w-28 shrink-0")}
               type="time"
               value={block.end}
               onChange={(event) => update(index, { end: event.target.value })}
@@ -436,13 +434,12 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
         ))}
         <Button
           variant="secondary"
-          className="px-3 py-1.5 text-xs"
           onClick={() => onChange([...blocks, { block: "", start: "09:00", end: "10:00" }])}
         >
-          <Plus className="size-3.5" />
+          <Plus />
           Add a block
         </Button>
-        <p className={`text-xs ${problem ? "text-[var(--color-warn)]" : "text-[var(--color-ink-faint)]"}`}>
+        <p className={`text-[12.5px] ${problem ? "text-[var(--color-warn)]" : "text-[var(--color-ink-faint)]"}`}>
           {problem ??
             (blocks.length
               ? `Planned: ${describeMinutes(planned)} · ${UNPLANNED}: ${describeMinutes(1440 - planned)}`
@@ -453,14 +450,16 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
   );
 }
 
-/* Questions come in groups so the page reads as three short steps, not eight fields. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+/* Questions come in groups, the group's name and purpose on the left and its fields on the
+   right, so the page reads as three short steps rather than one long column. */
+function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <section className="space-y-4 border-t border-[var(--color-line)] pt-5 first:border-t-0 first:pt-0">
-      <h2 className="text-[0.72rem] font-semibold uppercase tracking-[0.09em] text-[var(--color-ink-faint)]">
-        {title}
-      </h2>
-      {children}
+    <section className="grid grid-cols-1 gap-x-8 gap-y-3 border-t border-[var(--color-line)] py-6 md:grid-cols-[190px_1fr]">
+      <div>
+        <h2 className="text-[14px] font-semibold">{title}</h2>
+        <p className="mt-0.5 text-[12.5px] text-[var(--color-ink-faint)]">{description}</p>
+      </div>
+      <div className="min-w-0 space-y-4">{children}</div>
     </section>
   );
 }
