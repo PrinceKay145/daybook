@@ -122,7 +122,8 @@ def _record(args, outcome) -> None:
     if args.state_dir and outcome.status in ("planned", "failed", "refused"):
         from .tick import record_plan
 
-        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome)
+        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome,
+                    args.folder)
 
 
 def cmd_plan(args) -> int:

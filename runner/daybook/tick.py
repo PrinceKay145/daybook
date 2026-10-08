@@ -100,24 +100,46 @@ def _save_state(state_dir: Path, state: dict) -> None:
     atomic_write_text(state_dir / "tick-state.json", json.dumps(state, indent=2) + "\n")
 
 
-def record_plan(state_dir: str, day: str, outcome: "plan.PlanOutcome") -> None:
+def _where(folder: str | Path | None) -> str | None:
+    if folder is None:
+        return None
+    try:
+        return str(Path(folder).expanduser().resolve())
+    except OSError:
+        return str(folder)
+
+
+def _for(entry: dict, day: str, folder: str | Path | None) -> bool:
+    """Whether a recorded plan is this folder's, today. A record names its folder: app data
+    outlives a folder, and a plan made for one is not a plan for the next (one written
+    before records named folders counts for any)."""
+    recorded, here = entry.get("folder"), _where(folder)
+    return entry.get("day") == day and (recorded is None or here is None or recorded == here)
+
+
+def planned_today(state: dict, day: str, folder: str | Path | None) -> bool:
+    entry = state.get("plan") or {}
+    return _for(entry, day, folder) and entry.get("status") == "planned"
+
+
+def record_plan(state_dir: str, day: str, outcome: "plan.PlanOutcome", folder: str | Path | None = None) -> None:
     """Today's planning, wherever it ran — the tick, or the app's "plan my day" — so the
     day is planned once, and a brief built later can say if planning failed."""
     states = Path(state_dir)
     state = _load_state(states)
-    earlier = state.get("plan") or {}
-    if earlier.get("day") == day and earlier.get("status") == "planned" and outcome.status != "planned":
+    if planned_today(state, day, folder) and outcome.status != "planned":
         return  # today was planned; a retry that failed leaves that plan standing, and true
     state["plan"] = {"day": day, "status": outcome.status, "detail": outcome.detail,
-                     "model": outcome.model, "at": datetime.now().isoformat(timespec="seconds")}
+                     "model": outcome.model, "at": datetime.now().isoformat(timespec="seconds"),
+                     "folder": _where(folder)}
     _save_state(states, state)
 
 
-def plan_note(state: dict, day: str) -> str | None:
+def plan_note(state: dict, day: str, folder: str | Path | None = None) -> str | None:
     """A line for the brief when today's plan could not be refreshed (law 14: the system
     reports its own failures). None when it was planned, or not attempted."""
     entry = state.get("plan") or {}
-    if entry.get("day") != day or entry.get("status") not in ("failed", "refused"):
+    if not _for(entry, day, folder) or entry.get("status") not in ("failed", "refused"):
         return None
     who = entry.get("model") or "your model"
     return (f"Today's plan wasn't refreshed by {who}: {entry.get('detail', '')} This brief is "
@@ -127,7 +149,7 @@ def plan_note(state: dict, day: str) -> str | None:
 def add_plan_note(folder: Folder, state_dir: str | None) -> None:
     if not state_dir:
         return
-    note = plan_note(_load_state(Path(state_dir)), folder.today.isoformat())
+    note = plan_note(_load_state(Path(state_dir)), folder.today.isoformat(), folder.scope.root)
     if note:
         folder.warnings.append(note)
 
@@ -164,16 +186,16 @@ def run_tick(
         if dated.exists():
             return Outcome("done", f"today's brief already exists ({dated.name})")
 
-        planned = (state.get("plan") or {}).get("day") == today.isoformat()
+        planned = planned_today(state, today.isoformat(), folder_path)
         if plan_day is not None and not planned:
             _save_state(states, state)  # the planning call can take minutes; keep the tick seen
             try:
                 with planlock.holding(state_dir, "the morning tick"):
                     # The app may have planned the day while this tick was starting.
-                    planned = (_load_state(states).get("plan") or {}).get("day") == today.isoformat()
+                    planned = planned_today(_load_state(states), today.isoformat(), folder_path)
                     if not planned:
                         outcome = plan_day(folder_path, clock=clock)
-                        record_plan(state_dir, today.isoformat(), outcome)
+                        record_plan(state_dir, today.isoformat(), outcome, folder_path)
             except planlock.Busy:
                 # Daybook is planning right now (setup just finished, or "Plan again"). The
                 # brief waits a minute for that plan rather than going out without it.
@@ -187,6 +209,10 @@ def run_tick(
 
         if now < due:
             return Outcome("waiting", f"{planned_detail}; today's brief is due at {due:%H:%M}")
+        if planlock.holder(state_dir):
+            # Daybook is planning or updating the day right now; the brief waits for it
+            # rather than going out a minute before the plan lands.
+            return Outcome("waiting", "Daybook is updating today's plan; the brief waits for it")
 
         add_plan_note(folder, state_dir)
         pending = [f"briefs/{today.isoformat()}.html", "briefs/latest.html"]
@@ -234,8 +260,9 @@ def plan_for_app(folder_path: str, state_dir: str, *, clock: str | None = None,
         with planlock.holding(state_dir, "Daybook", wait=wait) as waited:
             if waited and not propose and not message:
                 today = open_folder(folder_path, clock_override=clock).today.isoformat()
-                done = _load_state(Path(state_dir)).get("plan") or {}
-                if done.get("day") == today and done.get("status") == "planned":
+                state = _load_state(Path(state_dir))
+                done = state.get("plan") or {}
+                if planned_today(state, today, folder_path):
                     return plan.PlanOutcome("planned", str(done.get("detail", "")), model=str(done.get("model", "")))
             run = proposer if propose else planner
             return run(folder_path, clock=clock, message=message, secret=secret)

@@ -263,6 +263,21 @@ class OnePlanAtATime(ScheduledCase):
         self.assertEqual("delivered", self.tick("08:31").status)
         self.assertEqual([], self.planner.calls)
 
+    def test_a_plan_made_for_another_folder_is_not_this_folders(self):
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "tick-state.json").write_text(json.dumps({"plan": {
+            "day": DAY, "status": "planned", "detail": "1 on the list", "folder": "/elsewhere"}}), encoding="utf-8")
+        self.tick("08:31")
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_the_brief_waits_while_daybook_updates_a_day_already_planned(self):
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "tick-state.json").write_text(json.dumps(
+            {"plan": {"day": DAY, "status": "planned", "detail": "1 on the list"}}), encoding="utf-8")
+        self.hold_lock_as_another_run()
+        self.assertEqual("waiting", self.tick("08:31").status)
+        self.assertFalse(self.brief().exists())
+
     def test_the_app_uses_the_plan_the_tick_just_made_instead_of_a_second(self):
         self.hold_lock_as_another_run()
 
