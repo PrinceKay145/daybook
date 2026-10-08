@@ -187,7 +187,8 @@ def _parse_scoreboard(section: md.Section | None, state: DayState) -> None:
         state.metrics.append(
             Metric(
                 key=spans[0] if spans else md.normalise_key(raw_key),
-                value=md.strip_markup(row.get("this_week", "")),
+                # "This week" in hand-kept files; "Latest" where Daybook keeps the numbers.
+                value=md.strip_markup(row.get("this_week") or row.get("latest") or ""),
                 note=md.strip_markup(row.get("note", "")),
             )
         )

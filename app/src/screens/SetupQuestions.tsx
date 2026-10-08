@@ -5,11 +5,18 @@
    A folder an earlier setup already filled gets a choice first, and the choice is the
    user's: keep that setup (the default — nothing in the folder changes but the AI
    choice), or start over (the questions again; the previous setup files are archived,
-   never deleted). */
+   never deleted).
 
-import { useEffect, useState, type ReactNode } from "react";
-import { Plus, X } from "lucide-react";
-import { daybook, LIST_MAX, type Connection, type ExistingSetup } from "@/lib/daybook";
+   Someone whose life already lives in another AI can bring it instead of typing it: copy
+   Daybook's prompt there, paste back what it writes, and the form fills itself on this Mac
+   (runner/daybook/importer.py) for them to check — nothing is written until they do, and
+   the whole document is kept in HANDOVER.md for the secretary to read. */
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, Copy, FileText, Plus, X } from "lucide-react";
+import { daybook, LIST_MAX, type Connection, type ExistingSetup, type HandoverDraft } from "@/lib/daybook";
+import { HANDOVER_PROMPT } from "@/lib/handover";
+import { Segmented } from "@/components/ui/segmented";
 import { describeChoice } from "@/lib/models";
 import {
   completeDay,
@@ -66,6 +73,13 @@ export function SetupQuestionsScreen({
   const [inFlight, setInFlight] = useState("");
   const [answerMode, setAnswerMode] = useState<"questions" | "words">("questions");
   const [ownWords, setOwnWords] = useState("");
+  const [metricsText, setMetricsText] = useState("");
+  const [habitsText, setHabitsText] = useState("");
+  // Where the answers come from: typed here, or a handover from another AI. `read` is what
+  // the handover filled in, once it has been read; until then the form waits behind it.
+  const [source, setSource] = useState<"here" | "import">("here");
+  const [handover, setHandover] = useState("");
+  const [read, setRead] = useState<HandoverDraft | null>(null);
   const [briefTime, setBriefTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("23:00");
   const [listMax, setListMax] = useState<number>(LIST_MAX.default);
@@ -111,6 +125,32 @@ export function SetupQuestionsScreen({
     setStartOver(true);
   }
 
+  async function readHandover() {
+    setError(null);
+    if (!handover.trim()) {
+      setError("Paste the document your other AI wrote, or open the file it gave you.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const draft = await daybook.readHandover(handover);
+      if (draft.name) setOwnerName(draft.name);
+      if (draft.address_as) setAddressAs(draft.address_as);
+      setGoals(draft.goals.join("\n"));
+      setNonNegotiables(draft.fixed.join("\n"));
+      setInFlight(draft.waiting.join("\n"));
+      if (draft.day_shape.length) setBlocks(draft.day_shape);
+      setMetricsText(draft.metrics.map((m) => m.label).join("\n"));
+      setHabitsText(draft.habits.map((h) => h.label).join("\n"));
+      setAnswerMode("questions");
+      setRead(draft);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function save() {
     setError(null);
     if (!ownerName.trim()) {
@@ -136,6 +176,9 @@ export function SetupQuestionsScreen({
         nonNegotiables: answerMode === "questions" ? lines(nonNegotiables) : [],
         inFlight: answerMode === "questions" ? lines(inFlight) : [],
         ...(answerMode === "words" && ownWords.trim() ? { ownWords: ownWords.trim() } : {}),
+        metrics: lines(metricsText),
+        habits: lines(habitsText),
+        ...(source === "import" && read ? { handover } : {}),
         connection,
         startOver,
         dayShape: completeDay(blocks),
@@ -217,6 +260,7 @@ export function SetupQuestionsScreen({
     );
   }
 
+  const importing = source === "import" && !read;
   return (
     <OnboardingFrame
       step={3}
@@ -226,16 +270,41 @@ export function SetupQuestionsScreen({
       footer={
         <>
           <span className="min-w-0" title={folder}>
-            {startOver
-              ? `Replaces the old setup in “${folderName}”; the previous files move to archive/setup/ first.`
-              : `Saved in “${folderName}” as plain files you can open and edit.`}
+            {importing
+              ? "Read on this Mac. Nothing is written until you've checked it."
+              : startOver
+                ? `Replaces the old setup in “${folderName}”; the previous files move to archive/setup/ first.`
+                : `Saved in “${folderName}” as plain files you can open and edit.`}
           </span>
-          <Button type="submit" form="setup-form" size="lg" disabled={busy || !connection}>
-            Write my folder
+          <Button type="submit" form={importing ? "handover-form" : "setup-form"} size="lg" disabled={busy || !connection}>
+            {importing ? "Read it" : "Write my folder"}
           </Button>
         </>
       }
     >
+      <div className="mb-6">
+        <Segmented
+          label="Where your answers come from"
+          value={source}
+          onChange={(value) => {
+            setSource(value);
+            setError(null);
+          }}
+          options={[
+            ["here", "Answer here"],
+            ["import", "Bring it from another AI"],
+          ]}
+        />
+      </div>
+
+      {importing ? (
+        <HandoverSteps
+          text={handover}
+          onText={setHandover}
+          onRead={() => void readHandover()}
+          error={error}
+        />
+      ) : (
       <form
         id="setup-form"
         className="max-w-3xl"
@@ -244,6 +313,15 @@ export function SetupQuestionsScreen({
           void save();
         }}
       >
+        {source === "import" && read && (
+          <HandoverRead
+            draft={read}
+            onAgain={() => {
+              setRead(null);
+              setError(null);
+            }}
+          />
+        )}
         <Section title="You" description="How it should address you.">
           <Field label="Your name">
             <input
@@ -268,30 +346,15 @@ export function SetupQuestionsScreen({
         </Section>
 
         <Section title="What you're working with" description="Answer three questions, or tell it in your own words.">
-          <div className="inline-flex gap-0.5 rounded-[7px] bg-[var(--color-sunken)] p-[3px]" role="radiogroup" aria-label="How to answer">
-            {(
-              [
-                ["questions", "Three questions"],
-                ["words", "In your own words"],
-              ] as const
-            ).map(([value, text]) => (
-              <button
-                key={value}
-                type="button"
-                role="radio"
-                aria-checked={answerMode === value}
-                onClick={() => setAnswerMode(value)}
-                className={cn(
-                  "rounded-[5px] px-3 py-1.5 text-[13px] transition-colors",
-                  answerMode === value
-                    ? "bg-[var(--color-surface)] font-semibold text-[var(--color-ink)] shadow-[0_0_0_1px_var(--color-line)]"
-                    : "text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]",
-                )}
-              >
-                {text}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            label="How to answer"
+            value={answerMode}
+            onChange={setAnswerMode}
+            options={[
+              ["questions", "Three questions"],
+              ["words", "In your own words"],
+            ]}
+          />
           {answerMode === "words" ? (
             <Field
               label="Tell your secretary about your life"
@@ -310,7 +373,7 @@ export function SetupQuestionsScreen({
               <Field label="What are you working toward?" hint="One goal per line; they start your master plan.">
                 <textarea
                   id="setup-goals"
-                  className={`${inputClass} min-h-20 resize-y`}
+                  className={`${inputClass} min-h-20 resize-y field-sizing-content max-h-60`}
                   value={goals}
                   onChange={(event) => setGoals(event.target.value)}
                   placeholder={"Land a product role by summer\nShip the newsletter weekly"}
@@ -319,7 +382,7 @@ export function SetupQuestionsScreen({
               <Field label="What's fixed in your week?" hint="One per line; it plans around these.">
                 <textarea
                   id="setup-fixed"
-                  className={`${inputClass} min-h-16 resize-y`}
+                  className={`${inputClass} min-h-16 resize-y field-sizing-content max-h-60`}
                   value={nonNegotiables}
                   onChange={(event) => setNonNegotiables(event.target.value)}
                   placeholder={"School run 08:20 on weekdays\nGym Tue/Thu 07:00"}
@@ -328,7 +391,7 @@ export function SetupQuestionsScreen({
               <Field label="Who are you waiting on?" hint="One per line: replies, decisions, invoices." optional>
                 <textarea
                   id="setup-waiting"
-                  className={`${inputClass} min-h-16 resize-y`}
+                  className={`${inputClass} min-h-16 resize-y field-sizing-content max-h-60`}
                   value={inFlight}
                   onChange={(event) => setInFlight(event.target.value)}
                   placeholder={"Contract renewal — sent 4 March\nReference from a former manager"}
@@ -336,6 +399,35 @@ export function SetupQuestionsScreen({
               </Field>
             </>
           )}
+        </Section>
+
+        <Section title="What you track" description="Numbers for your scoreboard, and habits to tick. Both optional.">
+          <Field
+            label="Numbers to keep"
+            hint="One per line. Tell your secretary a number any time — “sent 3 applications today” — and it goes on your scoreboard."
+            optional
+          >
+            <textarea
+              id="setup-metrics"
+              className={`${inputClass} min-h-16 resize-y field-sizing-content max-h-60`}
+              value={metricsText}
+              onChange={(event) => setMetricsText(event.target.value)}
+              placeholder={"Applications sent\nDeep-work hours"}
+            />
+          </Field>
+          <Field
+            label="Habits to tick"
+            hint="One per line. Say “did my walk” and it's ticked; the brief shows how many of the last seven days."
+            optional
+          >
+            <textarea
+              id="setup-habits"
+              className={`${inputClass} min-h-16 resize-y field-sizing-content max-h-60`}
+              value={habitsText}
+              onChange={(event) => setHabitsText(event.target.value)}
+              placeholder={"Morning walk\nRead 20 pages"}
+            />
+          </Field>
         </Section>
 
         <Section title="Your day" description="When the brief arrives, and what fills the day.">
@@ -367,7 +459,164 @@ export function SetupQuestionsScreen({
 
         <ErrorNote message={error} />
       </form>
+      )}
     </OnboardingFrame>
+  );
+}
+
+/* Bringing what another AI knows: copy the prompt, paste it there, bring back what it
+   writes. Three steps, numbered, because they happen in two apps. */
+function HandoverSteps({
+  text,
+  onText,
+  onRead,
+  error,
+}: {
+  text: string;
+  onText: (text: string) => void;
+  onRead: () => void;
+  error: string | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(HANDOVER_PROMPT);
+    } catch {
+      // Without clipboard access, select the prompt so ⌘C copies it.
+      promptRef.current?.select();
+      document.execCommand("copy");
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2500);
+  }
+
+  function open(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 300_000) {
+      onText("");
+      return;
+    }
+    void file.text().then(onText);
+  }
+
+  const step = "grid grid-cols-[26px_1fr] gap-x-3";
+  const number = "font-display text-[19px] leading-[1.2] text-[var(--color-accent)]";
+  return (
+    <form
+      id="handover-form"
+      className="max-w-2xl space-y-7"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onRead();
+      }}
+    >
+      <p className="text-[14px] text-[var(--color-ink-soft)]">
+        If ChatGPT, Claude or another AI already knows your goals, your week and who you're
+        waiting on, bring that here instead of typing it again. You'll check everything it
+        fills in before anything is written.
+      </p>
+
+      <div className={step}>
+        <span className={number}>1</span>
+        <div className="space-y-2.5">
+          <h2 className="text-[14px] font-semibold">Copy this prompt</h2>
+          <Button variant="secondary" onClick={() => void copy()}>
+            {copied ? <Check /> : <Copy />}
+            {copied ? "Copied" : "Copy the prompt"}
+          </Button>
+          <textarea
+            ref={promptRef}
+            readOnly
+            value={HANDOVER_PROMPT}
+            aria-label="The prompt to copy"
+            className="h-28 w-full resize-y rounded-[var(--radius-control)] bg-[var(--color-sunken)] px-3 py-2 font-mono text-[11.5px] leading-[1.5] text-[var(--color-ink-soft)]"
+          />
+        </div>
+      </div>
+
+      <div className={step}>
+        <span className={number}>2</span>
+        <div>
+          <h2 className="text-[14px] font-semibold">Paste it into the AI that knows you</h2>
+          <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">
+            In the same app and account you've been using, so it can draw on your past
+            conversations. It writes a document back — copy all of it.
+          </p>
+        </div>
+      </div>
+
+      <div className={step}>
+        <span className={number}>3</span>
+        <div className="space-y-2.5">
+          <h2 className="text-[14px] font-semibold">Bring its answer here</h2>
+          <textarea
+            id="setup-handover"
+            className={`${inputClass} min-h-40 resize-y font-mono text-[12px]`}
+            value={text}
+            onChange={(event) => onText(event.target.value)}
+            placeholder={"Paste the whole document here — it starts with “# Daybook handover”"}
+            aria-label="The document your other AI wrote"
+          />
+          <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-[var(--color-ink-faint)]">
+            <Button variant="ghost" onClick={() => fileRef.current?.click()}>
+              <FileText />
+              Open a file instead
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".md,.markdown,.txt,text/markdown,text/plain"
+              className="hidden"
+              onChange={(event) => open(event.target.files?.[0])}
+            />
+            Read on this Mac, with no AI. The whole document is kept in your folder as HANDOVER.md.
+          </div>
+          <ErrorNote message={error} />
+        </div>
+      </div>
+    </form>
+  );
+}
+
+const FOUND: Record<string, string> = {
+  name: "your name",
+  goals: "what you're working toward",
+  day: "the shape of your day",
+  fixed: "what's fixed in your week",
+  waiting: "who you're waiting on",
+  metrics: "the numbers you track",
+  habits: "your habits",
+};
+
+/* What the handover filled, said once above the form it filled. */
+function HandoverRead({ draft, onAgain }: { draft: HandoverDraft; onAgain: () => void }) {
+  const found = draft.found.map((key) => FOUND[key]).filter(Boolean);
+  const list = found.length > 1 ? `${found.slice(0, -1).join(", ")} and ${found[found.length - 1]}` : found[0];
+  return (
+    <div className="pb-6">
+      <p className="flex items-start gap-2 text-[14px]">
+        <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
+        <span>
+          {found.length
+            ? <>Filled in from your other AI's document: {list}. Check each part below and change anything that's wrong — then write your folder.</>
+            : <>Nothing in that document matched what the prompt asks for, so nothing was filled in. It's still kept for your secretary — or try another.</>}
+        </span>
+      </p>
+      {draft.notes.length > 0 && (
+        <ul className="mt-2 ml-3.5 space-y-0.5 text-[12.5px] text-[var(--color-ink-faint)]">
+          {draft.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
+      <button type="button" onClick={onAgain}
+        className="mt-2 ml-3.5 text-[12.5px] text-[var(--color-ink-soft)] underline decoration-1 underline-offset-[3px] hover:text-[var(--color-ink)]">
+        Paste a different document
+      </button>
+    </div>
   );
 }
 

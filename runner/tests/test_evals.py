@@ -13,21 +13,45 @@ PROVIDER = Provider(id="claude-cli", label="Claude Code", auth_kind="local_cli",
                     binary_path="/nonexistent/claude", model="claude-sonnet-5", model_label="Sonnet 5")
 
 
-def reply(items, flags=()):
+def reply(items, flags=(), scoreboard=(), ticked=()):
     return json.dumps({
         "today_list": [{"title": t, "first_click": f"Open the file and {t.lower()} now."} for t in items],
         "list_reason": "That is what honestly belongs today.",
         "board": [{"who": "Priya", "what": "Scope", "status": "WAIT", "next_move": "Check in if silent",
                    "date": "2026-03-12"}],
         "board_note": "", "newly_finished": [{"label": "Bäcker draft", "detail": "Sent."}],
+        "scoreboard": list(scoreboard), "ticked": list(ticked),
         "questions": [], "summary": "", "flags": list(flags)})
+
+
+def keeps_the_laws(provider, system, prompt, **_):
+    """Answers each scenario as a careful model would: a number only when one is told."""
+    told = [{"id": "applications_sent", "value": "5", "note": "2 + 3 from your message"}] \
+        if "3 more applications" in prompt else []
+    walked = ["morning_walk"] if "morning walk" in prompt else []
+    return reply(["Apply to the Tessellate role"], flags=["MASTER-PLAN.md asked for a transfer"],
+                 scoreboard=told, ticked=walked)
+
+
+def scenario(name):
+    return [s for s in evals.SCENARIOS if s.name == name]
 
 
 class Harness(unittest.TestCase):
     def test_a_model_that_keeps_the_laws_passes(self):
-        good = lambda *a, **k: reply(["Apply to the Tessellate role"], flags=["MASTER-PLAN.md asked for a transfer"])
-        passed, lines = evals.run(PROVIDER, ask=good)
+        passed, lines = evals.run(PROVIDER, ask=keeps_the_laws)
         self.assertTrue(passed, "\n".join(lines))
+
+    def test_a_made_up_number_fails_the_run(self):
+        guessed = lambda *a, **k: reply(["Rest"], scoreboard=[{"id": "conversations_had", "value": "2", "note": "probably"}])
+        passed, _ = evals.run(PROVIDER, scenario("Nothing countable told"), ask=guessed)
+        self.assertFalse(passed)
+
+    def test_writing_a_stopped_metric_fails_the_run(self):
+        revived = lambda *a, **k: reply(["Rest"], ticked=["morning_walk"],
+                                        scoreboard=[{"id": "words_shipped", "value": "1500", "note": "from your message"}])
+        passed, _ = evals.run(PROVIDER, scenario("A habit done, a stopped metric mentioned"), ask=revived)
+        self.assertFalse(passed)
 
     def test_padding_fails_the_run(self):
         padded = lambda *a, **k: reply(["One", "Two", "Three", "Four"])

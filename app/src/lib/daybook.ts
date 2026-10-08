@@ -67,6 +67,10 @@ export interface ProposedDay {
   list_reason: string;
   board: { who: string; what: string; status: "WAIT" | "CHASE"; next_move: string; date: string }[];
   newly_finished: { label: string; detail: string }[];
+  /** Numbers the message stated, for metrics the person tracks. */
+  scoreboard?: { id: string; label: string; value: string; note: string }[];
+  /** Habits the message said were done today. */
+  ticked?: { id: string; label: string }[];
   questions: string[];
 }
 
@@ -155,6 +159,27 @@ export interface SetupPayload {
   startOver?: boolean;
   /** The whole day, 00:00–24:00 exactly once: the user's blocks plus Unplanned gaps. */
   dayShape: DayBlock[];
+  /** What they track: numbers for the scoreboard and habits to tick, as labels. */
+  metrics?: string[];
+  habits?: string[];
+  /** The document another AI wrote about them, kept whole in HANDOVER.md. */
+  handover?: string;
+}
+
+/** What a handover from another AI filled in, for the person to check (runner/daybook/importer.py). */
+export interface HandoverDraft {
+  name: string;
+  address_as: string;
+  goals: string[];
+  day_shape: DayBlock[];
+  fixed: string[];
+  waiting: string[];
+  metrics: { id: string; label: string }[];
+  habits: { id: string; label: string }[];
+  /** The parts it filled: name, goals, day, fixed, waiting, metrics, habits. */
+  found: string[];
+  /** What it left out, and why. */
+  notes: string[];
 }
 
 /** What an earlier setup interview left in a folder. */
@@ -177,6 +202,8 @@ interface DaybookBridge {
   loadSettings(userId: string): Promise<UserSettings>;
   saveSettings(userId: string, patch: Partial<UserSettings>): Promise<UserSettings>;
   writeSetup(payload: SetupPayload): Promise<string[]>;
+  /** Reads another AI's handover into setup fields — on this Mac, with no model. */
+  readHandover(text: string): Promise<HandoverDraft>;
   /** The earlier setup this folder holds, or null. */
   inspectFolder(folder: string): Promise<ExistingSetup | null>;
   /** Keeps the folder's setup as it is; records the AI choice in its config.json. */
@@ -266,6 +293,7 @@ export const daybook: DaybookBridge = bridge ?? {
     return next;
   },
   writeSetup: () => refuse("Writing the setup files"),
+  readHandover: () => refuse("Reading the handover"),
   inspectFolder: async () => null,
   adoptSetup: () => refuse("Writing the setup files"),
   recordConnection: () => refuse("Writing config.json"),

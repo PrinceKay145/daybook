@@ -225,7 +225,7 @@ export function ScoreboardScreen({
               }
             }}
             disabled={busy || proposal !== null || !connection}
-            placeholder="Tell your secretary what changed — e.g. finished the proposal, waiting on Sam until Friday"
+            placeholder="Tell your secretary what changed — e.g. finished the proposal, sent 3 applications, did my walk"
             aria-label="Tell your secretary"
             className={cn(inputClass, "field-sizing-content max-h-32 min-h-10 resize-none py-2.5")}
           />
@@ -348,6 +348,28 @@ function ProposalCard({
                   </li>
                 ))}
               </ul>
+            </>
+          )}
+
+          {(day.scoreboard?.length ?? 0) > 0 && (
+            <>
+              <p className={label}>On your scoreboard</p>
+              <ul className="mt-1 space-y-0.5">
+                {day.scoreboard!.map((row) => (
+                  <li key={row.id} className="flex flex-wrap items-baseline gap-x-2">
+                    <span>{row.label}</span>
+                    <span className="tnum font-semibold">{row.value}</span>
+                    <span className="text-[12.5px] text-[var(--color-ink-faint)]">{row.note}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {(day.ticked?.length ?? 0) > 0 && (
+            <>
+              <p className={label}>Ticked today</p>
+              <p className="mt-1">{day.ticked!.map((habit) => habit.label).join(" · ")}</p>
             </>
           )}
 
