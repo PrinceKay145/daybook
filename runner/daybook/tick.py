@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from . import plan
+from . import plan, planlock
 from .assertions import all_passed, verify
 from .brief import build
 from .folder import Folder, open_folder
@@ -43,6 +43,7 @@ Planner = Callable[..., "plan.PlanOutcome"]
 DEFAULT_BRIEF_TIME = "09:00"
 LATE_AFTER = timedelta(minutes=15)  # a brief written later than this says it was late
 PLAN_AHEAD = timedelta(minutes=10)  # the model plans the day this long before the brief
+PLAN_WAIT = 6 * 60  # seconds the app waits for a plan the tick is making (two attempts)
 WATCHDOG_GRACE = timedelta(minutes=30)  # how long after the brief time a missing brief is news
 TICK_STALE_AFTER = timedelta(minutes=10)  # a tick this old means the minute check has stopped
 
@@ -166,11 +167,21 @@ def run_tick(
         planned = (state.get("plan") or {}).get("day") == today.isoformat()
         if plan_day is not None and not planned:
             _save_state(states, state)  # the planning call can take minutes; keep the tick seen
-            outcome = plan_day(folder_path, clock=clock)
-            record_plan(state_dir, today.isoformat(), outcome)
+            try:
+                with planlock.holding(state_dir, "the morning tick"):
+                    # The app may have planned the day while this tick was starting.
+                    planned = (_load_state(states).get("plan") or {}).get("day") == today.isoformat()
+                    if not planned:
+                        outcome = plan_day(folder_path, clock=clock)
+                        record_plan(state_dir, today.isoformat(), outcome)
+            except planlock.Busy:
+                # Daybook is planning right now (setup just finished, or "Plan again"). The
+                # brief waits a minute for that plan rather than going out without it.
+                state = {**_load_state(states), "last_tick": state["last_tick"]}
+                return Outcome("waiting", "Daybook is planning today right now; the brief waits for it")
             state = _load_state(states)
             folder = open_folder(folder_path, clock_override=clock)
-            planned_detail = f"planned ({outcome.status}: {outcome.detail})"
+            planned_detail = f"planned ({outcome.status}: {outcome.detail})" if not planned else "already planned"
         else:
             planned_detail = "already planned" if planned else "not planned"
 
@@ -204,12 +215,46 @@ def run_tick(
             "Your brief is ready",
             f"{when} — written at {now:%H:%M}, after its {due:%H:%M} time."
             if late
-            else f"{when} is ready. All {len(results)} checks passed.",
+            else f"{when} is ready.",
         )
         state["last_brief"] = today.isoformat()
         return Outcome("delivered", f"wrote {dated.name}{' (late)' if late else ''}")
     finally:
         _save_state(states, state)
+
+
+def plan_for_app(folder_path: str, state_dir: str, *, clock: str | None = None,
+                 message: str | None = None, secret: str | None = None, propose: bool = False,
+                 wait: float = PLAN_WAIT, planner: Planner = plan.run,
+                 proposer: Planner = plan.propose) -> "plan.PlanOutcome":
+    """A planning run the app asked for, never alongside another. If the morning tick is
+    planning, this waits for it — and, asked only to plan the day (no message), uses the
+    plan the tick has just written instead of paying for a second one."""
+    try:
+        with planlock.holding(state_dir, "Daybook", wait=wait) as waited:
+            if waited and not propose and not message:
+                today = open_folder(folder_path, clock_override=clock).today.isoformat()
+                done = _load_state(Path(state_dir)).get("plan") or {}
+                if done.get("day") == today and done.get("status") == "planned":
+                    return plan.PlanOutcome("planned", str(done.get("detail", "")), model=str(done.get("model", "")))
+            run = proposer if propose else planner
+            return run(folder_path, clock=clock, message=message, secret=secret)
+    except planlock.Busy:
+        return plan.PlanOutcome(
+            "failed", "Your secretary is already planning today in the background. Try again in a minute.")
+
+
+def apply_for_app(folder_path: str, state_dir: str, proposal: "plan.PlanOutcome", *,
+                  clock: str | None = None, wait: float = PLAN_WAIT) -> "plan.PlanOutcome":
+    """Writing an approved proposal, never while the tick is planning. If the tick changed
+    the day state meanwhile, apply refuses, as it always does when the base has moved."""
+    try:
+        with planlock.holding(state_dir, "Daybook", wait=wait):
+            return plan.apply(folder_path, proposal, clock=clock)
+    except planlock.Busy:
+        return plan.PlanOutcome(
+            "refused", "Your secretary is planning today in the background, so this wasn't written. "
+            "Try again in a minute.", model=proposal.model)
 
 
 def run_watchdog(
