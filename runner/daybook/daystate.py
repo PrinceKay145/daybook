@@ -80,11 +80,47 @@ class Habit:
 
 
 @dataclass
+class TimedItem:
+    """Something at a stated time today — a call, a meeting, a deadline. ``end`` is None
+    for a moment rather than a span ("before 15:30"): no duration is ever made up."""
+
+    label: str
+    start: int
+    end: int | None = None
+
+    @property
+    def at(self) -> str:
+        return f"{self.start // 60:02d}:{self.start % 60:02d}"
+
+
+_TIME_CELL = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*(?:[-–—]\s*(\d{1,2}):(\d{2}))?\s*$")
+
+
+def read_time_cell(text: str) -> tuple[int, int | None] | None:
+    """ "17:00–19:00" or "15:30" as minutes; None when it is neither."""
+    match = _TIME_CELL.match(text)
+    if not match:
+        return None
+    h1, m1, h2, m2 = match.groups()
+    if int(h1) > 23 or int(m1) > 59:
+        return None
+    start = int(h1) * 60 + int(m1)
+    if h2 is None:
+        return start, None
+    if int(h2) > 24 or int(m2) > 59:
+        return None
+    end = (int(h2) * 60 + int(m2)) % 1440
+    return (start, end) if end != start else None
+
+
+@dataclass
 class DayState:
     true_for: str = ""
     rewritten: str = ""
     today_list: list[Action] = field(default_factory=list)
     today_list_reason: str = ""
+    # Things at a stated time today, drawn on the dial and counted by Next up.
+    times: list[TimedItem] = field(default_factory=list)
     done_for_you: str = ""
     finished: list[FinishedThing] = field(default_factory=list)
     not_on_list: list[str] = field(default_factory=list)
@@ -119,12 +155,25 @@ def parse(source: str) -> DayState:
     # user's setting still carry; both name the same section.
     _parse_today_list(md.find_section(sections, "today's list", "todays list",
                                       "today's three", "todays three"), state)
+    _parse_times(md.find_section(sections, "today's times", "todays times"), state)
     _parse_finished(md.find_section(sections, "not on the list"), state)
     _parse_board(md.find_section(sections, "board"), state)
     _parse_scoreboard(md.find_section(sections, "scoreboard"), state)
     _parse_ticks(md.find_section(sections, "ticks"), state)
     _parse_questions(md.find_section(sections, "open questions"), state)
     return state
+
+
+def _parse_times(section: md.Section | None, state: DayState) -> None:
+    """Optional: a day with nothing at a set time has no such section."""
+    if section is None:
+        return
+    for row in md.parse_table(section.lines):
+        read = read_time_cell(md.strip_markup(row.get("time", "")))
+        label = md.strip_markup(row.get("what", ""))
+        if read and label:
+            state.times.append(TimedItem(label=label, start=read[0], end=read[1]))
+    state.times.sort(key=lambda t: t.start)
 
 
 def _parse_today_list(section: md.Section | None, state: DayState) -> None:

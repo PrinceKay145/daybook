@@ -71,6 +71,10 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    model reads it when it plans the first day. Accept: nothing is written until Apply, which
    checks the plan again; Discard writes nothing and keeps the message to edit; a proposal
    whose day state changed in the meantime is refused, not merged; one request at a time.
+   Something at a stated time today ("business call 17:00–19:00", "before 15:30") reaches
+   the dial and Next up, not only the list (found testing live, 2026-10-09): a span is drawn
+   as today's own block over the typical day, a moment is marked beside the ring and named
+   under it; only times that were given, never a made-up end, and never yesterday's.
 4. ✅ **An install testers can open** (built). `npm run dist:mac` → a disk image: Python
    bundled, signed ad hoc (valid, not notarized), the one-time "Open Anyway" step and the
    uninstall steps in `TESTERS.md` — the guide sent with it. The app offers to move itself

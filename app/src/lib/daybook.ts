@@ -67,6 +67,8 @@ export interface ProposedDay {
   list_reason: string;
   board: { who: string; what: string; status: "WAIT" | "CHASE"; next_move: string; date: string }[];
   newly_finished: { label: string; detail: string }[];
+  /** Things at a stated time today, for the dial; end is "" for a moment, not a span. */
+  today_times?: { what: string; start: string; end: string }[];
   /** Numbers the message stated, for metrics the person tracks. */
   scoreboard?: { id: string; label: string; value: string; note: string }[];
   /** Habits the message said were done today. */
