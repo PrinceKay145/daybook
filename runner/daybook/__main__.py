@@ -122,7 +122,8 @@ def _record(args, outcome) -> None:
     if args.state_dir and outcome.status in ("planned", "failed", "refused"):
         from .tick import record_plan
 
-        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome)
+        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome,
+                    args.folder)
 
 
 def cmd_plan(args) -> int:
@@ -131,9 +132,16 @@ def cmd_plan(args) -> int:
     from . import plan
 
     given = json.loads(sys.stdin.read() or "{}") if args.stdin else {}
-    run = plan.propose if args.propose else plan.run
-    outcome = run(args.folder, clock=args.clock, message=given.get("message") or None,
-                  secret=given.get("secret") or None)
+    message, secret = given.get("message") or None, given.get("secret") or None
+    if args.state_dir:
+        # The app's runs share app data with the launchd tick: one plan at a time.
+        from .tick import plan_for_app
+
+        outcome = plan_for_app(args.folder, args.state_dir, clock=args.clock, message=message,
+                               secret=secret, propose=args.propose)
+    else:
+        run = plan.propose if args.propose else plan.run
+        outcome = run(args.folder, clock=args.clock, message=message, secret=secret)
     _record(args, outcome)
     print(outcome.to_json(), flush=True)
     return 0
@@ -145,7 +153,12 @@ def cmd_apply(args) -> int:
     from . import plan
 
     proposal = plan.PlanOutcome(**json.loads(sys.stdin.read()))
-    outcome = plan.apply(args.folder, proposal, clock=args.clock)
+    if args.state_dir:
+        from .tick import apply_for_app
+
+        outcome = apply_for_app(args.folder, args.state_dir, proposal, clock=args.clock)
+    else:
+        outcome = plan.apply(args.folder, proposal, clock=args.clock)
     _record(args, outcome)
     print(outcome.to_json(), flush=True)
     return 0

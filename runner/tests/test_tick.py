@@ -11,9 +11,13 @@ import unittest
 
 from support import FRESH_FIXTURE, FolderCase
 
-from daybook import plan
+import os
+import threading
+import time
+
+from daybook import plan, planlock
 from daybook.clock import Clock
-from daybook.tick import run_tick, run_watchdog
+from daybook.tick import apply_for_app, plan_for_app, run_tick, run_watchdog
 
 DAY = "2026-03-10"
 
@@ -81,7 +85,8 @@ class Tick(ScheduledCase):
         self.assertEqual(1, len(self.notes.sent))
         title, message = self.notes.sent[0]
         self.assertEqual("Your brief is ready", title)
-        self.assertIn("All 11 checks passed", message)
+        self.assertIn("is ready", message)
+        self.assertNotIn("checks", message)  # the owner removed check counts from what people read
 
     def test_the_next_tick_does_not_write_or_announce_again(self):
         self.tick("08:31")
@@ -232,3 +237,112 @@ class TickPlansTheDay(ScheduledCase):
         self.assertNotIn("wasn&#x27;t refreshed", self.brief().read_text(encoding="utf-8"))
         self.assertEqual([], self.planner.calls)
 
+
+
+class OnePlanAtATime(ScheduledCase):
+    """The app and the launchd tick are separate processes; the plan lock in app data keeps
+    them from planning the same day at once (found end to end: setup finished after the
+    brief time, both planned in the same second, and the app's plan was refused)."""
+
+    def hold_lock_as_another_run(self) -> None:
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / planlock.NAME).write_text(json.dumps(
+            {"pid": os.getppid(), "by": "the other run", "at": time.time()}), encoding="utf-8")
+
+    def test_the_tick_waits_while_daybook_plans_and_writes_no_brief_without_the_plan(self):
+        self.hold_lock_as_another_run()
+        outcome = self.tick("08:31")
+        self.assertEqual("waiting", outcome.status)
+        self.assertEqual([], self.planner.calls)
+        self.assertFalse(self.brief().exists())
+
+    def test_the_tick_does_not_plan_again_once_daybook_has(self):
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "tick-state.json").write_text(json.dumps(
+            {"plan": {"day": DAY, "status": "planned", "detail": "1 on the list"}}), encoding="utf-8")
+        self.assertEqual("delivered", self.tick("08:31").status)
+        self.assertEqual([], self.planner.calls)
+
+    def test_a_plan_made_for_another_folder_is_not_this_folders(self):
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "tick-state.json").write_text(json.dumps({"plan": {
+            "day": DAY, "status": "planned", "detail": "1 on the list", "folder": "/elsewhere"}}), encoding="utf-8")
+        self.tick("08:31")
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_the_brief_waits_while_daybook_updates_a_day_already_planned(self):
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "tick-state.json").write_text(json.dumps(
+            {"plan": {"day": DAY, "status": "planned", "detail": "1 on the list"}}), encoding="utf-8")
+        self.hold_lock_as_another_run()
+        self.assertEqual("waiting", self.tick("08:31").status)
+        self.assertFalse(self.brief().exists())
+
+    def test_the_app_uses_the_plan_the_tick_just_made_instead_of_a_second(self):
+        self.hold_lock_as_another_run()
+
+        def tick_finishes() -> None:
+            time.sleep(0.2)
+            (self.state / "tick-state.json").write_text(json.dumps({"plan": {
+                "day": DAY, "status": "planned", "detail": "2 on the list, 1 on the board",
+                "model": "Sonnet 5 · Claude Code"}}), encoding="utf-8")
+            (self.state / planlock.NAME).unlink()
+
+        threading.Thread(target=tick_finishes).start()
+        outcome = plan_for_app(str(self.folder), str(self.state), clock=f"{DAY}T08:31:00",
+                               wait=10, planner=self.planner)
+        self.assertEqual(("planned", "2 on the list, 1 on the board"), (outcome.status, outcome.detail))
+        self.assertEqual([], self.planner.calls)
+        self.assertFalse((self.state / planlock.NAME).exists())
+
+    def test_a_message_waits_for_the_tick_then_is_still_proposed(self):
+        self.hold_lock_as_another_run()
+        threading.Timer(0.2, lambda: (self.state / planlock.NAME).unlink()).start()
+        asked = []
+
+        def proposer(folder_path, clock=None, message=None, secret=None):
+            asked.append(message)
+            return plan.PlanOutcome("proposed", "1 on the list")
+
+        outcome = plan_for_app(str(self.folder), str(self.state), message="Sent it.", propose=True,
+                               wait=10, proposer=proposer)
+        self.assertEqual("proposed", outcome.status)
+        self.assertEqual(["Sent it."], asked)
+
+    def test_a_tick_that_never_finishes_is_said_plainly(self):
+        self.hold_lock_as_another_run()
+        outcome = plan_for_app(str(self.folder), str(self.state), wait=0, planner=self.planner)
+        self.assertEqual("failed", outcome.status)
+        self.assertIn("already planning", outcome.detail)
+        refused = apply_for_app(str(self.folder), str(self.state), plan.PlanOutcome("proposed", ""), wait=0)
+        self.assertEqual("refused", refused.status)
+
+
+class TheLock(unittest.TestCase):
+    def setUp(self) -> None:
+        import tempfile
+        self.dir = tempfile.mkdtemp(prefix="daybook-lock-")
+
+    def test_a_second_holder_that_will_not_wait_is_told_who_has_it(self):
+        with planlock.holding(self.dir, "Daybook"):
+            with self.assertRaisesRegex(planlock.Busy, "Daybook"):
+                with planlock.holding(self.dir, "the morning tick"):
+                    pass
+
+    def test_a_lock_left_by_a_process_that_died_is_taken_over(self):
+        with open(os.path.join(self.dir, planlock.NAME), "w") as handle:
+            handle.write(json.dumps({"pid": 999999, "by": "a crashed run", "at": time.time()}))
+        with planlock.holding(self.dir, "Daybook") as waited:
+            self.assertFalse(waited)
+
+    def test_a_lock_older_than_any_run_is_taken_over(self):
+        with open(os.path.join(self.dir, planlock.NAME), "w") as handle:
+            handle.write(json.dumps({"pid": os.getppid(), "by": "old", "at": time.time() - planlock.STALE_AFTER - 1}))
+        with planlock.holding(self.dir, "Daybook"):
+            self.assertEqual("Daybook", planlock.holder(self.dir)["by"])
+
+    def test_the_lock_is_gone_after_the_run_even_when_it_fails(self):
+        with self.assertRaises(RuntimeError):
+            with planlock.holding(self.dir, "Daybook"):
+                raise RuntimeError("the model could not be asked")
+        self.assertIsNone(planlock.holder(self.dir))

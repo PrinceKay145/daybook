@@ -171,6 +171,14 @@ document is never logged. The same command reads `{"fixed": [lines]}` into confi
 non-negotiables at "Write my folder", so a fixed time typed by hand is marked on the dial
 too. The whole document becomes `HANDOVER.md`, one of the files the planner is shown.
 
+**Today's times.** The answer carries `today_times` (`{what, start, end}`; an empty end is a
+moment, not a span). Daybook refuses a time that isn't HH:MM, an end equal to its start, and
+spans that overlap, and writes them as the day state's "Today's times" table (regenerated
+each plan, so none outlive their day). The brief uses them only when the day state is true
+for today: spans are laid over the day shape as today's own blocks (`dial.overlay`, which
+keeps the day contiguous for V2), moments are marked beside the ring and listed in the
+legend, and Next up and the page's live script count both alongside reminders.
+
 **Numbers and ticks.** The planning answer also carries `scoreboard` (`{id, value, note}`
 for metrics in config.json, never one with `tracking: false`) and `ticked` (habit ids).
 Daybook refuses an unknown id and a number without a note, drops a value the day state

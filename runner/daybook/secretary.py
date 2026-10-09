@@ -147,9 +147,30 @@ def _run(args: list[str], prompt: str, cwd: str, binary: str, timeout: int,
             env=_child_env(binary), timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        raise AskError(f"{who} didn't answer within {timeout // 60} minutes.") from exc
+        raise AskError(f"{who} didn't answer within {timeout // 60} minutes, so nothing was changed. "
+                       "Try again in a moment.") from exc
     except OSError as exc:
         raise AskError(f"{who} couldn't be started: {exc.strerror or exc}.") from exc
+
+
+# Failures that pass on their own, said plainly. The CLI's own words ("API Error:
+# Connection closed mid-response. The response above may be incomplete.") describe its
+# terminal, not Daybook — and nothing was changed, which is what the person needs to know.
+_PASSING = (
+    (re.compile(r"usage limit|rate.?limit|too many requests|\b429\b", re.I),
+     "{who} has reached its usage limit for now, so nothing was changed. It resets on its own; try again later."),
+    (re.compile(r"overloaded|\b529\b|\b503\b|capacity", re.I),
+     "{who}'s servers are busy right now, so nothing was changed. Try again in a few minutes."),
+    (re.compile(r"connection|network|socket|econn|etimedout|timed out|fetch failed|offline", re.I),
+     "{who} lost its connection partway through, so nothing was changed. Check the Mac is online, then try again."),
+)
+
+
+def _passing(who: str, text: str) -> str | None:
+    for pattern, said in _PASSING:
+        if pattern.search(text or ""):
+            return said.format(who=who)
+    return None
 
 
 def _tail(text: str, limit: int = 300) -> str:
@@ -181,7 +202,8 @@ def _ask_claude(provider: Provider, system: str, prompt: str, timeout: int) -> s
         lowered = result.lower()
         if "login" in lowered or "api key" in lowered or "auth" in lowered:
             raise AskError("Claude Code isn't signed in on this Mac — run `claude auth login` in Terminal.")
-        raise AskError(f"Claude Code answered with an error: {_tail(result) or _tail(done.stderr)}")
+        raise AskError(_passing("Claude Code", f"{result} {done.stderr}")
+                       or f"Claude Code answered with an error: {_tail(result) or _tail(done.stderr)}")
     return result
 
 
@@ -220,7 +242,7 @@ def _ask_codex(provider: Provider, system: str, prompt: str, schema: dict | None
         lowered = (done.stderr or "").lower()
         if "login" in lowered or "not logged in" in lowered or "unauthorized" in lowered:
             raise AskError("Codex isn't signed in on this Mac — run `codex login` in Terminal.")
-        raise AskError(_cli_failure("Codex", done))
+        raise AskError(_passing("Codex", done.stderr or "") or _cli_failure("Codex", done))
     return reply
 
 
