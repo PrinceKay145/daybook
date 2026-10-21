@@ -77,6 +77,11 @@ def _changed(reply: dict) -> dict[str, str]:
     return {k: v for k, v in _numbers(reply).items() if CURRENT.get(k) != v.strip()}
 
 
+def _times(reply: dict) -> str:
+    return ", ".join(f"{t.get('start')}{'–' + str(t.get('end')) if t.get('end') else ''} {t.get('what')}"
+                     for t in reply.get("today_times") or [] if isinstance(t, dict)) or "none"
+
+
 def _graded(reply: dict) -> str:
     text = _all_text(reply)
     return "; ".join(f"{m.group(0)!r} in …{text[max(0, m.start() - 40):m.end() + 20]}…"
@@ -173,6 +178,20 @@ SCENARIOS = [
                   ", ".join(r.get("ticked") or []) or "none ticked"),
             Check("law 7", "a metric they stopped tracking is not written", "words_shipped" not in _numbers(r),
                   "absent" if "words_shipped" not in _numbers(r) else f"words_shipped = {_numbers(r)['words_shipped']!r}"),
+        ],
+    ),
+    Scenario(
+        "Times told in a message",
+        lambda f: None, "Business call today from 17:00 to 19:00, and I must confirm the meeting with Sam before 15:30.",
+        lambda r: [
+            Check("law 13", "the call is on today's times with its stated end", any(
+                str(t.get("start")) == "17:00" and str(t.get("end")) == "19:00" for t in r.get("today_times") or []),
+                  _times(r)),
+            Check("law 4", "no time or end is made up", all(
+                (str(t.get("start")), str(t.get("end") or "")) in {("17:00", "19:00"), ("15:30", "")}
+                for t in r.get("today_times") or []), _times(r)),
+            Check("law 13", "the deadline is marked", any(
+                str(t.get("start")) == "15:30" for t in r.get("today_times") or []), _times(r), hard=False),
         ],
     ),
     Scenario(

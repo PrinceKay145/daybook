@@ -30,7 +30,8 @@ interview writing plain files into the folder, the brief built from that folder 
 runner, verified by the eleven assertions and shown only when they pass, written at the
 user's brief time by launchd, and Settings & status — and **the chosen model plans the
 day** (Beta 1, items 1–6 below), with the message box, the tester install, the import
-from another AI and numbers by message all built.
+from another AI and numbers by message all built. Still to build before Beta 1 ships: item 7,
+talking to Daybook.
 
 ---
 
@@ -70,6 +71,10 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    model reads it when it plans the first day. Accept: nothing is written until Apply, which
    checks the plan again; Discard writes nothing and keeps the message to edit; a proposal
    whose day state changed in the meantime is refused, not merged; one request at a time.
+   Something at a stated time today ("business call 17:00–19:00", "before 15:30") reaches
+   the dial and Next up, not only the list (found testing live, 2026-10-09): a span is drawn
+   as today's own block over the typical day, a moment is marked beside the ring and named
+   under it; only times that were given, never a made-up end, and never yesterday's.
 4. ✅ **An install testers can open** (built). `npm run dist:mac` → a disk image: Python
    bundled, signed ad hoc (valid, not notarized), the one-time "Open Anyway" step and the
    uninstall steps in `TESTERS.md` — the guide sent with it. The app offers to move itself
@@ -96,6 +101,15 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    applied, and "n of 7" is counted from that file. Accept: no number when none was told; a
    repeated value is not re-dated; no tick without a message; a tracked metric with no number
    yet shows a dash and why.
+7. ⬜ **Talk to Daybook** (owner, 2026-10-09; to build before Beta 1 ships). A microphone
+   button so testers can record what they'd otherwise type: into "Tell your secretary", and
+   into setup's "in your own words". What they said becomes text they can read and correct
+   before sending; it then goes through the same proposal and Apply as a typed message.
+   Today macOS dictation already works in any text box (Fn twice); this makes speaking a
+   visible, one-click part of Daybook. To decide when building: where speech becomes text
+   (on the Mac, so a recording never leaves it, is the natural fit with the rest of
+   Daybook), whether the audio is kept or discarded, and the macOS microphone permission
+   prompt the packaged app needs.
 
 ✅ **Then a design and UI pass** across every screen and the brief (owner, 2026-10-05;
 built). The owner's choices: refine the calm look; light and dark following the Mac; the

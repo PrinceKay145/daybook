@@ -85,6 +85,28 @@ class ClaudeCode(Asking):
             self.run_with(self.claude(), stdout=self.envelope("Invalid API key · Please run /login", True), returncode=1)
         self.assertIn("claude auth login", str(caught.exception))
 
+    def test_a_dropped_connection_is_said_plainly_with_nothing_changed(self):
+        # Seen live: Claude Code's own words describe its terminal, not Daybook.
+        dropped = "API Error: Connection closed mid-response. The response above may be incomplete."
+        with self.assertRaises(AskError) as caught:
+            self.run_with(self.claude(), stdout=self.envelope(dropped, True), returncode=1)
+        said = str(caught.exception)
+        self.assertIn("lost its connection", said)
+        self.assertIn("nothing was changed", said)
+        self.assertNotIn("response above", said)
+
+    def test_busy_servers_and_usage_limits_are_told_apart(self):
+        for raw, expected in (("API Error: 529 Overloaded", "busy right now"),
+                              ("Claude AI usage limit reached", "usage limit")):
+            with self.subTest(raw), self.assertRaises(AskError) as caught:
+                self.run_with(self.claude(), stdout=self.envelope(raw, True), returncode=1)
+            self.assertIn(expected, str(caught.exception))
+
+    def test_an_unknown_error_is_still_shown(self):
+        with self.assertRaises(AskError) as caught:
+            self.run_with(self.claude(), stdout=self.envelope("Something odd happened", True), returncode=1)
+        self.assertIn("Something odd happened", str(caught.exception))
+
     def test_a_model_id_outside_the_plain_shape_never_reaches_an_argument(self):
         with self.assertRaises(AskError):
             self.run_with(self.claude(model="sonnet; rm -rf ~"))

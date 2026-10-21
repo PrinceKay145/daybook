@@ -117,6 +117,9 @@ def _marks(data: BriefData) -> list[tuple[int, str, str]]:
             marks.append((dial.to_minutes(at), label, "light"))
         except ValueError:
             continue
+    for item in data.today_times:
+        if item.end is None:
+            marks.append((item.start, item.label, "today"))
     return sorted(marks)
 
 
@@ -212,7 +215,7 @@ def _dial_svg(data: BriefData) -> str:
     for minute, label, kind in marks:
         x1, y1 = dial.polar_point(minute, R_MARK_IN, CX, CY)
         x2, y2 = dial.polar_point(minute, R_MARK_OUT, CX, CY)
-        what = "non-negotiable" if kind == "fixed" else "today's times"
+        what = {"fixed": "non-negotiable", "light": "today's times", "today": "today"}[kind]
         parts.append(
             f'<line class="dial-mark {kind}" x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
             f"<title>{esc(label)} · {dial.to_hhmm(minute)} · {what}</title></line>"
@@ -248,7 +251,8 @@ def _hours(block) -> str:
 
 
 def _legend(data: BriefData) -> str:
-    """Each block of the day with its hours, in the order the day shape lists them."""
+    """Each block of the day with its hours, in the order the day shape lists them; then
+    today's moments by name, since a long name beside the ring is shortened."""
     colours = _label_colours(data.dial.blocks)
     rows = []
     for index, block in enumerate(data.dial.blocks):
@@ -258,6 +262,9 @@ def _legend(data: BriefData) -> str:
             f'<i style="background:{colours[block.label]}"></i>'
             f"<span>{esc(block.label)}</span><time>{_hours(block)}</time></li>"
         )
+    for item in data.today_times:
+        if item.end is None:
+            rows.append(f'<li class="moment"><i></i><span>{esc(item.label)}</span><time>{item.at}</time></li>')
     return f'<ul class="legend">{"".join(rows)}</ul>'
 
 
@@ -469,9 +476,11 @@ h1 {
 .dial-mark { stroke-linecap: round; }
 .dial-mark.fixed { stroke: var(--ink); stroke-width: 2.2; }
 .dial-mark.light { stroke: var(--ink-faint); stroke-width: 1.6; }
+.dial-mark.today { stroke: var(--accent); stroke-width: 2.2; }
 .dial-mark-label { font: 500 10px var(--text); }
 .dial-mark-label.fixed { fill: var(--ink-soft); }
 .dial-mark-label.light { fill: var(--ink-faint); }
+.dial-mark-label.today { fill: var(--accent); }
 .dial-hand { stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; }
 .dial-hand-tip { fill: var(--ink); stroke: var(--bg); stroke-width: 1.5; }
 .dial-now {
@@ -485,6 +494,7 @@ h1 {
 .legend li.now { color: var(--ink); font-weight: 600; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: block; }
 .legend time { color: var(--ink-faint); font-size: 12px; font-weight: 400; }
+.legend li.moment i { height: 3px; border-radius: 2px; background: var(--accent); }
 .next { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
 .next-line { margin: 0; font-size: 14.5px; }
 .sec { margin-bottom: 32px; }
@@ -680,7 +690,7 @@ def render(data: BriefData) -> str:
     }}
     fit(setText("dial-block", block ? block[2] : "no block"), 136, 12.5, 9);
     setText("dial-until", block ? "until " + hhmm(block[4]) : "day shape has a gap");
-    var rows = document.querySelectorAll(".legend li");
+    var rows = document.querySelectorAll(".legend li[data-block]");
     for (i = 0; i < rows.length; i++) {{
       rows[i].className = block && rows[i].getAttribute("data-block") === String(block[3]) ? "now" : "";
     }}

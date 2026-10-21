@@ -337,6 +337,20 @@ function ProposalCard({
             </>
           )}
 
+          {(day.today_times?.length ?? 0) > 0 && (
+            <>
+              <p className={label}>At set times today</p>
+              <ul className="mt-1 space-y-0.5">
+                {day.today_times!.map((item, i) => (
+                  <li key={i} className="grid grid-cols-[96px_1fr] gap-x-2">
+                    <span className="tnum text-[var(--color-ink-soft)]">{item.end ? `${item.start}–${item.end}` : item.start}</span>
+                    <span>{item.what}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
           {day.newly_finished.length > 0 && (
             <>
               <p className={label}>Marked done</p>

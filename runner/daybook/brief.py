@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from . import dial
-from .daystate import Action, BoardRow, Habit, Metric
+from .daystate import Action, BoardRow, Habit, Metric, TimedItem
 from .folder import Folder
 from .schedule import ActionTarget
 
@@ -160,6 +160,9 @@ class BriefData:
     # "Next up" true while it stays open.
     light_marks: list[tuple[str, str]] = field(default_factory=list)
     ahead: list[tuple[str, int]] = field(default_factory=list)
+    # Today's own times from the day state: spans are on the dial as blocks, moments
+    # ("before 15:30") are marked beside it.
+    today_times: list[TimedItem] = field(default_factory=list)
 
 
 def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData:
@@ -168,7 +171,12 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
     minutes = folder.clock.minutes
     pending = list(pending_outputs or [])
 
-    blocks = dial.blocks_from_config(folder.day_shape())
+    # Today's times count only when the day state is for today: yesterday's 17:00 call is
+    # not on today's dial just because this morning's plan hasn't run yet.
+    today_words = f"{folder.today:%A} {folder.today.day} {folder.today:%B %Y}"
+    times = state.times if state.true_for.strip() == today_words else []
+    blocks = dial.overlay(dial.blocks_from_config(folder.day_shape()),
+                          [(t.label, t.start, t.end) for t in times if t.end is not None])
     current = dial.current_block(blocks, minutes)
     dial_data = DialData(
         blocks=blocks,
@@ -191,6 +199,11 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
             message=reminder.message,
             actions=reminder.actions,
         )
+    # Something at a set time today comes first when it is sooner than any reminder.
+    later = [t for t in times if t.start >= minutes]
+    if later and (next_up is None or later[0].start - minutes < next_up.in_minutes):
+        next_up = NextUp(title=later[0].label, at=later[0].at, in_minutes=later[0].start - minutes,
+                         message="")
 
     light = folder.light_schedule()
     delivery = _delivery(folder)
@@ -228,8 +241,10 @@ def build(folder: Folder, pending_outputs: list[str] | None = None) -> BriefData
         finished_labels=[f.label for f in state.finished],
         light_marks=[(name.replace("_", " ").capitalize(), at)
                      for name, at in (light.entries.items() if light else ())],
-        ahead=[(reminder.title, (moment.date() - folder.today).days * dial.MINUTES_IN_DAY
-                + moment.hour * 60 + moment.minute) for reminder, moment in soon],
+        ahead=sorted([(reminder.title, (moment.date() - folder.today).days * dial.MINUTES_IN_DAY
+                       + moment.hour * 60 + moment.minute) for reminder, moment in soon]
+                     + [(t.label, t.start) for t in times], key=lambda pair: pair[1]),
+        today_times=times,
     )
 
 

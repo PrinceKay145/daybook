@@ -53,6 +53,10 @@ Answer with only this JSON object — no prose before or after it, no code fence
      "first_click": "the concrete first action, one or two sentences"}
   ],
   "list_reason": "one or two plain sentences: why the list has this many things",
+  "today_times": [
+    {"what": "what happens, short", "start": "HH:MM",
+     "end": "HH:MM, or an empty string when only a start or a deadline was given"}
+  ],
   "board": [
     {"who": "person or organisation", "what": "what is waiting, in a short phrase",
      "status": "WAIT or CHASE", "next_move": "the next move, short",
@@ -75,6 +79,13 @@ Answer with only this JSON object — no prose before or after it, no code fence
 - "newly_finished" holds only what the user's message or the log says was finished since
   the current day state — never a guess. Things already marked DONE stay where they are;
   do not repeat them.
+- "today_times" holds what happens at a stated time **today** — a call, a meeting, an
+  appointment, a deadline ("before 15:30" is a start of 15:30 with no end) — from the
+  user's message or the folder, so it can be drawn on their dial. Only times that were
+  given: never invent a time, and never invent an end; give an end only when it was said
+  ("17:00 to 19:00", "for an hour"). Not the typical day — that is in config.json's
+  day_shape — and nothing for another day. Spans may not overlap. Nothing timed today: an
+  empty list. Something timed that is also a task can be on today's list too.
 - "scoreboard" holds only **new** numbers the user's message states, for metrics in
   config.json's "metrics" — never one marked "tracking": false, never an estimate, never a
   number filled in because the day state shows a dash, and never a number repeated from

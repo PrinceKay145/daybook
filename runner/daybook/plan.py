@@ -45,14 +45,19 @@ Asker = Callable[..., str]
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["today_list", "list_reason", "board", "board_note", "newly_finished",
-                 "scoreboard", "ticked", "questions", "summary", "flags"],
+    "required": ["today_list", "list_reason", "today_times", "board", "board_note",
+                 "newly_finished", "scoreboard", "ticked", "questions", "summary", "flags"],
     "properties": {
         "today_list": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
             "required": ["title", "first_click"],
             "properties": {"title": {"type": "string"}, "first_click": {"type": "string"}}}},
         "list_reason": {"type": "string"},
+        "today_times": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["what", "start", "end"],
+            "properties": {"what": {"type": "string"}, "start": {"type": "string"},
+                           "end": {"type": "string"}}}},
         "board": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
             "required": ["who", "what", "status", "next_move", "date"],
@@ -96,6 +101,8 @@ class Proposal:
     # they said they did today (ids). Daybook writes both; the model only reports them.
     scoreboard: list[dict] = field(default_factory=list)
     ticked: list[str] = field(default_factory=list)
+    # Things at a stated time today: (what, start, end), in minutes; end None for a moment.
+    today_times: list[tuple[str, int, int | None]] = field(default_factory=list)
 
 
 @dataclass
@@ -262,6 +269,44 @@ def habit_labels(config: dict) -> dict[str, str]:
             if isinstance(h, dict) and h.get("id")}
 
 
+def _clock(value, field_name: str, required: bool) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        if required:
+            raise PlanError(f'"{field_name}" is empty; it must be a time, HH:MM.')
+        return None
+    match = re.fullmatch(r"(\d{2}):(\d{2})", text)
+    if not match or int(match.group(1)) > 24 or int(match.group(2)) > 59 or (
+            int(match.group(1)) == 24 and int(match.group(2)) != 0):
+        raise PlanError(f'"{field_name}" is "{text}"; it must be a time on the 24-hour clock, HH:MM.')
+    return (int(match.group(1)) * 60 + int(match.group(2))) % 1440
+
+
+def _today_times(raw: dict) -> list[tuple[str, int, int | None]]:
+    """Things at a time the person or a file stated. No end means a moment, not a span —
+    a duration is never made up. Spans may not overlap: the dial shows one thing at a time."""
+    times: list[tuple[str, int, int | None]] = []
+    for n, item in enumerate(_list(raw.get("today_times"), "today_times", 12), 1):
+        if not isinstance(item, dict):
+            raise PlanError(f"today_times item {n} is not an object.")
+        what = _one_line(item.get("what"), f"today_times[{n}].what", 80)
+        start = _clock(item.get("start"), f"today_times[{n}].start", required=True)
+        end = _clock(item.get("end"), f"today_times[{n}].end", required=False)
+        if end is not None and end == start:
+            raise PlanError(f"today_times item {n} ends when it starts; leave the end empty for a moment.")
+        times.append((what, start, end))
+    taken = [0] * 1440
+    for what, start, end in times:
+        if end is None:
+            continue
+        for s, e in ([(start, end)] if end > start else [(start, 1440), (0, end)]):
+            for minute in range(s, e):
+                if taken[minute]:
+                    raise PlanError(f'today_times overlap around "{what}": the dial shows one thing at a time.')
+                taken[minute] = 1
+    return sorted(times, key=lambda t: t[1])
+
+
 def validate(raw: dict, cap: int, config: dict | None = None) -> Proposal:
     items = _list(raw.get("today_list"), "today_list", 50)
     if len(items) > cap:
@@ -354,13 +399,14 @@ def validate(raw: dict, cap: int, config: dict | None = None) -> Proposal:
         flags=flags,
         scoreboard=list(scoreboard.values()),
         ticked=ticked,
+        today_times=_today_times(raw),
     )
 
 
 # -- writing the candidate --------------------------------------------------------------
 
 _REGENERATED = ("today's list", "todays list", "today's three", "todays three",
-                "not on the list", "open questions")
+                "today's times", "todays times", "not on the list", "open questions")
 
 
 def _regenerated(heading: str) -> bool:
@@ -420,6 +466,12 @@ def render_day_state(folder: Folder, proposal: Proposal, model: str) -> str:
         out += [real(proposal.list_reason), ""]
     for n, (title, first_click) in enumerate(proposal.today_list, 1):
         out += [f"{n}. **{real(title)}**", f"   {real(first_click)}", ""]
+
+    if proposal.today_times:
+        out += ["---", "", "## Today's times", "", "| Time | What |", "|---|---|"]
+        for what, start, end in proposal.today_times:
+            out.append(f"| {_hhmm(start)}{'–' + _hhmm(end) if end is not None else ''} | {real(what)} |")
+        out.append("")
 
     # Finished things are Daybook's to carry, never the model's: everything already marked
     # DONE stays, and what the model reports as newly finished is added beneath it.
@@ -634,11 +686,17 @@ def apply(folder_path: str, outcome: PlanOutcome, clock: str | None = None) -> P
                        from_message=outcome.from_message)
 
 
+def _hhmm(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
 def _shown(proposal: Proposal, config: dict) -> dict:
     metrics, habits = tracked_metrics(config), habit_labels(config)
     return {
         "today_list": [{"title": t, "first_click": c} for t, c in proposal.today_list],
         "list_reason": proposal.list_reason,
+        "today_times": [{"what": w, "start": _hhmm(s), "end": _hhmm(e) if e is not None else ""}
+                        for w, s, e in proposal.today_times],
         "board": proposal.board,
         "newly_finished": [{"label": l, "detail": d} for l, d in proposal.newly_finished],
         "scoreboard": [{**row, "label": metrics.get(row["id"], row["id"])} for row in proposal.scoreboard],
