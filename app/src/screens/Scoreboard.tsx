@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Wordmark } from "@/components/Logo";
 import { daybook, type BriefResult, type Connection, type PlanOutcome } from "@/lib/daybook";
 import { describeChoice } from "@/lib/models";
+import { checkForUpdate, type Update } from "@/lib/updates";
 import { cn } from "@/lib/utils";
 
 const REFRESH_AFTER_MS = 60_000; // coming back to the window refetches the brief at most once a minute
@@ -61,6 +62,10 @@ export function ScoreboardScreen({
 }) {
   const [brief, setBrief] = useState<BriefResult | null>(null);
   const loadedAt = useRef(0);
+  const [update, setUpdate] = useState<Update | null>(null);
+  useEffect(() => {
+    void checkForUpdate().then(setUpdate);
+  }, []);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -163,6 +168,17 @@ export function ScoreboardScreen({
     <div className="flex h-screen flex-col">
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-[var(--color-line)] pl-5 pr-3">
         <Wordmark className="mr-auto" />
+        {update && (
+          <button
+            type="button"
+            onClick={() => void daybook.openExternal(update.url)}
+            title={update.notes}
+            className="fade-in mr-2 inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2 text-[13px] font-medium text-[var(--color-accent)] hover:underline"
+          >
+            <span className="size-1.5 rounded-full bg-[var(--color-accent)]" />
+            Daybook {update.version} is out · Download
+          </button>
+        )}
         <button
           type="button"
           onClick={onChangeAI}
