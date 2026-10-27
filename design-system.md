@@ -201,14 +201,14 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   instead — whichever comes first today, the next thing at a set time or the start of the
   next block ("Deep work", "at 09:00 · in 59 minutes") — or, with neither, a quiet
   "Nothing scheduled", never "Unplanned until 00:00". What is fixed in time ticks *outside*
-  the disc with its name beside it: non-negotiables in ink, the light schedule (daylight, a
-  prayer timetable, tides) fainter. Today's own moments ("confirm before 15:30") are accent
-  dots on the rim at their time, with no label there — the legend names them with their
-  time, and Next up. Today's spans ("17:00–19:00 business call") are drawn as blocks on the
-  rim, over the typical day, in their own ink. A label that would collide steps outward a
-  line; one that still would is left to the tick's tooltip, never drawn over another.
-  Labels may run into the page margin, never past the window. The legend lists the blocks
-  with their hours — but not a lone "Unplanned · all day" when no blocks are set. The
+  the arcs: non-negotiables in ink, the light schedule (daylight, a prayer timetable, tides)
+  fainter. Today's own moments ("confirm before 15:30") are accent dots on the rim at their
+  time. Nothing is named beside the dial, because a name cut short to fit is worse than
+  none: each tick and dot has its tooltip, and the legend names them all in full. Today's
+  spans ("17:00–19:00 business call") are drawn as blocks on the rim, over the typical day,
+  in their own ink. The legend lists the blocks with their hours (but not a lone
+  "Unplanned · all day" when no blocks are set), then every tick and dot by name and time,
+  in time order, each once. The
   page's script keeps the hand, the time, the hub's words, the legend's bold row and Next
   up true while the page stays open; a brief opened on another day only moves the hand.
 

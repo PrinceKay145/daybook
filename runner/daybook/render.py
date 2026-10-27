@@ -54,10 +54,9 @@ R_HOUR = 97.0
 R_NUMERALS = 82.0
 R_HUB = 72.0
 R_HAND = R_ARC
-R_MARK_IN, R_MARK_OUT, R_MARK_LABEL = 127.0, 134.0, 139.0
+R_MARK_IN, R_MARK_OUT = 127.0, 134.0
 # Label room, in the dial's own units: a rough width per character at 10px, the height of
 # a line, and how far a label may run past the dial's box into the page margin.
-CHAR_W, LINE_H, SLACK = 5.0, 12.0, 40.0
 
 
 def esc(text: str) -> str:
@@ -130,47 +129,6 @@ def _marks(data: BriefData) -> list[tuple[int, str, str]]:
     return sorted(marks)
 
 
-def _fit(label: str, room: float) -> str:
-    chars = int(room // CHAR_W)
-    if len(label) <= chars:
-        return label
-    return label[: max(chars - 1, 1)].rstrip() + "…"
-
-
-def _mark_labels(marks: list[tuple[int, str, str]]) -> list[str]:
-    """Each mark's label beside its tick, outside the ring. A label that would collide with
-    one already placed steps outward a line at a time; one that still collides is left to
-    the tick's tooltip rather than drawn over another."""
-    placed: list[tuple[float, float, float, float]] = []
-    parts: list[str] = []
-    width = CX * 2
-    for minute, label, kind in marks:
-        x, y = dial.polar_point(minute, R_MARK_LABEL, CX, CY)
-        side = (x - CX) / R_MARK_LABEL
-        if abs(side) < 0.3:
-            anchor, room = "middle", 2 * (R_MARK_LABEL * 0.6)
-            y += -5 if y < CY else 10
-        elif side > 0:
-            anchor, room = "start", width + SLACK - x
-        else:
-            anchor, room = "end", x + SLACK
-        text = _fit(label, room)
-        w = len(text) * CHAR_W
-        step = LINE_H if y > CY else -LINE_H
-        for _ in range(3):
-            x0 = x - w / 2 if anchor == "middle" else (x if anchor == "start" else x - w)
-            box = (x0 - 2, y - 9, x0 + w + 2, y + 3)
-            if not any(box[0] < b[2] and b[0] < box[2] and box[1] < b[3] and b[1] < box[3] for b in placed):
-                placed.append(box)
-                parts.append(
-                    f'<text class="dial-mark-label {kind}" x="{x:.2f}" y="{y:.2f}" '
-                    f'text-anchor="{anchor}">{esc(text)}</text>'
-                )
-                break
-            y += step
-    return parts
-
-
 def _centre(data: BriefData) -> tuple[str, str]:
     """The two lines under the time: the block you are in and until when. Unplanned time
     is not a place to be, so there it names whichever comes first today: the next thing at
@@ -236,8 +194,9 @@ def _dial_svg(data: BriefData) -> str:
 
     # What is fixed in time ticks OUTSIDE the ring, never as arcs within it. Non-negotiables
     # are not blocks that can be moved or shortened, and drawing them as blocks invites
-    # treating them as negotiable. Today's own moments are dots on the rim at their time,
-    # unnamed there: the legend and Next up name them in full.
+    # treating them as negotiable. Today's own moments are dots on the rim at their time.
+    # Nothing is named beside the dial (a name cut to fit the room left is worse than none):
+    # the legend names every tick and dot in full, with its time.
     marks = _marks(data)
     for minute, label, kind in marks:
         what = {"fixed": "non-negotiable", "light": "today's times", "today": "today"}[kind]
@@ -252,7 +211,6 @@ def _dial_svg(data: BriefData) -> str:
             f'<line class="dial-mark {kind}" x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}">'
             f"{title}</line>"
         )
-    parts.extend(_mark_labels([m for m in marks if m[2] != "today"]))
 
     # The hand's root is under the hub; its tip and dot sit on the arcs.
     hx, hy = dial.polar_point(data.dial.now_minutes, R_HAND, CX, CY)
@@ -282,8 +240,9 @@ def _hours(block) -> str:
 
 def _legend(data: BriefData) -> str:
     """Each block of the day with its hours, in the order the day shape lists them; then
-    today's moments by name, since the rim marks them only with a dot. A day with no
-    blocks set is one Unplanned block, and a row saying so tells nobody anything."""
+    everything the rim marks only with a tick or a dot (what is fixed, the light schedule,
+    today's moments), by name and in time order, each once. A day with no blocks set is
+    one Unplanned block, and a row saying so tells nobody anything."""
     colours = _label_colours(data.dial.blocks)
     rows = []
     for index, block in enumerate(data.dial.blocks):
@@ -295,9 +254,15 @@ def _legend(data: BriefData) -> str:
             f'<i style="background:{colours[block.label]}"></i>'
             f"<span>{esc(block.label)}</span><time>{_hours(block)}</time></li>"
         )
-    for item in data.today_times:
-        if item.end is None:
-            rows.append(f'<li class="moment"><i></i><span>{esc(item.label)}</span><time>{item.at}</time></li>')
+    # A mark already named, as a block starting then or a fixed time the plan also lists
+    # for today, is one row, not two.
+    seen = {(start, block.label.lower()) for block in data.dial.blocks for start, _ in block.spans()}
+    for minute, label, kind in _marks(data):
+        if (minute, label.lower()) in seen:
+            continue
+        seen.add((minute, label.lower()))
+        rows.append(f'<li class="mark mark-{kind}"><i></i><span>{esc(label)}</span>'
+                    f"<time>{dial.to_hhmm(minute)}</time></li>")
     return f'<ul class="legend">{"".join(rows)}</ul>'
 
 
@@ -521,10 +486,6 @@ h1 {
 .dial-mark.fixed { stroke: var(--ink); stroke-width: 2.2; }
 .dial-mark.light { stroke: var(--ink-faint); stroke-width: 1.6; }
 .dial-mark.today { stroke: var(--accent); stroke-width: 2.2; }
-.dial-mark-label { font: 500 10px var(--text); }
-.dial-mark-label.fixed { fill: var(--ink-soft); }
-.dial-mark-label.light { fill: var(--ink-faint); }
-.dial-mark-label.today { fill: var(--accent); }
 .dial-hand { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
 .dial-hand-tip { fill: var(--ink); }
 .dial-now {
@@ -539,7 +500,9 @@ h1 {
 .legend li.now { color: var(--ink); font-weight: 600; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: block; }
 .legend time { color: var(--ink-faint); font-size: 12px; font-weight: 400; }
-.legend li.moment i { width: 7px; height: 7px; border-radius: 50%; margin: auto; background: var(--accent); }
+.legend li.mark i { width: 2px; height: 10px; border-radius: 1px; margin: auto; background: var(--ink); }
+.legend li.mark-light i { background: var(--ink-faint); }
+.legend li.mark-today i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .next { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
 .next-line { margin: 0; font-size: 14.5px; }
 .sec { margin-bottom: 32px; }
