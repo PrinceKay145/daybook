@@ -271,7 +271,8 @@ am I doing → what am I keeping up → who am I waiting on → a human note):
 
 1. **24-hour dial** — blocks contiguous 00:00–24:00, asserted at build time; non-negotiables
    tick *outside* the ring; live hand; centre shows time, current block, `until HH:MM` (in
-   unplanned time, the next thing at a set time today, or "Nothing scheduled").
+   unplanned time, whichever comes first today, the next thing at a set time or the next
+   block's start, or "Nothing scheduled").
 2. **Next up** — one line.
 3. **Today's list** — at most the user's number (`daily_list.max_items`, 1–10, default 3),
    each one concrete first click; a list shorter than the number says why. 🔴 Never

@@ -198,7 +198,8 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   the block you are in and nothing leaves the disc; a solid hub covers its root. In the
   hub: the time in Newsreader 34, the block's name in the accent and "until 09:00" faint
   beneath. Unplanned time is not a place to be, so there the hub names what is coming
-  instead — the next thing at a set time today, "at 16:40 · in 59 minutes" — or a quiet
+  instead — whichever comes first today, the next thing at a set time or the start of the
+  next block ("Deep work", "at 09:00 · in 59 minutes") — or, with neither, a quiet
   "Nothing scheduled", never "Unplanned until 00:00". What is fixed in time ticks *outside*
   the disc with its name beside it: non-negotiables in ink, the light schedule (daylight, a
   prayer timetable, tides) fainter. Today's own moments ("confirm before 15:30") are accent

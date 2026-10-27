@@ -172,16 +172,21 @@ def _mark_labels(marks: list[tuple[int, str, str]]) -> list[str]:
 
 def _centre(data: BriefData) -> tuple[str, str]:
     """The two lines under the time: the block you are in and until when. Unplanned time
-    is not a place to be, so there it is the next thing at a set time today instead (what
-    Next up reads), or a quiet "Nothing scheduled". The page's script says the same."""
+    is not a place to be, so there it names whichever comes first today: the next thing at
+    a set time (what Next up reads) or the start of the next real block, a timed thing
+    winning a tie. Only with neither is it a quiet "Nothing scheduled". The page's script
+    says the same."""
     current, now = data.dial.current, data.dial.now_minutes
     if current is None:
         return "no block", "day shape has a gap"
     if current.label != UNPLANNED:
         return current.label, f"until {dial.to_hhmm(current.end)}"
-    later = next(((title, at) for title, at in data.ahead if now <= at < dial.MINUTES_IN_DAY), None)
+    later = [(at, title) for title, at in data.ahead if now <= at < dial.MINUTES_IN_DAY][:1]
+    later += [(start, block.label) for block in data.dial.blocks if block.label != UNPLANNED
+              for start, _ in block.spans() if start > now]
     if later:
-        return later[0], f"at {dial.to_hhmm(later[1])} · {_until(later[1] - now)}"
+        at, title = min(later, key=lambda pair: pair[0])
+        return title, f"at {dial.to_hhmm(at)} · {_until(at - now)}"
     return "Nothing scheduled", ""
 
 
@@ -734,11 +739,19 @@ def render(data: BriefData) -> str:
     for (i = 0; i < AHEAD.length; i++) {{
       if (AHEAD[i][1] >= minutes) {{ next = AHEAD[i]; break; }}
     }}
-    // The same rule as _centre(): in unplanned time, the next thing at a set time today.
-    var name = "Nothing scheduled", sub = "";
+    // The same rule as _centre(): in unplanned time, whichever comes first today, the next
+    // thing at a set time or the start of the next real block (a timed thing wins a tie).
+    var name = "Nothing scheduled", sub = "", soon = next && next[1] < 1440 ? next : null;
     if (!block) {{ name = "no block"; sub = "day shape has a gap"; }}
     else if (block[2] !== UNPLANNED) {{ name = block[2]; sub = "until " + hhmm(block[4]); }}
-    else if (next && next[1] < 1440) {{ name = next[0]; sub = "at " + hhmm(next[1]) + " · " + until(next[1] - minutes); }}
+    else {{
+      for (i = 0; i < SPANS.length; i++) {{
+        if (SPANS[i][2] !== UNPLANNED && SPANS[i][0] > minutes && (!soon || SPANS[i][0] < soon[1])) {{
+          soon = [SPANS[i][2], SPANS[i][0]];
+        }}
+      }}
+      if (soon) {{ name = soon[0]; sub = "at " + hhmm(soon[1]) + " · " + until(soon[1] - minutes); }}
+    }}
     var centre = setText("dial-block", name);
     if (centre) {{ centre.setAttribute("class", sub ? "dial-block" : "dial-block quiet"); }}
     fit(centre, 124, 13.5, 9);
