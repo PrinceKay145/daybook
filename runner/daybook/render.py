@@ -10,7 +10,8 @@ It reads in the spec's order — where am I, what now, what matters, how am I do
 I keeping up, who am I waiting on, a human note — laid out in two columns when the window
 is wide (the day beside today's list) and one when it is narrow. Light and dark both, and
 phone width, because it will be opened on a phone from a synced folder. Left open, its
-small script keeps the dial, the block you are in and "Next up" true as the day moves.
+small script keeps the dial, the block you are in and "Next up" true as the day moves,
+and plays the morning moment when — and only when — the app that frames it asks.
 """
 
 from __future__ import annotations
@@ -726,6 +727,23 @@ def render(data: BriefData) -> str:
     line.appendChild(document.createTextNode((next[1] >= 1440 ? " tomorrow" : "") + ", " + until(next[1] - minutes)));
   }}
 
+  function drawHand(minutes) {{
+    var a = pointAt(minutes, R_IN), b = pointAt(minutes, R_OUT);
+    var hand = document.getElementById("hand"), tip = document.getElementById("hand-tip");
+    if (hand) {{
+      hand.setAttribute("x1", a.x.toFixed(2));
+      hand.setAttribute("y1", a.y.toFixed(2));
+      hand.setAttribute("x2", b.x.toFixed(2));
+      hand.setAttribute("y2", b.y.toFixed(2));
+    }}
+    if (tip) {{
+      tip.setAttribute("cx", b.x.toFixed(2));
+      tip.setAttribute("cy", b.y.toFixed(2));
+    }}
+  }}
+
+  var shown = BASE_MINUTES, sweeping = false;
+
   function tick() {{
     var minutes, days = 0;
     if (FROZEN) {{
@@ -741,21 +759,48 @@ def render(data: BriefData) -> str:
       minutes = (+clock.hour) * 60 + (+clock.minute);
       days = daysSince(now);
     }}
-    var a = pointAt(minutes, R_IN), b = pointAt(minutes, R_OUT);
-    var hand = document.getElementById("hand"), tip = document.getElementById("hand-tip");
-    if (hand) {{
-      hand.setAttribute("x1", a.x.toFixed(2));
-      hand.setAttribute("y1", a.y.toFixed(2));
-      hand.setAttribute("x2", b.x.toFixed(2));
-      hand.setAttribute("y2", b.y.toFixed(2));
-    }}
-    if (tip) {{
-      tip.setAttribute("cx", b.x.toFixed(2));
-      tip.setAttribute("cy", b.y.toFixed(2));
-    }}
+    shown = minutes;
+    if (!sweeping) {{ drawHand(minutes); }}
     setText("dial-now", hhmm(minutes));
     if (days === 0) {{ words(minutes); }}
   }}
+
+  function easeOut(t) {{ t = Math.min(Math.max(t, 0), 1); return 1 - Math.pow(1 - t, 3); }}
+
+  // The morning moment, played only when the app asks (the first brief it shows each day):
+  // the hand sweeps clockwise from midnight to now, and today's list writes itself in line
+  // by line. Opened on its own the page never plays it, and it ends in the page's rest state.
+  function morning() {{
+    var items = document.querySelectorAll(".today-list li"), start = null, i;
+    var total = Math.max(900, 200 + 70 * (items.length - 1) + 300);
+    function rise(item, e) {{
+      item.style.opacity = String(e);
+      item.style.transform = "translateY(" + (6 * (1 - e)).toFixed(2) + "px)";
+    }}
+    function frame(time) {{
+      if (start === null) {{ start = time; }}
+      var t = time - start;
+      drawHand(shown * easeOut(t / 900));
+      for (i = 0; i < items.length; i++) {{ rise(items[i], easeOut((t - 200 - 70 * i) / 300)); }}
+      if (t < total) {{ window.requestAnimationFrame(frame); return; }}
+      for (i = 0; i < items.length; i++) {{ items[i].style.opacity = ""; items[i].style.transform = ""; }}
+      sweeping = false;
+      tick();
+    }}
+    sweeping = true;
+    drawHand(0);
+    for (i = 0; i < items.length; i++) {{ rise(items[i], 0); }}
+    window.requestAnimationFrame(frame);
+  }}
+
+  var played = false;
+  window.addEventListener("message", function (event) {{
+    var data = event.data;
+    if (played || event.source !== window.parent || !data || data.type !== "daybook:morning") {{ return; }}
+    played = true;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {{ return; }}
+    morning();
+  }});
 
   tick();
   if (!FROZEN) {{

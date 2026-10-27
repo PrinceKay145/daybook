@@ -228,6 +228,13 @@ class TheDial(FolderCase):
         self.assertIn("var AHEAD = [", html)
         self.assertIn('id="next-line"', html)
 
+    def test_the_morning_moment_plays_only_when_the_framing_app_asks(self):
+        _, _, html, _ = self.produce()
+        self.assertIn('window.addEventListener("message"', html)
+        self.assertIn('data.type !== "daybook:morning"', html)
+        self.assertIn("event.source !== window.parent", html)
+        self.assertIn('matchMedia("(prefers-reduced-motion: reduce)")', html)
+
 
 if __name__ == "__main__":
     unittest.main()
