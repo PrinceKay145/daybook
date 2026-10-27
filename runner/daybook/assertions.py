@@ -35,7 +35,7 @@ class Result:
     catches: str
 
     def line(self) -> str:
-        return f"{'PASS' if self.ok else 'FAIL'}  {self.id:<4} {self.name} — {self.detail}"
+        return f"{'PASS' if self.ok else 'FAIL'}  {self.id:<4} {self.name}: {self.detail}"
 
 
 def verify(data: BriefData, html: str) -> list[Result]:
@@ -245,7 +245,7 @@ def _v6(data: BriefData) -> Result:
     detail = f"{count} item{'s' if count != 1 else ''}, at most {cap}"
     if count < cap and not data.today_list_reason:
         ok = False
-        detail += " — fewer than the cap and no reason given for why"
+        detail += ", fewer than the cap and no reason given for why"
     elif count < cap:
         detail += ", with a stated reason"
     return Result("V6", "Today's list holds no more than the user's cap", ok, detail,
@@ -344,7 +344,7 @@ def _v11(data: BriefData, html_text: str) -> Result:
         judges_nothing = data.closing.text.strip() == sentence
         ok = on_page and judges_nothing
         detail = (
-            "no .agent-heartbeat.json — the brief says delivery cannot be established, and "
+            "no .agent-heartbeat.json, so the brief says delivery cannot be established, and "
             "its closing line judges nothing"
             if ok
             else "no .agent-heartbeat.json and the brief does not say so where it is read"

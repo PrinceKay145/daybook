@@ -175,7 +175,7 @@ def run_tick(
         state["last_tick"] = datetime.now().isoformat(timespec="seconds")
         state["last_error"] = f"{type(exc).__name__}: {exc}"
         _save_state(states, state)
-        return Outcome("error", f"the folder could not be read — {state['last_error']}")
+        return Outcome("error", f"the folder could not be read ({state['last_error']})")
     now = folder.clock.now
     today = folder.today
     state["last_tick"] = now.isoformat(timespec="seconds")
@@ -247,7 +247,7 @@ def run_tick(
         when = f"{now:%A}'s brief"
         notify(
             "Your brief is ready",
-            f"{when} — written at {now:%H:%M}, after its {due:%H:%M} time."
+            f"{when} was written at {now:%H:%M}, after its {due:%H:%M} time."
             if late
             else f"{when} is ready.",
         )
@@ -313,7 +313,7 @@ def run_watchdog(
             )
             state["unreadable_notified"] = day
             _save_state(states, state)
-        return Outcome("error", f"the folder could not be read — {type(exc).__name__}: {exc}")
+        return Outcome("error", f"the folder could not be read ({type(exc).__name__}: {exc})")
     now = folder.clock.now
     today = folder.today
     due = _brief_moment(today, folder.config)

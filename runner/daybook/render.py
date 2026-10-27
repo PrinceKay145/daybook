@@ -322,7 +322,7 @@ def _section_today_list(data: BriefData) -> str:
     if not data.today_list:
         # The reason is the brief's own (V6 asserts one exists); the page shows it rather
         # than a second, different explanation.
-        return f'<p class="empty">— {esc(data.today_list_reason)}</p>'
+        return f'<p class="empty">{esc(data.today_list_reason)}</p>'
     items = "".join(
         f'<li><span class="ix">{n}</span><div><h3 class="action-title">{esc(a.title)}</h3>'
         f'<p class="action-detail">{esc(a.detail)}</p></div></li>'
@@ -353,7 +353,7 @@ def _metric_label(data: BriefData, key: str) -> str:
 def _section_scoreboard(data: BriefData) -> str:
     if not data.scoreboard:
         return (
-            '<p class="empty">— No metrics yet: the day state records none. Nothing is '
+            '<p class="empty">No metrics yet: the day state records none. Nothing is '
             "estimated to fill the table.</p>"
         )
     rows = []
@@ -387,7 +387,7 @@ def _section_ticks(data: BriefData) -> str:
             f'<span class="source">From {esc(_light_source(data.light_schedule_source))}</span></p>'
         )
     if not data.habits:
-        return f'<p class="empty">— No ticks yet: the day state tracks no habits.</p>{light}'
+        return f'<p class="empty">No ticks yet: the day state tracks no habits.</p>{light}'
     return f'<ul class="rows ticks">{rows}</ul>{light}'
 
 
@@ -408,7 +408,7 @@ def _section_board(data: BriefData) -> str:
     note = f'<p class="board-note">{esc(data.board_note)}</p>' if data.board_note else ""
     closed = ""
     if data.board_closed:
-        names = "; ".join(f"{r.who} — {r.what}" for r in data.board_closed)
+        names = "; ".join(f"{r.who} ({r.what})" for r in data.board_closed)
         closed = f'<p class="board-closed">Closed, kept visible: {esc(names)}</p>'
     return f'<ul class="board">{"".join(rows)}</ul>{note}{closed}'
 
@@ -443,7 +443,7 @@ def _script_json(value) -> str:
 def _clock_note(data: BriefData) -> str:
     """Which clock the times come from (law 5), said plainly."""
     if data.clock_frozen:
-        return f"frozen clock — {esc(data.clock_description)}"
+        return f"Times by a frozen clock: {esc(data.clock_description)}"
     zone = f", {esc(data.timezone)}" if data.timezone else ""
     return f"Times by this Mac's clock{zone}"
 
@@ -620,7 +620,7 @@ def render(data: BriefData) -> str:
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Brief — {esc(_fmt_date(day))}</title>
+<title>Brief for {esc(_fmt_date(day))}</title>
 <style>
 {_font_faces()}
 {STYLE}
