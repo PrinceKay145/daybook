@@ -352,7 +352,7 @@ function seedConfig(existing, payload) {
     shell_actions_enabled: false,
   };
   if (!coversDayOnce(payload.dayShape)) {
-    throw new Error("The day shape must cover the whole day exactly once — nothing was written.");
+    throw new Error("The day shape must cover the whole day exactly once. Nothing was written.");
   }
   next.day_shape = payload.dayShape.map((b) => ({ block: b.block, start: b.start, end: b.end }));
   const metrics = trackedLabels(payload.metrics);
@@ -371,7 +371,7 @@ function listMaxOf(value) {
 }
 function requireListMax(value) {
   const max = listMaxOf(value);
-  if (max === null) throw new Error("Today's list holds from 1 to 10 things — nothing was written.");
+  if (max === null) throw new Error("Today's list holds from 1 to 10 things. Nothing was written.");
   return max;
 }
 
@@ -700,7 +700,7 @@ ipcMain.handle("folder:adoptSetup", async (_event, { folder, connection }) => {
   const target = path.join(requireFolder(folder), "config.json");
   const existing = await readJson(target);
   if (!existing?.owner?.name) {
-    throw new Error("This folder has no setup to use — answer the questions instead.");
+    throw new Error("This folder has no setup to use. Answer the questions instead.");
   }
   await writeTextAtomic(target, `${JSON.stringify(withProvider(existing, connection), null, 2)}\n`);
   return ["config.json"];
@@ -757,7 +757,7 @@ ipcMain.handle("folder:writeSetup", async (_event, input) => {
       path.join(folder, "LOG.md"),
       `- ${today(payload.timezone)} — Setup redone; the previous ${previous} moved to ${archived.relative}/.`,
     );
-    written.push(`${archived.relative}/ — the previous ${previous}`);
+    written.push(`${archived.relative}/ (the previous ${previous})`);
   }
   return written;
 });
@@ -810,17 +810,17 @@ const MODEL_ENDPOINTS = {
 ipcMain.handle("connections:listModels", async (_event, { provider, secret }) => {
   const endpoint = MODEL_ENDPOINTS[provider];
   if (!endpoint) {
-    throw new Error(`Live model listing is not available for ${provider} — type a model ID instead.`);
+    throw new Error(`Live model listing is not available for ${provider}. Type a model ID instead.`);
   }
   const key = await secretValue(secret);
   if (!key) {
-    throw new Error("This connection's key is no longer in the keychain — reconnect it first.");
+    throw new Error("This connection's key is no longer in the keychain. Reconnect it first.");
   }
   const response = await fetch(endpoint.url, { headers: endpoint.headers(key) });
   if (!response.ok) {
     throw new Error(
       response.status === 401
-        ? "The provider rejected the stored key — reconnect with a fresh key."
+        ? "The provider rejected the stored key. Reconnect with a fresh key."
         : `The provider answered ${response.status}. Try again later, or type a model ID.`,
     );
   }
@@ -863,7 +863,7 @@ function shownToRenderer(outcome, proposalId) {
 
 ipcMain.handle("plan:run", async (_event, { folder, userId, message, propose }) => {
   if (planning) {
-    return { status: "failed", detail: "Your secretary is already planning — try again in a moment.", summary: "", flags: [], model: "" };
+    return { status: "failed", detail: "Your secretary is already planning. Try again in a moment.", summary: "", flags: [], model: "" };
   }
   const target = requireFolder(folder);
   planning = true;
@@ -893,7 +893,7 @@ ipcMain.handle("plan:run", async (_event, { folder, userId, message, propose }) 
 
 ipcMain.handle("plan:apply", async (_event, { proposalId }) => {
   if (!pending || pending.id !== proposalId) {
-    return { status: "refused", detail: "That proposal is no longer waiting — send your message again.", summary: "", flags: [], model: "" };
+    return { status: "refused", detail: "That proposal is no longer waiting. Send your message again.", summary: "", flags: [], model: "" };
   }
   const { folder, outcome } = pending;
   pending = null;
@@ -922,7 +922,7 @@ const stateDir = () => path.join(app.getPath("userData"), "state");
 
 ipcMain.handle("schedule:start", async (_event, folder) => {
   if (outsideApplications()) {
-    return { ok: false, code: "NOT_IN_APPLICATIONS", message: "Daybook isn't in your Applications folder yet — move it there (and open it from there) so your brief can arrive on its own." };
+    return { ok: false, code: "NOT_IN_APPLICATIONS", message: "Daybook isn't in your Applications folder yet. Move it there (and open it from there) so your brief can arrive on its own." };
   }
   const python = await runner.findPython();
   if (!python) {

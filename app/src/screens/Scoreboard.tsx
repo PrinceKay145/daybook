@@ -255,7 +255,7 @@ export function ScoreboardScreen({
               }
             }}
             disabled={busy || proposal !== null || !connection}
-            placeholder="Tell your secretary what changed — e.g. finished the proposal, sent 3 applications, did my walk"
+            placeholder="Tell your secretary what changed, e.g. finished the proposal, sent 3 applications, did my walk"
             aria-label="Tell your secretary"
             className={cn(inputClass, "field-sizing-content max-h-32 min-h-10 resize-none py-2.5")}
           />
@@ -361,7 +361,7 @@ function ProposalCard({
         <div className="mt-4 min-h-0 overflow-y-auto border-t border-[var(--color-line)] pt-3 text-[13.5px]">
           <p className={label}>Today</p>
           {day.today_list.length === 0 ? (
-            <p className="mt-1 text-[var(--color-ink-soft)]">— {day.list_reason}</p>
+            <p className="mt-1 text-[var(--color-ink-soft)]">{day.list_reason}</p>
           ) : (
             <>
               {day.list_reason && <p className="mt-1 text-[13px] text-[var(--color-ink-soft)]">{day.list_reason}</p>}
@@ -400,7 +400,7 @@ function ProposalCard({
                 {day.newly_finished.map((item, i) => (
                   <li key={i}>
                     <span className="line-through decoration-[var(--color-ink-faint)]">{item.label}</span>
-                    {item.detail && <span className="text-[var(--color-ink-soft)]"> — {item.detail}</span>}
+                    {item.detail && <span className="text-[var(--color-ink-soft)]">: {item.detail}</span>}
                   </li>
                 ))}
               </ul>

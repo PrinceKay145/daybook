@@ -210,6 +210,7 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   back", not "V6 failed"; "Applications sent", not `applications_sent`; "Times by this Mac's
   clock", not a clock source in brackets.
 - Never: hype, exclamation marks, guilt, fake numbers, "Oops".
+- No em dashes in anything the user reads: a comma, a colon, a full stop or brackets instead (a lone dash for an empty value, law 4, is not one).
 
 ## Motion
 
