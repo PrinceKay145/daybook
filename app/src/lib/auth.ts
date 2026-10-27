@@ -87,6 +87,13 @@ function storedUser(): Account | null {
   }
 }
 
+/** Who this Mac was last signed in as, read from the saved session with no network call,
+    or null. Launch opens from it and confirms with Supabase in the background (verifyAccount). */
+export function savedAccount(): Account | null {
+  if (!authConfigured || !supabase) return devAccount();
+  return storedUser();
+}
+
 /** The server said the session or its user no longer exists (deleted, revoked). */
 function accountGone(error: unknown): boolean {
   return isAuthApiError(error) && [401, 403, 404].includes(error.status);
