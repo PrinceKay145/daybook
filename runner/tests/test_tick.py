@@ -120,6 +120,22 @@ class Tick(ScheduledCase):
         self.assertEqual(1, len(self.notes.sent))
         self.assertEqual("Today's brief is withheld", self.notes.sent[0][0])
 
+    def test_an_impossible_brief_time_falls_back_instead_of_crashing(self):
+        for value in ("24:00", "09:75", "nine"):
+            self.edit_json("config.json", lambda c, v=value: c["schedule"].__setitem__("brief_time", v))
+            self.assertEqual("waiting", self.tick("08:00").status)
+            self.assertEqual("ok", self.watchdog("08:00").status)
+
+    def test_a_missing_schedule_falls_back_instead_of_crashing(self):
+        self.edit_json("config.json", lambda c: c.__setitem__("schedule", None))
+        self.assertEqual("waiting", self.tick("08:00").status)
+
+    def test_an_impossible_date_in_the_log_does_not_stop_the_brief(self):
+        log = self.folder / "LOG.md"
+        log.write_text(log.read_text(encoding="utf-8") + "\n## 2026-02-30 — typed by hand\n\nA note.\n",
+                       encoding="utf-8")
+        self.assertEqual("delivered", self.tick("08:31").status)
+
     def test_an_unreadable_folder_is_logged_not_raised(self):
         (self.folder / "config.json").unlink()
         outcome = self.tick("08:31")
@@ -138,6 +154,13 @@ class Watchdog(ScheduledCase):
         outcome = self.watchdog("10:00")
         self.assertEqual("alerted", outcome.status)
         self.assertIn("hasn't run", self.notes.sent[0][1])
+
+    def test_a_folder_neither_job_can_read_is_said_once_a_day(self):
+        (self.folder / "config.json").write_text("{ not json", encoding="utf-8")
+        self.assertEqual("error", self.tick("10:00").status)
+        self.assertEqual("error", self.watchdog("10:00").status)
+        self.assertEqual("error", self.watchdog("11:00").status)
+        self.assertEqual(["Daybook can't read your folder"], [title for title, _ in self.notes.sent])
 
     def test_quiet_until_half_an_hour_after_the_brief_time(self):
         self.assertEqual("ok", self.watchdog("08:55").status)
