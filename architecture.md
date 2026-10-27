@@ -48,8 +48,8 @@ exit code and the tick's last run, last brief and last error; the runner's PID; 
 directory. **Stop removes the job files, not only unloads them** — a file left in
 `~/Library/LaunchAgents` comes back at the next login, and `pkill` alone lets launchd restart
 the tick within 60 seconds — and the app never restarts jobs the user stopped
-(`backgroundJobs: "off"` in their record). A test copy of the app (`DAYBOOK_USER_DATA`) uses
-`app.daybook.mac.test.*` labels. ⏳ `uninstall` (jobs and app data, leaving the folder alone,
+(`backgroundJobs: "off"` in their record). A test copy of the app (`DAYBOOK_USER_DATA`) and a
+development run (`npm run dev`) use `app.daybook.mac.test.*` labels. ⏳ `uninstall` (jobs and app data, leaving the folder alone,
 said before it happens) comes with packaging.
 
 ## Storage tiers
