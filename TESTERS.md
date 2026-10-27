@@ -55,9 +55,10 @@ Two small background jobs: one checks once a minute whether today's brief is due
 checks hourly that the first is still running. Each runs for a moment and exits. In
 **Settings**, turning off **Write my brief even when Daybook is closed** removes both.
 
-When Daybook first sets them up, macOS may show a **Background Items Added** notice. That's
-expected: leave them allowed in **System Settings → General → Login Items**, or your brief
-stops arriving on its own.
+When Daybook first sets them up, macOS shows two **App Background Activity** notices saying
+"python3" can run in the background. That's Daybook's two jobs (they run on the Python
+bundled inside Daybook). Leave them allowed in **System Settings → General → Login Items &
+Extensions**, or your brief stops arriving on its own.
 
 ## Uninstall
 
