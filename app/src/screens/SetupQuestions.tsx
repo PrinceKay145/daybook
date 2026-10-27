@@ -77,7 +77,9 @@ export function SetupQuestionsScreen({
   const [habitsText, setHabitsText] = useState("");
   // Where the answers come from: typed here, or a handover from another AI. `read` is what
   // the handover filled in, once it has been read; until then the form waits behind it.
-  const [source, setSource] = useState<"here" | "import">("here");
+  // Most people already have an AI that knows their life; letting it fill this in is the
+  // quickest way to a brief worth reading, so that comes first.
+  const [source, setSource] = useState<"here" | "import">("import");
   const [handover, setHandover] = useState("");
   const [read, setRead] = useState<HandoverDraft | null>(null);
   const [briefTime, setBriefTime] = useState("09:00");
@@ -291,10 +293,16 @@ export function SetupQuestionsScreen({
             setError(null);
           }}
           options={[
-            ["here", "Answer here"],
             ["import", "Bring it from another AI"],
+            ["here", "Answer here"],
           ]}
         />
+        {importing && (
+          <p className="mt-2 text-[13px] text-[var(--color-ink-soft)]">
+            Already use ChatGPT, Claude or Gemini? It can fill this in from what it knows, and you
+            check it before anything is written.
+          </p>
+        )}
       </div>
 
       {importing ? (
@@ -557,7 +565,14 @@ function HandoverSteps({
             className={`${inputClass} min-h-40 resize-y font-mono text-[12px]`}
             value={text}
             onChange={(event) => onText(event.target.value)}
-            placeholder={"Paste the whole document here — it starts with “# Daybook handover”"}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              const file = event.dataTransfer.files?.[0];
+              if (!file) return; // dropped text falls through to the textarea itself
+              event.preventDefault();
+              open(file);
+            }}
+            placeholder={"Paste the whole document here, or drop its file. It starts with “# Daybook handover”"}
             aria-label="The document your other AI wrote"
           />
           <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-[var(--color-ink-faint)]">

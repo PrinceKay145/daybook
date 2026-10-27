@@ -37,11 +37,11 @@ from wherever the app lives, even when it's closed.
    `Secretary` in your home folder). Everything Daybook knows about your life lives there as
    plain files you can open and edit.
 3. **Choose a model** — Daybook finds Claude Code or Codex on your Mac.
-4. **Answer the setup questions**, or tell it about your life in your own words (you can
-   dictate: press the dictation key, or Fn twice). If ChatGPT, Claude or another AI already
-   knows your life, choose **Bring it from another AI**: copy the prompt into it, paste back
-   what it writes, and check what Daybook filled in. Add any numbers you want to keep and
-   habits you want to tick.
+4. **Tell it about your life.** The quickest way is the first option, **Bring it from another
+   AI**: copy the prompt into ChatGPT, Claude or whichever AI already knows you, paste back
+   (or drop in) the document it writes, and check what Daybook filled in. Or choose
+   **Answer here** and fill in the questions yourself (you can dictate: press the dictation
+   key, or Fn twice). Add any numbers you want to keep and habits you want to tick.
 5. Your secretary **plans your first day** straight away. After that, it plans each morning
    shortly before your brief time and writes the brief on its own.
 
