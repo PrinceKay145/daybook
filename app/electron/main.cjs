@@ -9,6 +9,7 @@ const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const os = require("node:os");
 const crypto = require("node:crypto");
+const { pathToFileURL } = require("node:url");
 const cli = require("./cli.cjs");
 const runner = require("./runner.cjs");
 const authLoopback = require("./authLoopback.cjs");
@@ -16,6 +17,23 @@ const schedule = require("./schedule.cjs");
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL ?? "";
 const PROTOCOL = "daybook";
+
+/* IPC is privileged even with context isolation: only the app's top-level renderer may
+   call it. A navigated page or embedded frame must never inherit the bridge's authority. */
+const registerHandler = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, listener) => registerHandler(channel, (event, ...args) => {
+  const frame = event.senderFrame;
+  const expectedFile = pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
+  let trusted = Boolean(frame && frame === event.sender.mainFrame);
+  if (trusted && DEV_SERVER_URL) {
+    try { trusted = new URL(frame.url).origin === new URL(DEV_SERVER_URL).origin; }
+    catch { trusted = false; }
+  } else if (trusted) {
+    trusted = frame.url === expectedFile;
+  }
+  if (!trusted) throw new Error("This Daybook window cannot use the app bridge.");
+  return listener(event, ...args);
+});
 
 /* Renderer console output lands in the terminal that launched the app. The init and
    auth breadcrumbs are how a stalled step gets found without opening DevTools. */
@@ -109,6 +127,13 @@ function createWindow() {
   });
   win.on("closed", () => {
     win = null;
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.on("will-navigate", (event, target) => {
+    const allowed = DEV_SERVER_URL
+      ? (() => { try { return new URL(target).origin === new URL(DEV_SERVER_URL).origin; } catch { return false; } })()
+      : target === pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).href;
+    if (!allowed) event.preventDefault();
   });
   if (DEV_SERVER_URL) {
     win.loadURL(DEV_SERVER_URL);
@@ -269,13 +294,19 @@ ipcMain.handle("settings:save", (_event, { userId, patch }) =>
   serially(async () => {
     const id = requireUserId(userId);
     const store = await readStore();
-    const next = { ...(store.users[id] ?? {}), ...(patch ?? {}) };
+    const safePatch = patch && typeof patch === "object" && !Array.isArray(patch) ? { ...patch } : {};
+    if (Object.hasOwn(safePatch, "folderPath")) {
+      safePatch.folderPath = requireFolder(safePatch.folderPath);
+    }
+    const next = { ...(store.users[id] ?? {}), ...safePatch };
     await writeJsonAtomic(settingsPath(), { ...store, version: 2, users: { ...store.users, [id]: next } });
     return next;
   }),
 );
 
 /* ---------- IPC: folder ---------- */
+
+const pickedFolders = new Set();
 
 ipcMain.handle("folder:pick", async () => {
   const result = await dialog.showOpenDialog(win, {
@@ -287,6 +318,7 @@ ipcMain.handle("folder:pick", async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const folder = result.filePaths[0];
   await fsp.access(folder, fs.constants.W_OK);
+  pickedFolders.add(path.resolve(folder));
   return folder;
 });
 
@@ -401,7 +433,20 @@ function requireFolder(folder) {
     usable = false;
   }
   if (!usable) throw new Error("That is not a folder Daybook can use.");
-  return folder;
+  const resolved = fs.realpathSync(folder);
+  const accepted = new Set([...pickedFolders].map((p) => {
+    try { return fs.realpathSync(p); } catch { return p; }
+  }));
+  // A previously connected folder may be used after relaunch, but the path must come
+  // from app-owned account settings. Folder contents cannot register themselves.
+  try {
+    const store = JSON.parse(fs.readFileSync(settingsPath(), "utf8"));
+    for (const user of Object.values(store?.users ?? {})) {
+      if (typeof user?.folderPath === "string") accepted.add(fs.realpathSync(user.folderPath));
+    }
+  } catch { /* no saved folders on first run */ }
+  if (!accepted.has(resolved)) throw new Error("Choose this folder in Daybook before using it.");
+  return resolved;
 }
 
 /* What an earlier setup left in this folder, or null. An owner name in config.json is the
