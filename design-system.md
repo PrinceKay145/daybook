@@ -221,3 +221,10 @@ brief is under it. A new brief fades in over the old one once it has loaded; a n
 line fades in. A spinner appears only while the model is actually working, with the time
 since it was asked, and says so when it runs past 2:30. The app never looks busy while
 waiting on nothing. With Reduce Motion on, every fade is instant.
+
+Fades are the rule everywhere, with one exception: the morning moment. The first time the
+app shows the brief each day on this Mac, the dial's hand sweeps clockwise from midnight
+round to the current time while today's list writes itself in, line by line (each line
+fades in and rises 6 px), in about a second, and the brief then sits exactly as it always
+does. Later briefs that day (Apply, Plan again), the brief opened on its own in a browser,
+and Reduce Motion all skip it.
