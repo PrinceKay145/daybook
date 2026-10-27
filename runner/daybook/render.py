@@ -637,6 +637,7 @@ def render(data: BriefData) -> str:
   var FROZEN = {str(data.clock_frozen).lower()};
   var BASE_MINUTES = {data.dial.now_minutes};
   var DAY = "{data.generated_for.isoformat()}";
+  var TIME_ZONE = {_script_json(data.timezone or "")};
   var CX = {CX}, CY = {CY}, R_IN = {R_HAND_IN}, R_OUT = {R_HAND_OUT};
   // Each block's spans as [start, end, block, the block's own end]; the reminders ahead as
   // [title, minutes from this day's midnight].
@@ -662,8 +663,17 @@ def render(data: BriefData) -> str:
   // keeps its own day's words and only moves the hand.
   function daysSince(now) {{
     var p = DAY.split("-");
-    var then = new Date(+p[0], +p[1] - 1, +p[2]);
-    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var then = Date.UTC(+p[0], +p[1] - 1, +p[2]);
+    var parts;
+    try {{
+      parts = new Intl.DateTimeFormat("en-CA", {{ timeZone: TIME_ZONE || undefined,
+        year: "numeric", month: "2-digit", day: "2-digit" }}).formatToParts(now);
+    }} catch (_) {{
+      parts = new Intl.DateTimeFormat("en-CA", {{ year: "numeric", month: "2-digit", day: "2-digit" }}).formatToParts(now);
+    }}
+    var values = {{}};
+    parts.forEach(function (part) {{ values[part.type] = part.value; }});
+    var today = Date.UTC(+values.year, +values.month - 1, +values.day);
     return Math.round((today - then) / 86400000);
   }}
 
@@ -722,7 +732,13 @@ def render(data: BriefData) -> str:
       minutes = BASE_MINUTES;
     }} else {{
       var now = new Date();
-      minutes = now.getHours() * 60 + now.getMinutes();
+      var local;
+      try {{ local = new Intl.DateTimeFormat("en-GB", {{ timeZone: TIME_ZONE || undefined,
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23" }}).formatToParts(now); }}
+      catch (_) {{ local = new Intl.DateTimeFormat("en-GB", {{ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }}).formatToParts(now); }}
+      var clock = {{}};
+      local.forEach(function (part) {{ clock[part.type] = part.value; }});
+      minutes = (+clock.hour) * 60 + (+clock.minute);
       days = daysSince(now);
     }}
     var a = pointAt(minutes, R_IN), b = pointAt(minutes, R_OUT);
