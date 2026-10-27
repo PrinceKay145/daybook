@@ -189,5 +189,5 @@ def _read_or_empty(folder: Folder, name: str, reason: str, empty: str = "") -> s
     try:
         return folder.scope.read_text(name)
     except FileNotFoundError:
-        folder.warnings.append(f"{reason} — there is no {name} in the folder.")
+        folder.warnings.append(f"{reason}: there is no {name} in the folder.")
         return empty

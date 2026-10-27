@@ -105,7 +105,7 @@ def ask(provider: Provider, system: str, prompt: str, *, secret: str | None = No
         if provider.id == "openai":
             return _ask_openai(provider, system, prompt, secret, timeout)
         raise AskError(f"Planning with a {provider.label or provider.id} key isn't supported yet.")
-    raise AskError("No model is chosen for this folder — choose one in Daybook.")
+    raise AskError("No model is chosen for this folder. Choose one in Daybook.")
 
 
 # -- local CLIs ---------------------------------------------------------------------
@@ -135,7 +135,7 @@ def _binary(provider: Provider) -> str:
     if not path or not os.access(path, os.X_OK):
         raise AskError(
             f"{provider.label or name or 'The chosen CLI'} wasn't found"
-            + " — choose your model again in Daybook."
+            + ". Choose your model again in Daybook."
         )
     return path
 
@@ -220,7 +220,7 @@ def _ask_claude(provider: Provider, system: str, prompt: str, timeout: int) -> s
     if envelope.get("is_error") or done.returncode != 0:
         lowered = result.lower()
         if "login" in lowered or "api key" in lowered or "auth" in lowered:
-            raise AskError("Claude Code isn't signed in on this Mac — run `claude auth login` in Terminal.")
+            raise AskError("Claude Code isn't signed in on this Mac. Run `claude auth login` in Terminal.")
         raise AskError(_passing("Claude Code", f"{result} {done.stderr}")
                        or f"Claude Code answered with an error: {_tail(result) or _tail(done.stderr)}")
     return result
@@ -260,7 +260,7 @@ def _ask_codex(provider: Provider, system: str, prompt: str, schema: dict | None
     if done.returncode != 0 or not reply.strip():
         lowered = (done.stderr or "").lower()
         if "login" in lowered or "not logged in" in lowered or "unauthorized" in lowered:
-            raise AskError("Codex isn't signed in on this Mac — run `codex login` in Terminal.")
+            raise AskError("Codex isn't signed in on this Mac. Run `codex login` in Terminal.")
         raise AskError(_passing("Codex", done.stderr or "") or _cli_failure("Codex", done))
     return reply
 
@@ -286,7 +286,7 @@ def _post(url: str, headers: dict, body: dict, timeout: int, who: str) -> dict:
         except (ValueError, AttributeError):
             message = ""
         if exc.code in (401, 403):
-            raise AskError(f"{who} refused the API key — check it in Daybook.") from None
+            raise AskError(f"{who} refused the API key. Check it in Daybook.") from None
         raise AskError(f"{who} answered {exc.code}: {_tail(message) or exc.reason}") from None
     except ssl.SSLError as exc:
         raise AskError(f"A secure connection to {who} couldn't be made ({exc.reason}).") from None

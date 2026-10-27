@@ -38,12 +38,12 @@ class NextUp:
 
     def describe(self) -> str:
         if self.in_minutes <= 0:
-            return f"{self.title} — now, {self.at}"
+            return f"{self.title}, now ({self.at})"
         if self.in_minutes < 60:
-            return f"{self.title} at {self.at} — in {self.in_minutes} minutes"
+            return f"{self.title} at {self.at}, in {self.in_minutes} minutes"
         hours, minutes = divmod(self.in_minutes, 60)
         tail = f"{hours}h" if not minutes else f"{hours}h {minutes}m"
-        return f"{self.title} at {self.at} — in {tail}"
+        return f"{self.title} at {self.at}, in {tail}"
 
 
 @dataclass
@@ -255,7 +255,7 @@ def _no_list_reason(state) -> str:
     if state.today_list:
         return ""
     return (
-        "Nothing is listed for today yet — the day state has no list, and nothing is "
+        "Nothing is listed for today yet: the day state has no list, and nothing is "
         "invented to fill one. The first nightly close writes it from what actually happened."
     )
 
@@ -298,7 +298,7 @@ def _board_note(rows: list[BoardRow], today: date) -> str:
     if soonest >= 0:
         return (
             f"{len(waiting)} of {len(rows)} waiting on someone else. "
-            f"Nothing here is late yet — the earliest move is due in {soonest} day"
+            f"Nothing here is late yet. The earliest move is due in {soonest} day"
             f"{'s' if soonest != 1 else ''}."
         )
     return f"{len(waiting)} waiting, and {sum(1 for a in ages if a < 0)} past its date."

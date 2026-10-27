@@ -20,9 +20,10 @@ import base64
 import html
 import json
 import math
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import dial
 from .brief import BriefData
@@ -174,15 +175,16 @@ def _centre(data: BriefData) -> tuple[str, str]:
     """The two lines under the time: the block you are in and until when. Unplanned time
     is not a place to be, so there it names whichever comes first today: the next thing at
     a set time (what Next up reads) or the start of the next real block, a timed thing
-    winning a tie. Only with neither is it a quiet "Nothing scheduled". The page's script
-    says the same."""
+    winning a tie. Sleep is not named: at 13:00 "Sleep in 10h" is not what comes next.
+    Only with neither is it a quiet "Nothing scheduled". The page's script says the same."""
     current, now = data.dial.current, data.dial.now_minutes
     if current is None:
         return "no block", "day shape has a gap"
     if current.label != UNPLANNED:
         return current.label, f"until {dial.to_hhmm(current.end)}"
     later = [(at, title) for title, at in data.ahead if now <= at < dial.MINUTES_IN_DAY][:1]
-    later += [(start, block.label) for block in data.dial.blocks if block.label != UNPLANNED
+    later += [(start, block.label) for block in data.dial.blocks
+              if block.label != UNPLANNED and block.label.lower() != "sleep"
               for start, _ in block.spans() if start > now]
     if later:
         at, title = min(later, key=lambda pair: pair[0])
@@ -322,7 +324,7 @@ def _section_today_list(data: BriefData) -> str:
     if not data.today_list:
         # The reason is the brief's own (V6 asserts one exists); the page shows it rather
         # than a second, different explanation.
-        return f'<p class="empty">— {esc(data.today_list_reason)}</p>'
+        return f'<p class="empty">{esc(data.today_list_reason)}</p>'
     items = "".join(
         f'<li><span class="ix">{n}</span><div><h3 class="action-title">{esc(a.title)}</h3>'
         f'<p class="action-detail">{esc(a.detail)}</p></div></li>'
@@ -353,7 +355,7 @@ def _metric_label(data: BriefData, key: str) -> str:
 def _section_scoreboard(data: BriefData) -> str:
     if not data.scoreboard:
         return (
-            '<p class="empty">— No metrics yet: the day state records none. Nothing is '
+            '<p class="empty">No metrics yet: the day state records none. Nothing is '
             "estimated to fill the table.</p>"
         )
     rows = []
@@ -387,7 +389,7 @@ def _section_ticks(data: BriefData) -> str:
             f'<span class="source">From {esc(_light_source(data.light_schedule_source))}</span></p>'
         )
     if not data.habits:
-        return f'<p class="empty">— No ticks yet: the day state tracks no habits.</p>{light}'
+        return f'<p class="empty">No ticks yet: the day state tracks no habits.</p>{light}'
     return f'<ul class="rows ticks">{rows}</ul>{light}'
 
 
@@ -408,7 +410,7 @@ def _section_board(data: BriefData) -> str:
     note = f'<p class="board-note">{esc(data.board_note)}</p>' if data.board_note else ""
     closed = ""
     if data.board_closed:
-        names = "; ".join(f"{r.who} — {r.what}" for r in data.board_closed)
+        names = "; ".join(f"{r.who} ({r.what})" for r in data.board_closed)
         closed = f'<p class="board-closed">Closed, kept visible: {esc(names)}</p>'
     return f'<ul class="board">{"".join(rows)}</ul>{note}{closed}'
 
@@ -441,11 +443,17 @@ def _script_json(value) -> str:
 
 
 def _clock_note(data: BriefData) -> str:
-    """Which clock the times come from (law 5), said plainly."""
+    """Which clock the times come from (law 5), said only when it could mislead: a frozen
+    clock, or a time zone that is not this Mac's own right now. Settings names it always."""
     if data.clock_frozen:
-        return f"frozen clock — {esc(data.clock_description)}"
-    zone = f", {esc(data.timezone)}" if data.timezone else ""
-    return f"Times by this Mac's clock{zone}"
+        return f"Times by a frozen clock: {esc(data.clock_description)}"
+    try:
+        theirs = datetime.now(ZoneInfo(data.timezone)).utcoffset() if data.timezone else None
+    except (ZoneInfoNotFoundError, ValueError):
+        theirs = None  # an unknown zone falls back to this Mac's own clock (Clock.system)
+    if theirs is not None and theirs != datetime.now().astimezone().utcoffset():
+        return f"Times in {esc(data.timezone.replace('_', ' '))}, not this Mac's zone"
+    return ""
 
 
 STYLE = """
@@ -611,7 +619,7 @@ def render(data: BriefData) -> str:
         "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
     headline = rest if has_weekday else true_for
     weekday_label = weekday.rstrip(",") if has_weekday else ""
-    owner = f"For {esc(data.owner_name)} · " if data.owner_name else ""
+    clock_note = _clock_note(data)
     delivery = ("" if data.closing.text == data.delivery.sentence()
                 else f'<p class="delivery">{esc(data.delivery.sentence())}</p>')
 
@@ -620,7 +628,7 @@ def render(data: BriefData) -> str:
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Brief — {esc(_fmt_date(day))}</title>
+<title>Brief for {esc(_fmt_date(day))}</title>
 <style>
 {_font_faces()}
 {STYLE}
@@ -634,7 +642,7 @@ def render(data: BriefData) -> str:
     {f'<p class="label">{esc(weekday_label)}</p>' if weekday_label else ''}
     <h1>{esc(headline)}</h1>
   </div>
-  <p class="clock">{owner}{_clock_note(data)}</p>
+  {f'<p class="clock">{clock_note}</p>' if clock_note else ''}
 </header>
 
 <div class="grid">
@@ -740,13 +748,15 @@ def render(data: BriefData) -> str:
       if (AHEAD[i][1] >= minutes) {{ next = AHEAD[i]; break; }}
     }}
     // The same rule as _centre(): in unplanned time, whichever comes first today, the next
-    // thing at a set time or the start of the next real block (a timed thing wins a tie).
+    // thing at a set time or the start of the next real block, never Sleep (a timed thing
+    // wins a tie).
     var name = "Nothing scheduled", sub = "", soon = next && next[1] < 1440 ? next : null;
     if (!block) {{ name = "no block"; sub = "day shape has a gap"; }}
     else if (block[2] !== UNPLANNED) {{ name = block[2]; sub = "until " + hhmm(block[4]); }}
     else {{
       for (i = 0; i < SPANS.length; i++) {{
-        if (SPANS[i][2] !== UNPLANNED && SPANS[i][0] > minutes && (!soon || SPANS[i][0] < soon[1])) {{
+        if (SPANS[i][2] !== UNPLANNED && SPANS[i][2].toLowerCase() !== "sleep" && SPANS[i][0] > minutes &&
+            (!soon || SPANS[i][0] < soon[1])) {{
           soon = [SPANS[i][2], SPANS[i][0]];
         }}
       }}

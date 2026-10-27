@@ -122,12 +122,27 @@ class TheCentreInUnplannedTime(FolderCase):
         self.assertIn('class="dial-block quiet" x="160.0" y="181.0">Nothing scheduled</text>', html)
         self.assertIn('id="dial-until" class="dial-until" x="160.0" y="197.0"></text>', html)
 
+    def test_sleep_is_not_what_comes_next(self):
+        # At 13:00 only Sleep (23:00) is ahead: not "Sleep · at 23:00 · in 10h".
+        self.edit_json("config.json", lambda c: c.update(fixture_now="2026-03-10T13:00:00"))
+        _, _, html, results = self.produce()
+        self.assertIn('class="dial-block quiet" x="160.0" y="181.0">Nothing scheduled</text>', html)
+        self.assertEqual([], [r.line() for r in results if not r.ok])
+
+    def test_a_timed_thing_ahead_of_sleep_is_named(self):
+        self.edit_json("config.json", lambda c: c.update(fixture_now="2026-03-10T13:00:00"))
+        self.write("DAY-STATE.md", MOMENT.replace("08:40", "15:30"))
+        _, _, html, _ = self.produce()
+        self.assertIn('class="dial-block" x="160.0" y="181.0">Meeting with Sam</text>', html)
+        self.assertIn(">at 15:30 · in 2h 30m</text>", html)
+
     def test_the_page_script_follows_the_same_rule(self):
         _, _, html, _ = self.produce()
         self.assertIn('var UNPLANNED = "Unplanned";', html)
         self.assertIn('var name = "Nothing scheduled"', html)
         self.assertIn("next[1] < 1440", html)
-        self.assertIn("SPANS[i][2] !== UNPLANNED && SPANS[i][0] > minutes", html)
+        self.assertIn('SPANS[i][2] !== UNPLANNED && SPANS[i][2].toLowerCase() !== "sleep" && '
+                      "SPANS[i][0] > minutes", html)
 
 
 if __name__ == "__main__":
