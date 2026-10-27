@@ -518,7 +518,7 @@ function BriefFrames({ html }: { html: string }) {
   return frames.map((frame) => (
     <iframe
       key={frame.id}
-      title="Today's brief"
+      aria-label="Today's brief"
       srcDoc={frame.html}
       sandbox="allow-scripts"
       className={cn("absolute inset-0 size-full border-0", frame.loaded ? "fade-in" : "opacity-0")}
