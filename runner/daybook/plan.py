@@ -453,7 +453,7 @@ def render_day_state(folder: Folder, proposal: Proposal, model: str) -> str:
         "# DAY-STATE",
         "",
         f"**Rewritten:** {now:%Y-%m-%d, %H:%M} (planned by {model})",
-        f"**True for:** {now:%A} {now.day} {now:%B %Y}",
+        _true_for(now),
         "",
         "> This file beats every other file when they disagree. It is newer.",
         "",
@@ -652,10 +652,19 @@ def propose(folder_path: str, *, clock: str | None = None, message: str | None =
                        base=base, model=model)
 
 
+def _true_for(now) -> str:
+    return f"**True for:** {now:%A} {now.day} {now:%B %Y}"
+
+
 def apply(folder_path: str, outcome: PlanOutcome, clock: str | None = None) -> PlanOutcome:
     """Write a proposed day state: re-checked, the old one archived, then replaced
     atomically, and one line of Daybook's own in LOG.md."""
     folder = open_folder(folder_path, clock_override=clock)
+    if _true_for(folder.clock.now) not in outcome.candidate:
+        # Proposed before midnight, applied after: it would date today's file yesterday and
+        # put its ticks on the wrong day.
+        return PlanOutcome("refused", "It's a new day since this plan was made, so it wasn't "
+                           "written. Plan again for today.", model=outcome.model)
     if fingerprint(folder.day_state_text) != outcome.base:
         return PlanOutcome("refused", "Your day state changed after this plan was made, so it "
                            "wasn't written. Plan again to use the new one.", model=outcome.model)
