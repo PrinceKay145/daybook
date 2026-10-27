@@ -111,11 +111,29 @@ def ask(provider: Provider, system: str, prompt: str, *, secret: str | None = No
 # -- local CLIs ---------------------------------------------------------------------
 
 def _binary(provider: Provider) -> str:
-    path = provider.binary_path or shutil.which(provider.binary or "") or ""
+    # config.json lives in a user-editable folder. Never execute binary_path from it:
+    # an old backup or shared folder could point it at an arbitrary executable.
+    name = provider.binary if provider.binary in {"claude", "codex"} else ""
+    home = Path.home()
+    candidates = [
+        shutil.which(name) if name else None,
+        str(home / ".local/bin" / name) if name else None,
+        f"/opt/homebrew/bin/{name}" if name else None,
+        f"/usr/local/bin/{name}" if name else None,
+        str(home / ".claude/local" / name) if name else None,
+        str(home / ".npm-global/bin" / name) if name else None,
+        str(home / ".volta/bin" / name) if name else None,
+        str(home / ".bun/bin" / name) if name else None,
+    ]
+    nvm = home / ".nvm/versions/node"
+    try:
+        candidates.extend(str(p / "bin" / name) for p in sorted(nvm.iterdir(), reverse=True) if name)
+    except OSError:
+        pass
+    path = next((p for p in candidates if p and os.path.isfile(p) and os.access(p, os.X_OK)), "")
     if not path or not os.access(path, os.X_OK):
         raise AskError(
-            f"{provider.label or provider.binary} wasn't found"
-            + (f" at {provider.binary_path}" if provider.binary_path else "")
+            f"{provider.label or name or 'The chosen CLI'} wasn't found"
             + " — choose your model again in Daybook."
         )
     return path
