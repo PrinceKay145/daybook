@@ -175,15 +175,16 @@ def _centre(data: BriefData) -> tuple[str, str]:
     """The two lines under the time: the block you are in and until when. Unplanned time
     is not a place to be, so there it names whichever comes first today: the next thing at
     a set time (what Next up reads) or the start of the next real block, a timed thing
-    winning a tie. Only with neither is it a quiet "Nothing scheduled". The page's script
-    says the same."""
+    winning a tie. Sleep is not named: at 13:00 "Sleep in 10h" is not what comes next.
+    Only with neither is it a quiet "Nothing scheduled". The page's script says the same."""
     current, now = data.dial.current, data.dial.now_minutes
     if current is None:
         return "no block", "day shape has a gap"
     if current.label != UNPLANNED:
         return current.label, f"until {dial.to_hhmm(current.end)}"
     later = [(at, title) for title, at in data.ahead if now <= at < dial.MINUTES_IN_DAY][:1]
-    later += [(start, block.label) for block in data.dial.blocks if block.label != UNPLANNED
+    later += [(start, block.label) for block in data.dial.blocks
+              if block.label != UNPLANNED and block.label.lower() != "sleep"
               for start, _ in block.spans() if start > now]
     if later:
         at, title = min(later, key=lambda pair: pair[0])
@@ -747,13 +748,15 @@ def render(data: BriefData) -> str:
       if (AHEAD[i][1] >= minutes) {{ next = AHEAD[i]; break; }}
     }}
     // The same rule as _centre(): in unplanned time, whichever comes first today, the next
-    // thing at a set time or the start of the next real block (a timed thing wins a tie).
+    // thing at a set time or the start of the next real block, never Sleep (a timed thing
+    // wins a tie).
     var name = "Nothing scheduled", sub = "", soon = next && next[1] < 1440 ? next : null;
     if (!block) {{ name = "no block"; sub = "day shape has a gap"; }}
     else if (block[2] !== UNPLANNED) {{ name = block[2]; sub = "until " + hhmm(block[4]); }}
     else {{
       for (i = 0; i < SPANS.length; i++) {{
-        if (SPANS[i][2] !== UNPLANNED && SPANS[i][0] > minutes && (!soon || SPANS[i][0] < soon[1])) {{
+        if (SPANS[i][2] !== UNPLANNED && SPANS[i][2].toLowerCase() !== "sleep" && SPANS[i][0] > minutes &&
+            (!soon || SPANS[i][0] < soon[1])) {{
           soon = [SPANS[i][2], SPANS[i][0]];
         }}
       }}
