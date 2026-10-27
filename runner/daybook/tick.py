@@ -187,7 +187,10 @@ def run_tick(
             return Outcome("done", f"today's brief already exists ({dated.name})")
 
         planned = planned_today(state, today.isoformat(), folder_path)
-        if plan_day is not None and not planned:
+        # The tick asks the model once a day. A plan that failed or was refused is said in the
+        # brief; asking again every minute would spend the user's plan on the same answer.
+        tried = _for(state.get("tick_plan") or {}, today.isoformat(), folder_path)
+        if plan_day is not None and not planned and not tried:
             _save_state(states, state)  # the planning call can take minutes; keep the tick seen
             try:
                 with planlock.holding(state_dir, "the morning tick"):
@@ -202,6 +205,7 @@ def run_tick(
                 state = {**_load_state(states), "last_tick": state["last_tick"]}
                 return Outcome("waiting", "Daybook is planning today right now; the brief waits for it")
             state = _load_state(states)
+            state["tick_plan"] = {"day": today.isoformat(), "folder": _where(folder_path)}
             folder = open_folder(folder_path, clock_override=clock)
             planned_detail = f"planned ({outcome.status}: {outcome.detail})" if not planned else "already planned"
         else:

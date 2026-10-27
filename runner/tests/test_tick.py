@@ -235,6 +235,32 @@ class TickPlansTheDay(ScheduledCase):
         self.assertEqual("delivered", self.tick("08:31").status)
         self.assertIn("Draft the Lumen proposal outline", self.brief().read_text(encoding="utf-8"))
 
+    def test_a_refused_plan_is_not_asked_for_again_every_minute(self):
+        self.planner.outcome = plan.PlanOutcome("refused", "it failed V2", model="Sonnet 5 · Claude Code")
+        for at in ("08:20", "08:21", "08:25", "08:29"):
+            self.tick(at)
+        self.assertEqual("delivered", self.tick("08:30").status)
+        self.assertEqual(1, len(self.planner.calls))
+        self.assertIn("wasn&#x27;t refreshed", self.brief().read_text(encoding="utf-8"))
+
+    def test_a_withheld_brief_does_not_send_the_model_round_again_all_day(self):
+        self.planner.outcome = plan.PlanOutcome("refused", "it failed V2", model="Sonnet 5 · Claude Code")
+        self.edit_json(
+            "config.json",
+            lambda c: c["day_shape"].append({"block": "Gym", "start": "08:00", "end": "10:00"}),
+        )
+        for at in ("08:31", "08:32", "11:00", "16:45"):
+            self.assertEqual("withheld", self.tick(at).status)
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_a_failed_plan_by_the_app_still_leaves_the_tick_its_own_try(self):
+        from daybook.tick import record_plan
+
+        record_plan(str(self.state), DAY, plan.PlanOutcome("failed", "not signed in", model="Sonnet 5"),
+                    str(self.folder))
+        self.tick("08:20")
+        self.assertEqual(1, len(self.planner.calls))
+
     def test_a_failed_retry_does_not_unsay_a_plan_that_was_written(self):
         from daybook.tick import record_plan
 
