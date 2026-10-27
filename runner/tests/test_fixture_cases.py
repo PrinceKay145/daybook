@@ -232,24 +232,26 @@ class SelfContained(FolderCase):
 
 
 class TheDial(FolderCase):
-    """What is fixed in time is marked and named outside the ring, and the page's script
-    keeps the words around the dial true while it stays open."""
+    """What is fixed in time is ticked outside the ring and named in the legend, never cut
+    short beside the dial, and the page's script keeps the words around the dial true while
+    it stays open."""
 
-    def test_fixed_times_and_the_light_schedule_are_named_outside_the_ring(self):
+    def test_fixed_times_and_the_light_schedule_are_ticked_and_named_in_the_legend(self):
         _, _, html, _ = self.produce()
-        self.assertRegex(html, r'class="dial-mark-label fixed"[^>]*>School run<')
-        self.assertRegex(html, r'class="dial-mark-label light"[^>]*>Sunset<')
+        self.assertIn('class="dial-mark fixed"', html)
+        self.assertIn('class="dial-mark light"', html)
+        self.assertIn('<li class="mark mark-fixed"><i></i><span>School run</span><time>08:20</time></li>', html)
+        self.assertRegex(html, r'<li class="mark mark-light"><i></i><span>Sunset</span><time>\d\d:\d\d</time></li>')
         self.assertIn("<title>School run · 08:20 · non-negotiable</title>", html)
+        self.assertNotIn("dial-mark-label", html)
+        self.assertNotIn("…</text>", html)
 
-    def test_two_marks_at_one_time_are_both_named_without_overlapping(self):
+    def test_two_marks_at_one_time_are_both_named(self):
         self.edit_json("config.json", lambda c: c["non_negotiables"].append(
             {"label": "Call the bank", "time": "08:20", "days": ["all"]}))
         _, _, html, _ = self.produce()
-        ys = {label: y for y, label in re.findall(
-            r'class="dial-mark-label fixed" x="[\d.]+" y="([\d.]+)"[^>]*>([^<]+)<', html)}
-        self.assertIn("School run", ys)
-        self.assertIn("Call the bank", ys)
-        self.assertGreaterEqual(abs(float(ys["School run"]) - float(ys["Call the bank"])), 12)
+        self.assertIn("<span>School run</span><time>08:20</time>", html)
+        self.assertIn("<span>Call the bank</span><time>08:20</time>", html)
 
     def test_the_centre_names_the_block_you_are_in(self):
         _, _, html, _ = self.produce()

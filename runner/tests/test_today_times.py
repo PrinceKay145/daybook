@@ -42,7 +42,7 @@ class OnTheDial(PlanCase):
         # A dot on the rim, named in the legend, never a shortened label beside the dial.
         self.assertIn('class="dial-moment"', html)
         self.assertNotIn("dial-mark-label today", html)
-        self.assertIn('<li class="moment"><i></i><span>Confirm the meeting with Sam</span><time>15:30</time></li>', html)
+        self.assertIn('<li class="mark mark-today"><i></i><span>Confirm the meeting with Sam</span><time>15:30</time></li>', html)
 
     def test_next_up_counts_them(self):
         self.plan_times(CALL, DEADLINE)
