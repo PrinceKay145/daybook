@@ -215,5 +215,9 @@ Copied into `src/components/`, not installed — owned and restyled freely.
 
 Colour and opacity transitions only (150 ms) — and a switch's knob, which slides because
 that is what a switch is. Something new appears by fading in
-(`fade-in`, the proposed day), never by sliding. A spinner appears only while the model is
-actually working. The app never looks busy while waiting on nothing.
+(`fade-in`, the proposed day), never by sliding, and leaves by fading out (`fade-out`: the
+proposed day after Apply or Discard). Applying holds the card on "Applying…" until the new
+brief is under it. A new brief fades in over the old one once it has loaded; a new status
+line fades in. A spinner appears only while the model is actually working, with the time
+since it was asked, and says so when it runs past 2:30. The app never looks busy while
+waiting on nothing. With Reduce Motion on, every fade is instant.
