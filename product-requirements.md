@@ -73,7 +73,7 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    whose day state changed in the meantime is refused, not merged; one request at a time.
    Something at a stated time today ("business call 17:00–19:00", "before 15:30") reaches
    the dial and Next up, not only the list (found testing live, 2026-10-09): a span is drawn
-   as today's own block over the typical day, a moment is marked beside the ring and named
+   as today's own block over the typical day, a moment is a dot on the ring's rim, named
    under it; only times that were given, never a made-up end, and never yesterday's.
 4. ✅ **An install testers can open** (built). `npm run dist:mac` → a disk image: Python
    bundled, signed ad hoc (valid, not notarized), the one-time "Open Anyway" step and the
@@ -270,7 +270,8 @@ no browser storage, opens in five years from a restored backup with no app insta
 am I doing → what am I keeping up → who am I waiting on → a human note):
 
 1. **24-hour dial** — blocks contiguous 00:00–24:00, asserted at build time; non-negotiables
-   tick *outside* the ring; live hand; centre shows time, current block, `until HH:MM`.
+   tick *outside* the ring; live hand; centre shows time, current block, `until HH:MM` (in
+   unplanned time, the next thing at a set time today, or "Nothing scheduled").
 2. **Next up** — one line.
 3. **Today's list** — at most the user's number (`daily_list.max_items`, 1–10, default 3),
    each one concrete first click; a list shorter than the number says why. 🔴 Never

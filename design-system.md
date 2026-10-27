@@ -71,14 +71,18 @@ size.
 the day's blocks apart is the dial's job. Six muted inks — blue, ochre, sage, clay,
 lavender, teal (`--c1`…`--c6`) — go to the blocks in the order the day shape lists them, warm
 and cool alternating so neighbours differ; a label that appears twice keeps its colour. Sleep
-is a deeper slate (`--sleep`); unplanned time is the quiet track (`--unplanned`) and never one
-more colour — it is not a plan.
+is a deeper slate (`--sleep`); unplanned time draws no arc at all — the bare disc shows it,
+`--unplanned` is only its swatch in the legend — and never one more colour: it is not a plan.
+The disc itself is lit from the middle (`--glow` fading to `--rim`) and the hub is solid
+(`--hub`).
 
 | Token | Light | Dark |
 |---|---|---|
 | `--c1` … `--c6` | `#7f9cc8` `#d6ab60` `#8db39f` `#c98f78` `#a594c7` `#72adb1` | `#6482ad` `#b38c4d` `#6b9382` `#a5715e` `#8475a6` `#5a9095` |
 | `--sleep` | `#4d6187` | `#394d6c` |
 | `--unplanned` | `#e3e6df` | `#24282c` |
+| `--glow` / `--rim` | `#ffffff` / `#e6e9e2` | `#2b3035` / `#17191c` |
+| `--hub` | `#fbfbf9` | `#121416` |
 
 ## Type
 
@@ -186,20 +190,26 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   up at 300; today's list beside it), then Scoreboard and Ticks side by side, then Waiting
   on others, questions, notes, and the closing line. One column under 760; phone padding
   and a 264 dial under 520. It keeps the spec's reading order.
-- **The dial**: midnight at the top, clockwise. A thick ring of the day's blocks (the inks
-  above) around a face in `--surface`; every hour ticked on the inside of the ring and every
-  third numbered (00, 03 … 21). The hand crosses the ring, so it points at the block you
-  are in, with a dot at its outer end; the time sits in the middle in Newsreader 36, the
-  block's name and "until 09:00" beneath. What is fixed in time ticks *outside* the ring
-  with its name beside it: non-negotiables in ink, the light schedule (daylight, a prayer
-  timetable, tides) fainter, and today's own moments ("confirm before 15:30") in the
-  accent, also named under the legend with their time. Today's spans ("17:00–19:00
-  business call") are drawn as blocks in the ring, over the typical day, in their own ink.
-  A label that would collide steps outward a line; one that
-  still would is left to the tick's tooltip, never drawn over another. Labels may run into
-  the page margin, never past the window. The page's script keeps the hand, the time, the
-  block, "until", the legend's bold row and Next up true while the page stays open; a brief
-  opened on another day only moves the hand.
+- **The dial**: midnight at the top, clockwise. A soft disc, lighter at its centre, with a
+  hairline edge; the day's blocks are thick round-ended arcs around its rim (the inks
+  above), a small gap between neighbours, and unplanned time is left bare. Every hour is
+  ticked inside the arcs, every sixth longer, every third numbered (00, 03 … 21). The hand
+  runs from the centre to the middle of the arcs with a dot at its tip, so the dot sits on
+  the block you are in and nothing leaves the disc; a solid hub covers its root. In the
+  hub: the time in Newsreader 34, the block's name in the accent and "until 09:00" faint
+  beneath. Unplanned time is not a place to be, so there the hub names what is coming
+  instead — the next thing at a set time today, "at 16:40 · in 59 minutes" — or a quiet
+  "Nothing scheduled", never "Unplanned until 00:00". What is fixed in time ticks *outside*
+  the disc with its name beside it: non-negotiables in ink, the light schedule (daylight, a
+  prayer timetable, tides) fainter. Today's own moments ("confirm before 15:30") are accent
+  dots on the rim at their time, with no label there — the legend names them with their
+  time, and Next up. Today's spans ("17:00–19:00 business call") are drawn as blocks on the
+  rim, over the typical day, in their own ink. A label that would collide steps outward a
+  line; one that still would is left to the tick's tooltip, never drawn over another.
+  Labels may run into the page margin, never past the window. The legend lists the blocks
+  with their hours — but not a lone "Unplanned · all day" when no blocks are set. The
+  page's script keeps the hand, the time, the hub's words, the legend's bold row and Next
+  up true while the page stays open; a brief opened on another day only moves the hand.
 
 ## Copy voice
 
