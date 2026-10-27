@@ -67,16 +67,17 @@ if __name__ == "__main__":
 
 
 class AWholeDayUnplanned(FolderCase):
-    """A folder with no day shape is one Unplanned block from midnight to midnight. It must
-    still draw a ring, say "all day", and never take the accent — it is not a plan."""
+    """A folder with no day shape is one Unplanned block from midnight to midnight. The
+    disc is still drawn, bare — unplanned time takes no arc and never the accent, because
+    it is not a plan."""
 
     fixture = FRESH_FIXTURE
 
-    def test_the_ring_is_drawn_and_reads_all_day(self):
+    def test_the_disc_is_drawn_bare(self):
         self.edit_json("config.json", lambda c: c.pop("day_shape", None))
         _, _, html, results = self.produce()
-        self.assertIn('class="dial-ring', html)
+        self.assertIn('class="dial-disc"', html)
+        self.assertNotIn('class="dial-arc"', html)
         self.assertIn("<time>all day</time>", html)
         self.assertNotIn("stroke:var(--accent)", html)
         self.assertEqual([], [r.line() for r in results if not r.ok])
-

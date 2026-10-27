@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import math
 import re
 import unittest
 
@@ -212,6 +213,19 @@ class TheDial(FolderCase):
         self.assertIn("School run", ys)
         self.assertIn("Call the bank", ys)
         self.assertGreaterEqual(abs(float(ys["School run"]) - float(ys["Call the bank"])), 12)
+
+    def test_the_centre_names_the_block_you_are_in(self):
+        _, _, html, _ = self.produce()
+        self.assertIn('class="dial-block" x="160.0" y="181.0">Morning / school run</text>', html)
+        self.assertIn(">until 09:00</text>", html)
+
+    def test_the_hand_runs_from_the_centre_and_its_dot_stays_inside_the_disc(self):
+        _, _, html, _ = self.produce()
+        x2, y2 = (float(v) for v in re.search(
+            r'id="hand" class="dial-hand" x1="160.0" y1="160.0" x2="([\d.]+)" y2="([\d.]+)"', html).groups())
+        tip = float(re.search(r'id="hand-tip"[^>]* r="([\d.]+)"', html).group(1))
+        disc = float(re.search(r'class="dial-disc" cx="160.0" cy="160.0" r="([\d.]+)"', html).group(1))
+        self.assertLess(math.hypot(x2 - 160, y2 - 160) + tip, disc)
 
     def test_no_block_name_can_close_the_script(self):
         self.edit_json("config.json", lambda c: c["day_shape"][2].__setitem__("block", "Deep </script> work"))
