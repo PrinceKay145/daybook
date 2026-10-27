@@ -168,9 +168,7 @@ export default function App() {
     settings.connections?.[0] ??
     null;
 
-  if (stage === "loading") {
-    return <p className="px-8 py-16 text-[13px] text-[var(--color-ink-faint)]">Opening…</p>;
-  }
+  if (stage === "loading") return <Opening />;
 
   if (stage === "login" || !account) {
     return (
@@ -249,4 +247,16 @@ export default function App() {
     default:
       return null;
   }
+}
+
+/* The account check on launch is usually done in a blink; saying "Opening…" for that blink
+   only flashes a word. It appears only if the check is still running after 0.8 s (a slow
+   network), so a quick launch goes straight to its screen. */
+function Opening() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 800);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return slow ? <p className="fade-in px-8 py-16 text-[13px] text-[var(--color-ink-faint)]">Opening…</p> : null;
 }
