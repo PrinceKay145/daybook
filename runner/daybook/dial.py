@@ -167,17 +167,11 @@ def polar_point(minute: int, radius: float, cx: float, cy: float) -> tuple[float
     return (cx + radius * math.sin(theta), cy - radius * math.cos(theta))
 
 
-def arc_path(start: int, end: int, outer: float, inner: float, cx: float, cy: float) -> str:
-    """An SVG path for one annular sector, drawn clockwise from ``start`` to ``end``."""
+def arc_path(start: float, end: float, radius: float, cx: float, cy: float) -> str:
+    """An SVG path along the circle of ``radius``, clockwise from ``start`` to ``end`` —
+    an open line, drawn with a thick stroke."""
     sweep = (end - start) % MINUTES_IN_DAY or MINUTES_IN_DAY
     large = 1 if sweep > MINUTES_IN_DAY / 2 else 0
-    x1, y1 = polar_point(start, outer, cx, cy)
-    x2, y2 = polar_point(start + sweep, outer, cx, cy)
-    x3, y3 = polar_point(start + sweep, inner, cx, cy)
-    x4, y4 = polar_point(start, inner, cx, cy)
-    return (
-        f"M {x1:.3f} {y1:.3f} "
-        f"A {outer:.3f} {outer:.3f} 0 {large} 1 {x2:.3f} {y2:.3f} "
-        f"L {x3:.3f} {y3:.3f} "
-        f"A {inner:.3f} {inner:.3f} 0 {large} 0 {x4:.3f} {y4:.3f} Z"
-    )
+    x1, y1 = polar_point(start, radius, cx, cy)
+    x2, y2 = polar_point(start + sweep, radius, cx, cy)
+    return f"M {x1:.3f} {y1:.3f} A {radius:.3f} {radius:.3f} 0 {large} 1 {x2:.3f} {y2:.3f}"

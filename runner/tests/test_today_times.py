@@ -3,7 +3,7 @@
 Found testing live: "business call 17:00–19:00" went onto today's list, but the dial kept
 showing the typical day ("Unplanned, all day") and Next up said nothing was scheduled. The
 plan now carries today's times; spans are drawn as today's own blocks over the day shape,
-moments ("before 15:30") are marked beside the ring, and Next up counts both. Only times
+moments ("before 15:30") are dots on the rim, and Next up counts both. Only times
 that were given — no end is ever made up.
 """
 
@@ -39,6 +39,9 @@ class OnTheDial(PlanCase):
         self.assertEqual((17 * 60, 19 * 60), (call.start, call.end))
         self.assertTrue(data.dial.coverage.is_contiguous)
         self.assertIn("<title>Confirm the meeting with Sam · 15:30 · today</title>", html)
+        # A dot on the rim, named in the legend, never a shortened label beside the dial.
+        self.assertIn('class="dial-moment"', html)
+        self.assertNotIn("dial-mark-label today", html)
         self.assertIn('<li class="moment"><i></i><span>Confirm the meeting with Sam</span><time>15:30</time></li>', html)
 
     def test_next_up_counts_them(self):

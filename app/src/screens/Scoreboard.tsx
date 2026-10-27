@@ -538,10 +538,30 @@ function BriefFrames({ html }: { html: string }) {
       srcDoc={frame.html}
       sandbox="allow-scripts"
       className={cn("absolute inset-0 size-full border-0", frame.loaded ? "fade-in" : "opacity-0")}
-      onLoad={() => setFrames((all) => all.map((f) => (f.id === frame.id ? { ...f, loaded: true } : f)))}
+      onLoad={(event) => {
+        if (morningDue()) event.currentTarget.contentWindow?.postMessage({ type: "daybook:morning" }, "*");
+        setFrames((all) => all.map((f) => (f.id === frame.id ? { ...f, loaded: true } : f)));
+      }}
       onAnimationEnd={() => setFrames((all) => all.slice(all.findIndex((f) => f.id === frame.id)))}
     />
   ));
+}
+
+/* The morning moment (the brief's hand sweeps round to now and its list writes itself in)
+   plays in the first brief shown each local day on this device, even when the app stayed
+   open overnight, and never with Reduce Motion on. The stored date alone decides, so later
+   briefs that day (Apply, Plan again, a refresh) skip it. The frame is a sandboxed srcDoc
+   with an opaque origin, so the message goes to "*"; it carries nothing. */
+function morningDue(): boolean {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
+  const today = new Date().toLocaleDateString("en-CA");
+  try {
+    if (localStorage.getItem("daybook.morning") === today) return false;
+    localStorage.setItem("daybook.morning", today);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function Notice({ title, children }: { title: string; children: ReactNode }) {
