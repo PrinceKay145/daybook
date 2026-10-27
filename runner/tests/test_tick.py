@@ -131,6 +131,14 @@ class Tick(ScheduledCase):
 
 
 class Watchdog(ScheduledCase):
+    def test_malformed_last_tick_does_not_crash_the_watchdog(self):
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / "tick-state.json").write_text(
+            json.dumps({"last_tick": "not-a-date"}), encoding="utf-8")
+        outcome = self.watchdog("10:00")
+        self.assertEqual("alerted", outcome.status)
+        self.assertIn("hasn't run", self.notes.sent[0][1])
+
     def test_quiet_until_half_an_hour_after_the_brief_time(self):
         self.assertEqual("ok", self.watchdog("08:55").status)
         self.assertEqual([], self.notes.sent)
