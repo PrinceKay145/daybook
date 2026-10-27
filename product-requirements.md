@@ -22,14 +22,16 @@ Three load-bearing ideas, everything below serves them:
 
 ---
 
-## Status — 2026-10-05
+## Status — 2026-10-06
 
 **Stage 1 is built and working, and the brief arrives on its own.** Real sign-up/sign-in
 (Supabase), folder connection, model choice (Claude Code, Codex or an API key), a setup
 interview writing plain files into the folder, the brief built from that folder by the
 runner, verified by the eleven assertions and shown only when they pass, written at the
 user's brief time by launchd, and Settings & status — and **the chosen model plans the
-day** (Beta 1, items 1–2 below). Not yet: the message box and packaging.
+day** (Beta 1, items 1–6 below), with the message box, the tester install, the import
+from another AI and numbers by message all built. The microphone feature in item 7 is paused
+pending tester feedback; the next step is to get the current Beta 1 build into testers' hands.
 
 ---
 
@@ -69,11 +71,46 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    model reads it when it plans the first day. Accept: nothing is written until Apply, which
    checks the plan again; Discard writes nothing and keeps the message to edit; a proposal
    whose day state changed in the meantime is refused, not merged; one request at a time.
+   Something at a stated time today ("business call 17:00–19:00", "before 15:30") reaches
+   the dial and Next up, not only the list (found testing live, 2026-10-09): a span is drawn
+   as today's own block over the typical day, a moment is marked beside the ring and named
+   under it; only times that were given, never a made-up end, and never yesterday's.
 4. ✅ **An install testers can open** (built). `npm run dist:mac` → a disk image: Python
    bundled, signed ad hoc (valid, not notarized), the one-time "Open Anyway" step and the
    uninstall steps in `TESTERS.md` — the guide sent with it. The app offers to move itself
    into Applications and installs no background jobs until it lives there. Apple silicon
    only.
+
+5. ✅ **Bring it from another AI** (owner, 2026-10-06; built). Someone whose life already
+   lives in ChatGPT, Claude or Gemini doesn't type it again: setup's third step offers
+   **Answer here** or **Bring it from another AI**. Daybook gives a prompt to copy; the other
+   AI writes a handover in a fixed shape (name, goals, the typical day, fixed times, who they
+   wait on, numbers they track, habits, context); the person pastes it back or opens the
+   file, and Daybook reads it **on this Mac, with no model** (`runner/daybook/importer.py`)
+   into the same setup form, which they check and correct before anything is written. Lines
+   it cannot read are left out of the fields and listed; the whole document is kept as
+   `HANDOVER.md`, which the secretary reads when it plans. Anything not filled can be told
+   later in the message box. Accept: nothing is written until "Write my folder"; "unknown"
+   fills nothing; the app's prompt echoed back fills nothing (a test holds the prompt and
+   the reader together).
+6. ✅ **Numbers and ticks by message** (owner, 2026-10-06; built). Setup asks, optionally, for
+   numbers to keep and habits to tick (also filled by a handover). "Sent 3 applications
+   today" puts 3 on the scoreboard; "did my walk" ticks the walk. The model reports, Daybook
+   writes: only metrics the person tracks (never one they stopped), always with where the
+   number came from, dated; ticks go in `TICKS.md` once a day and only when the plan is
+   applied, and "n of 7" is counted from that file. Accept: no number when none was told; a
+   repeated value is not re-dated; no tick without a message; a tracked metric with no number
+   yet shows a dash and why.
+7. ⏸ **Talk to Daybook** (owner, 2026-10-09; paused 2026-10-22 pending tester feedback).
+   A microphone
+   button so testers can record what they'd otherwise type: into "Tell your secretary", and
+   into setup's "in your own words". What they said becomes text they can read and correct
+   before sending; it then goes through the same proposal and Apply as a typed message.
+   Today macOS dictation already works in any text box (Fn twice); this makes speaking a
+   visible, one-click part of Daybook. To decide when building: where speech becomes text
+   (on the Mac, so a recording never leaves it, is the natural fit with the rest of
+   Daybook), whether the audio is kept or discarded, and the macOS microphone permission
+   prompt the packaged app needs.
 
 ✅ **Then a design and UI pass** across every screen and the brief (owner, 2026-10-05;
 built). The owner's choices: refine the calm look; light and dark following the Mac; the
@@ -86,6 +123,11 @@ offers only Claude Code and Codex — the users' own plans) · a chat with histo
 (S11) · reading folders outside the connected one (S10's file tools) · the automatic nightly
 close (the message box covers correcting the day) · daily-shifting schedules (D6) ·
 self-serve account deletion.
+
+**Noted for later** (owner, not yet scheduled):
+- ⬜ **Planning is slow** (2026-10-06): 41–109 seconds a plan on Sonnet 5 through Claude
+  Code, measured by the law evals. Likely the model's default thinking; Claude Code's
+  `--effort` is the lever to try, measured, with the law evals re-run.
 
 ---
 

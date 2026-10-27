@@ -36,6 +36,10 @@ python3 -m daybook watchdog --folder /tmp/my-copy --state-dir /tmp/daybook-state
 # prints the plan; apply writes one later. --stdin takes {"message", "secret"} as JSON.
 python3 -m daybook plan --folder /tmp/my-copy --state-dir /tmp/daybook-state
 
+# Read another AI's handover into setup fields (or {"fixed": [lines]} into
+# non-negotiables). Reads stdin, writes nothing.
+printf '%s' '{"text": "## Name\nFull name: Sam"}' | python3 -m daybook handover
+
 # The law eval harness (gate 3) — run on every prompt change and model bump. Uses your
 # own signed-in CLI and the invented sample folder.
 python3 -m daybook evals --cli claude --model claude-sonnet-5
@@ -68,6 +72,8 @@ The fixtures are read-only in the repo. **Copy the folder before running anythin
 | `prompts/plan.md` | The planning instructions; `LAWS.md` is appended at run time |
 | `tick.py` | What launchd runs: plan the day, then the brief; the watchdog |
 | `evals.py` | The law eval harness (ship gate 3) |
+| `importer.py` | Reads another AI's handover into the setup form's fields, and a line of fixed time into a non-negotiable — no model |
+| `ticks.py` | `TICKS.md`: the habits a person said they did, and the "n of 7" counted from it |
 
 **Not here, on purpose:**
 

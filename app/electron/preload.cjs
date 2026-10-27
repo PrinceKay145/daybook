@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("daybook", {
   loadSettings: (userId) => ipcRenderer.invoke("settings:load", userId),
   saveSettings: (userId, patch) => ipcRenderer.invoke("settings:save", { userId, patch }),
   writeSetup: (payload) => ipcRenderer.invoke("folder:writeSetup", payload),
+  readHandover: (text) => ipcRenderer.invoke("setup:readHandover", text),
   inspectFolder: (folder) => ipcRenderer.invoke("folder:inspect", folder),
   adoptSetup: (folder, connection) => ipcRenderer.invoke("folder:adoptSetup", { folder, connection }),
   recordConnection: (folder, connection) =>

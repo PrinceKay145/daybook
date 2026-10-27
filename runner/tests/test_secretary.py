@@ -19,6 +19,7 @@ from daybook.secretary import AskError, Provider
 
 
 def fake_binary(directory: Path, name: str) -> str:
+    directory.mkdir(parents=True, exist_ok=True)
     path = directory / name
     path.write_text("#!/bin/sh\n", encoding="utf-8")
     path.chmod(0o755)
@@ -39,19 +40,34 @@ class Asking(unittest.TestCase):
                 out = args[args.index("--output-last-message") + 1]
                 Path(out).write_text(write_reply, encoding="utf-8")
             return subprocess.CompletedProcess(args, returncode, stdout=stdout, stderr="")
-        with mock.patch.object(secretary.subprocess, "run", side_effect=fake_run):
+        with mock.patch.object(secretary.subprocess, "run", side_effect=fake_run), \
+             mock.patch.object(secretary.Path, "home", return_value=self.tmp), \
+             mock.patch.object(secretary.shutil, "which", return_value=None), \
+             mock.patch.object(secretary, "SYSTEM_BIN_DIRS", ()):
             return secretary.ask(provider, "SYSTEM TEXT", "FOLDER CONTENT")
 
     def claude(self, model: str = "claude-sonnet-5") -> Provider:
         return Provider(id="claude-cli", label="Claude Code", auth_kind="local_cli", binary="claude",
-                        binary_path=fake_binary(self.tmp, "claude"), model=model, model_label="Sonnet 5")
+                        binary_path=fake_binary(self.tmp / ".local" / "bin", "claude"), model=model, model_label="Sonnet 5")
 
     def codex(self) -> Provider:
         return Provider(id="codex-cli", label="Codex", auth_kind="local_cli", binary="codex",
-                        binary_path=fake_binary(self.tmp, "codex"), model="gpt-5.5")
+                        binary_path=fake_binary(self.tmp / ".local" / "bin", "codex"), model="gpt-5.5")
 
 
 class ClaudeCode(Asking):
+    def test_folder_binary_path_is_ignored(self):
+        trusted = self.tmp / ".local" / "bin" / "claude"
+        trusted.parent.mkdir(parents=True)
+        trusted.write_text("#!/bin/sh\n", encoding="utf-8")
+        trusted.chmod(0o755)
+        malicious = fake_binary(self.tmp, "attacker-controlled")
+        provider = self.claude()
+        provider.binary_path = malicious
+        with mock.patch.object(secretary.Path, "home", return_value=self.tmp), \
+             mock.patch.object(secretary.shutil, "which", return_value=None):
+            self.assertEqual(str(trusted), secretary._binary(provider))
+
     def envelope(self, result: str, is_error: bool = False) -> str:
         return json.dumps({"type": "result", "is_error": is_error, "result": result})
 
@@ -78,12 +94,34 @@ class ClaudeCode(Asking):
         call = self.calls[0]
         self.assertTrue(Path(call["cwd"]).name.startswith("daybook-ask-"))
         self.assertEqual({"HOME", "USER", "LOGNAME", "PATH", "LANG", "TMPDIR"}, set(call["env"]))
-        self.assertTrue(call["env"]["PATH"].startswith(str(self.tmp)))
+        self.assertTrue(call["env"]["PATH"].startswith(str(self.tmp / ".local" / "bin")))
 
     def test_signed_out_says_what_to_run(self):
         with self.assertRaises(AskError) as caught:
             self.run_with(self.claude(), stdout=self.envelope("Invalid API key · Please run /login", True), returncode=1)
         self.assertIn("claude auth login", str(caught.exception))
+
+    def test_a_dropped_connection_is_said_plainly_with_nothing_changed(self):
+        # Seen live: Claude Code's own words describe its terminal, not Daybook.
+        dropped = "API Error: Connection closed mid-response. The response above may be incomplete."
+        with self.assertRaises(AskError) as caught:
+            self.run_with(self.claude(), stdout=self.envelope(dropped, True), returncode=1)
+        said = str(caught.exception)
+        self.assertIn("lost its connection", said)
+        self.assertIn("nothing was changed", said)
+        self.assertNotIn("response above", said)
+
+    def test_busy_servers_and_usage_limits_are_told_apart(self):
+        for raw, expected in (("API Error: 529 Overloaded", "busy right now"),
+                              ("Claude AI usage limit reached", "usage limit")):
+            with self.subTest(raw), self.assertRaises(AskError) as caught:
+                self.run_with(self.claude(), stdout=self.envelope(raw, True), returncode=1)
+            self.assertIn(expected, str(caught.exception))
+
+    def test_an_unknown_error_is_still_shown(self):
+        with self.assertRaises(AskError) as caught:
+            self.run_with(self.claude(), stdout=self.envelope("Something odd happened", True), returncode=1)
+        self.assertIn("Something odd happened", str(caught.exception))
 
     def test_a_model_id_outside_the_plain_shape_never_reaches_an_argument(self):
         with self.assertRaises(AskError):
@@ -92,8 +130,10 @@ class ClaudeCode(Asking):
 
     def test_a_missing_binary_is_named(self):
         provider = self.claude()
+        Path(provider.binary_path).unlink()
         provider.binary_path = str(self.tmp / "gone")
-        with self.assertRaises(AskError) as caught:
+        with mock.patch.object(secretary.shutil, "which", return_value=None), \
+             self.assertRaises(AskError) as caught:
             self.run_with(provider)
         self.assertIn("wasn't found", str(caught.exception))
 

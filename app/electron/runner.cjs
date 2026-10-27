@@ -205,7 +205,7 @@ function runOnce(python, args, input, logFile, timeoutMs) {
       fs.mkdirSync(path.dirname(logFile), { recursive: true });
       fs.appendFileSync(
         logFile,
-        `\n--- ${new Date().toISOString()} ${args[2]} · ${outcome ? `${outcome.status}: ${outcome.detail}` : `exit ${code}`}\n${err}`,
+        `\n--- ${new Date().toISOString()} ${args[2]} · ${outcome?.status ? `${outcome.status}: ${outcome.detail}` : outcome ? "read" : `exit ${code}`}\n${err}`,
       );
       if (outcome) resolve(outcome);
       else reject(new Error(`Planning stopped before it finished (exit ${code}). Its log is at ${logFile}.`));
@@ -214,7 +214,9 @@ function runOnce(python, args, input, logFile, timeoutMs) {
   });
 }
 
-const PLAN_TIMEOUT_MS = 8 * 60 * 1000; // two attempts at three minutes each, and the checks
+// Two attempts at three minutes each and the checks — after waiting, at most six minutes,
+// for a plan the background tick is already making (runner/daybook/planlock.py).
+const PLAN_TIMEOUT_MS = 14 * 60 * 1000;
 
 /** The chosen model plans the day (runner/daybook/plan.py): it proposes, the runner
     writes after the eleven checks — or, with `propose`, writes nothing and returns it. */
@@ -229,7 +231,15 @@ async function plan(folder, { stateDir, logFile, message, secret, propose }) {
 async function applyPlan(folder, proposal, { stateDir, logFile }) {
   const python = await requirePython();
   const args = ["-m", "daybook", "apply", "--folder", folder, "--state-dir", stateDir];
-  return runOnce(python, args, JSON.stringify(proposal), logFile, 60 * 1000);
+  return runOnce(python, args, JSON.stringify(proposal), logFile, 7 * 60 * 1000); // it may wait for the tick
+}
+
+/** Reads a handover another AI wrote ({text}) into setup fields, or lines of fixed time
+    ({fixed}) into config non-negotiables. It reads stdin and writes nothing; the document
+    itself is never logged. */
+async function handover(input, { logFile }) {
+  const python = await requirePython();
+  return runOnce(python, ["-m", "daybook", "handover"], JSON.stringify(input), logFile, 30 * 1000);
 }
 
 /** The sidecar right now, for Settings & status: its PID and port, or null. */
@@ -238,4 +248,4 @@ function info() {
   return { pid: current.child.pid, port: current.port, folder: current.folder };
 }
 
-module.exports = { brief, plan, applyPlan, stop, findPython, runnerDir, info };
+module.exports = { brief, plan, applyPlan, handover, stop, findPython, runnerDir, info };

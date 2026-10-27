@@ -26,6 +26,7 @@ from typing import Callable
 
 from . import daystate as ds
 from . import markdown as md
+from . import ticks
 from .assertions import all_passed, verify
 from .brief import build
 from .folder import Folder, open_folder
@@ -44,14 +45,19 @@ Asker = Callable[..., str]
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["today_list", "list_reason", "board", "board_note", "newly_finished",
-                 "questions", "summary", "flags"],
+    "required": ["today_list", "list_reason", "today_times", "board", "board_note",
+                 "newly_finished", "scoreboard", "ticked", "questions", "summary", "flags"],
     "properties": {
         "today_list": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
             "required": ["title", "first_click"],
             "properties": {"title": {"type": "string"}, "first_click": {"type": "string"}}}},
         "list_reason": {"type": "string"},
+        "today_times": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["what", "start", "end"],
+            "properties": {"what": {"type": "string"}, "start": {"type": "string"},
+                           "end": {"type": "string"}}}},
         "board": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
             "required": ["who", "what", "status", "next_move", "date"],
@@ -63,6 +69,12 @@ SCHEMA = {
             "type": "object", "additionalProperties": False,
             "required": ["label", "detail"],
             "properties": {"label": {"type": "string"}, "detail": {"type": "string"}}}},
+        "scoreboard": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["id", "value", "note"],
+            "properties": {"id": {"type": "string"}, "value": {"type": "string"},
+                           "note": {"type": "string"}}}},
+        "ticked": {"type": "array", "items": {"type": "string"}},
         "questions": {"type": "array", "items": {"type": "string"}},
         "summary": {"type": "string"},
         "flags": {"type": "array", "items": {"type": "string"}},
@@ -85,6 +97,12 @@ class Proposal:
     questions: list[str]
     summary: str
     flags: list[str]
+    # Numbers the person stated for metrics they track ({id, value, note}), and the habits
+    # they said they did today (ids). Daybook writes both; the model only reports them.
+    scoreboard: list[dict] = field(default_factory=list)
+    ticked: list[str] = field(default_factory=list)
+    # Things at a stated time today: (what, start, end), in minutes; end None for a moment.
+    today_times: list[tuple[str, int, int | None]] = field(default_factory=list)
 
 
 @dataclass
@@ -154,7 +172,7 @@ def user_prompt(folder: Folder, cap: int, message: str | None, nonce: str) -> st
     files: list[tuple[str, str]] = [
         ("config.json (about the person)", json.dumps(_config_for_model(folder.config), indent=2, ensure_ascii=False)),
     ]
-    for name in ("SETUP-CONTEXT.md", "MASTER-PLAN.md", "DAY-STATE.md", "CORRECTIONS.md"):
+    for name in ("SETUP-CONTEXT.md", "HANDOVER.md", "MASTER-PLAN.md", "DAY-STATE.md", "CORRECTIONS.md"):
         try:
             files.append((name, _clip(folder.scope.read_text(name))))
         except (FileNotFoundError, OSError):
@@ -239,7 +257,57 @@ def _list(value, field_name: str, limit: int) -> list:
     return value
 
 
-def validate(raw: dict, cap: int) -> Proposal:
+def tracked_metrics(config: dict) -> dict[str, str]:
+    """The metrics a number may be given for, id → label. One the person stopped tracking
+    is never written again (law 7's dropped metric)."""
+    return {str(m["id"]): str(m.get("label") or m["id"]) for m in config.get("metrics", [])
+            if isinstance(m, dict) and m.get("id") and m.get("tracking", True) is not False}
+
+
+def habit_labels(config: dict) -> dict[str, str]:
+    return {str(h["id"]): str(h.get("label") or h["id"]) for h in config.get("habits", [])
+            if isinstance(h, dict) and h.get("id")}
+
+
+def _clock(value, field_name: str, required: bool) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        if required:
+            raise PlanError(f'"{field_name}" is empty; it must be a time, HH:MM.')
+        return None
+    match = re.fullmatch(r"(\d{2}):(\d{2})", text)
+    if not match or int(match.group(1)) > 24 or int(match.group(2)) > 59 or (
+            int(match.group(1)) == 24 and int(match.group(2)) != 0):
+        raise PlanError(f'"{field_name}" is "{text}"; it must be a time on the 24-hour clock, HH:MM.')
+    return (int(match.group(1)) * 60 + int(match.group(2))) % 1440
+
+
+def _today_times(raw: dict) -> list[tuple[str, int, int | None]]:
+    """Things at a time the person or a file stated. No end means a moment, not a span —
+    a duration is never made up. Spans may not overlap: the dial shows one thing at a time."""
+    times: list[tuple[str, int, int | None]] = []
+    for n, item in enumerate(_list(raw.get("today_times"), "today_times", 12), 1):
+        if not isinstance(item, dict):
+            raise PlanError(f"today_times item {n} is not an object.")
+        what = _one_line(item.get("what"), f"today_times[{n}].what", 80)
+        start = _clock(item.get("start"), f"today_times[{n}].start", required=True)
+        end = _clock(item.get("end"), f"today_times[{n}].end", required=False)
+        if end is not None and end == start:
+            raise PlanError(f"today_times item {n} ends when it starts; leave the end empty for a moment.")
+        times.append((what, start, end))
+    taken = [0] * 1440
+    for what, start, end in times:
+        if end is None:
+            continue
+        for s, e in ([(start, end)] if end > start else [(start, 1440), (0, end)]):
+            for minute in range(s, e):
+                if taken[minute]:
+                    raise PlanError(f'today_times overlap around "{what}": the dial shows one thing at a time.')
+                taken[minute] = 1
+    return sorted(times, key=lambda t: t[1])
+
+
+def validate(raw: dict, cap: int, config: dict | None = None) -> Proposal:
     items = _list(raw.get("today_list"), "today_list", 50)
     if len(items) > cap:
         raise PlanError(
@@ -287,6 +355,35 @@ def validate(raw: dict, cap: int) -> Proposal:
             _one_line(item.get("detail"), f"newly_finished[{n}].detail", 300, required=False),
         ))
 
+    metrics = tracked_metrics(config or {})
+    scoreboard: dict[str, dict] = {}
+    for n, row in enumerate(_list(raw.get("scoreboard"), "scoreboard", 20), 1):
+        if not isinstance(row, dict):
+            raise PlanError(f"scoreboard row {n} is not an object.")
+        metric = str(row.get("id", "")).strip()
+        if metric not in metrics:
+            raise PlanError(
+                f'scoreboard row {n} names "{metric}", which is not a metric this person tracks. '
+                "Use only the ids in config.json's metrics, never one with tracking: false — "
+                "and leave the scoreboard empty when the message states no number.")
+        scoreboard[metric] = {
+            "id": metric,
+            "value": _one_line(row.get("value"), f"scoreboard[{n}].value", 40),
+            # Where the number came from is not optional: a figure with no source is the
+            # estimate law 7 forbids, wearing a disguise.
+            "note": _one_line(row.get("note"), f"scoreboard[{n}].note", 200),
+        }
+    habits = habit_labels(config or {})
+    ticked: list[str] = []
+    for n, habit in enumerate(_list(raw.get("ticked"), "ticked", 20), 1):
+        habit = str(habit).strip()
+        if habit not in habits:
+            raise PlanError(
+                f'ticked entry {n} is "{habit}", which is not one of this person\'s habits. '
+                "Use only the ids in config.json's habits.")
+        if habit not in ticked:
+            ticked.append(habit)
+
     questions = [_one_line(q, f"questions[{n}]", 300)
                  for n, q in enumerate(_list(raw.get("questions"), "questions", 3), 1)]
     flags = [_one_line(f, f"flags[{n}]", 300)
@@ -300,13 +397,16 @@ def validate(raw: dict, cap: int) -> Proposal:
         questions=questions,
         summary=_one_line(raw.get("summary"), "summary", 300, required=False),
         flags=flags,
+        scoreboard=list(scoreboard.values()),
+        ticked=ticked,
+        today_times=_today_times(raw),
     )
 
 
 # -- writing the candidate --------------------------------------------------------------
 
 _REGENERATED = ("today's list", "todays list", "today's three", "todays three",
-                "not on the list", "open questions")
+                "today's times", "todays times", "not on the list", "open questions")
 
 
 def _regenerated(heading: str) -> bool:
@@ -367,6 +467,12 @@ def render_day_state(folder: Folder, proposal: Proposal, model: str) -> str:
     for n, (title, first_click) in enumerate(proposal.today_list, 1):
         out += [f"{n}. **{real(title)}**", f"   {real(first_click)}", ""]
 
+    if proposal.today_times:
+        out += ["---", "", "## Today's times", "", "| Time | What |", "|---|---|"]
+        for what, start, end in proposal.today_times:
+            out.append(f"| {_hhmm(start)}{'–' + _hhmm(end) if end is not None else ''} | {real(what)} |")
+        out.append("")
+
     # Finished things are Daybook's to carry, never the model's: everything already marked
     # DONE stays, and what the model reports as newly finished is added beneath it.
     done_lines = _trim_section(carried_not_on_list.lines) if carried_not_on_list else []
@@ -392,14 +498,85 @@ def render_day_state(folder: Folder, proposal: Proposal, model: str) -> str:
     if proposal.board_note:
         out += [real(proposal.board_note), ""]
 
+    scoreboard = _scoreboard_lines(folder, proposal)
+    tick_rows = _tick_lines(folder, proposal)
     for section in carried:
-        out += ["---", "", f"## {section.heading}", "", *_trim_section(section.lines), ""]
+        heading = section.heading.lower()
+        body = _trim_section(section.lines)
+        if "scoreboard" in heading and scoreboard is not None:
+            body, scoreboard = scoreboard, None
+        elif "tick" in heading and tick_rows is not None:
+            body, tick_rows = tick_rows, None
+        out += ["---", "", f"## {section.heading}", "", *body, ""]
+    if scoreboard is not None:
+        out += ["---", "", "## Scoreboard", "", *scoreboard, ""]
+    if tick_rows is not None:
+        out += ["---", "", "## Today's ticks", "", *tick_rows, ""]
 
     if proposal.questions:
         out += ["---", "", "## Open questions", ""]
         out += [f"{n}. {real(q)}" for n, q in enumerate(proposal.questions, 1)]
         out.append("")
     return "\n".join(out)
+
+
+NO_NUMBER_YET = "No number yet. Tell your secretary when you have one."
+
+
+def _scoreboard_lines(folder: Folder, proposal: Proposal) -> list[str] | None:
+    """The Scoreboard table, rewritten when a number arrived or a tracked metric has no
+    row yet; None to carry the day state's own table over untouched. Every row the day
+    state had stays; a number keeps the source the model gave, dated by Daybook."""
+    metrics = tracked_metrics(folder.config)
+    rows = [(m.key, m.value, m.note) for m in folder.day_state.metrics]
+    have = {key for key, _, _ in rows}
+    missing = [key for key in metrics if key not in have]
+    if not proposal.scoreboard and not missing:
+        return None
+    now = folder.clock.now
+    updates = {u["id"]: u for u in proposal.scoreboard}
+    column = "This week" if re.search(r"\|\s*this week\s*\|", folder.day_state_text, re.I) else "Latest"
+    out = ["Only numbers you told your secretary. Nothing here is estimated.", "",
+           f"| Metric | {column} | Note |", "|---|---|---|"]
+    for key, value, note in rows:
+        if key in updates:
+            value = updates[key]["value"]
+            note = f"{updates[key]['note']} ({now:%a} {now.day} {now:%b})"
+        out.append(f"| `{key}` | {value or '—'} | {note} |")
+    for key in missing:
+        update = updates.get(key)
+        if update:
+            out.append(f"| `{key}` | {update['value']} | {update['note']} ({now:%a} {now.day} {now:%b}) |")
+        else:
+            out.append(f"| `{key}` | — | {NO_NUMBER_YET} |")
+    return out
+
+
+def _tick_lines(folder: Folder, proposal: Proposal) -> list[str] | None:
+    """Today's ticks, counted from TICKS.md (with today's new ones) for habits Daybook set
+    up — they carry the date they began. Hand-kept tables are carried over untouched."""
+    habits = [h for h in folder.config.get("habits", [])
+              if isinstance(h, dict) and h.get("id") and h.get("since")]
+    if not habits:
+        return None
+    try:
+        recorded = ticks.read(folder.scope.read_text("TICKS.md"))
+    except (FileNotFoundError, OSError):
+        recorded = set()
+    today = folder.today
+    recorded |= {(today, habit) for habit in proposal.ticked}
+    return ["Counted from TICKS.md: the days you said you did each one.", "", *ticks.table(habits, recorded, today)]
+
+
+def _held_back(proposal: Proposal, folder: Folder, from_message: bool) -> Proposal:
+    """What Daybook drops from an answer before writing it, rather than ask again: a number
+    the day state already shows (repeating it would re-date it as if just told), and any
+    tick when the person said nothing — a tick is only ever theirs to give."""
+    current = {m.key: m.value.strip() for m in folder.day_state.metrics}
+    proposal.scoreboard = [u for u in proposal.scoreboard if u["value"].strip() != current.get(u["id"])]
+    if not from_message:
+        proposal.ticked = []
+    return proposal
 
 
 def check_candidate(folder_path: str, candidate: str, clock: str | None = None):
@@ -450,7 +627,7 @@ def propose(folder_path: str, *, clock: str | None = None, message: str | None =
         except AskError as exc:
             return PlanOutcome("failed", str(exc), base=base, model=model)
         try:
-            proposal = validate(parse_reply(reply), cap)
+            proposal = _held_back(validate(parse_reply(reply), cap, folder.config), folder, bool(message))
             candidate = render_day_state(folder, proposal, model)
             results = check_candidate(folder_path, candidate, clock)
         except PlanError as exc:
@@ -464,9 +641,11 @@ def propose(folder_path: str, *, clock: str | None = None, message: str | None =
         return PlanOutcome(
             "proposed",
             f"{len(proposal.today_list)} on the list, {len(proposal.board)} on the board"
-            + (f", {len(proposal.newly_finished)} newly finished" if proposal.newly_finished else ""),
+            + (f", {len(proposal.newly_finished)} newly finished" if proposal.newly_finished else "")
+            + (f", {len(proposal.scoreboard)} on the scoreboard" if proposal.scoreboard else "")
+            + (f", {len(proposal.ticked)} ticked" if proposal.ticked else ""),
             candidate=candidate, base=base, summary=proposal.summary, flags=proposal.flags,
-            checks=[r.line() for r in results], model=model, proposal=_shown(proposal),
+            checks=[r.line() for r in results], model=model, proposal=_shown(proposal, folder.config),
             from_message=bool(message),
         )
     return PlanOutcome("refused", f"The model's plan was refused twice. Last reason: {problem}",
@@ -492,6 +671,12 @@ def apply(folder_path: str, outcome: PlanOutcome, clock: str | None = None) -> P
     if current.exists():
         atomic_write_text(folder.scope.resolve(f"archive/day-state/{stamp}.md"), folder.day_state_text)
     atomic_write_text(current, outcome.candidate)
+    ticked = [t["id"] for t in outcome.proposal.get("ticked", []) if isinstance(t, dict) and t.get("id")]
+    if ticked:
+        target = folder.scope.resolve("TICKS.md")
+        before = target.read_text(encoding="utf-8") if target.exists() else ""
+        habits = [h for h in folder.config.get("habits", []) if isinstance(h, dict) and h.get("id")]
+        atomic_write_text(target, ticks.appended(before, habits, ticked, folder.today))
     how = "updated from your message" if outcome.from_message else "written"
     _append_log(folder, f"- {now:%Y-%m-%d %H:%M} — Today's plan {how} by {outcome.model}: "
                         f"{outcome.detail}. The previous day state is in archive/day-state/{stamp}.md.")
@@ -501,12 +686,21 @@ def apply(folder_path: str, outcome: PlanOutcome, clock: str | None = None) -> P
                        from_message=outcome.from_message)
 
 
-def _shown(proposal: Proposal) -> dict:
+def _hhmm(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _shown(proposal: Proposal, config: dict) -> dict:
+    metrics, habits = tracked_metrics(config), habit_labels(config)
     return {
         "today_list": [{"title": t, "first_click": c} for t, c in proposal.today_list],
         "list_reason": proposal.list_reason,
+        "today_times": [{"what": w, "start": _hhmm(s), "end": _hhmm(e) if e is not None else ""}
+                        for w, s, e in proposal.today_times],
         "board": proposal.board,
         "newly_finished": [{"label": l, "detail": d} for l, d in proposal.newly_finished],
+        "scoreboard": [{**row, "label": metrics.get(row["id"], row["id"])} for row in proposal.scoreboard],
+        "ticked": [{"id": h, "label": habits.get(h, h)} for h in proposal.ticked],
         "questions": proposal.questions,
     }
 

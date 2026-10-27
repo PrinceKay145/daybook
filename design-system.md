@@ -152,6 +152,13 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   on the surface.
 - **Switch** (same file) — on or off for one thing that runs, labelled by the sentence
   beside it ("Write my brief even when Daybook is closed"). Accent when on.
+- **Numbered steps** (bringing it from another AI) — for a task that happens across two
+  apps: the number in Newsreader and accent, a semibold step name, one line of guidance,
+  then the control. The prompt to copy sits in a read-only sunken box in the system mono, so
+  people can see exactly what they're pasting elsewhere.
+- **What was filled in** — after a handover is read, one sentence with an accent dot says
+  which parts it filled, the parts it left out follow in faint ink, each with why, and the
+  form it filled sits below to be checked. No success banner, no tick.
 - **Radio lists** (choosing a model) — one bordered list with dividers, a radio dot per row,
   the selected row on `--color-sunken`, "Recommended" in accent text. No pills.
 - **Statuses** — WAIT and CHASE are words in small caps with a dot before them, never
@@ -185,7 +192,10 @@ Copied into `src/components/`, not installed — owned and restyled freely.
   are in, with a dot at its outer end; the time sits in the middle in Newsreader 36, the
   block's name and "until 09:00" beneath. What is fixed in time ticks *outside* the ring
   with its name beside it: non-negotiables in ink, the light schedule (daylight, a prayer
-  timetable, tides) fainter. A label that would collide steps outward a line; one that
+  timetable, tides) fainter, and today's own moments ("confirm before 15:30") in the
+  accent, also named under the legend with their time. Today's spans ("17:00–19:00
+  business call") are drawn as blocks in the ring, over the typical day, in their own ink.
+  A label that would collide steps outward a line; one that
   still would is left to the tick's tooltip, never drawn over another. Labels may run into
   the page margin, never past the window. The page's script keeps the hand, the time, the
   block, "until", the legend's bold row and Next up true while the page stays open; a brief

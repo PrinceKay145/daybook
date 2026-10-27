@@ -109,6 +109,42 @@ def coverage(blocks: list[Block]) -> Coverage:
     return Coverage(gaps=runs(lambda c: c == 0), overlaps=runs(lambda c: c > 1))
 
 
+def overlay(blocks: list[Block], events: list[tuple[str, int, int]]) -> list[Block]:
+    """Today's own blocks laid over the typical day. Each (label, start, end) takes its
+    span from whatever the day shape had there, so the dial shows today rather than a
+    typical day; the rest of the day shape stays as it was. With no events the day shape
+    comes back unchanged. A gap in the day shape stays a gap, for V2 to report."""
+    if not events:
+        return blocks
+    owner: list[tuple[str, int] | None] = [None] * MINUTES_IN_DAY
+    for index, block in enumerate(blocks):
+        for start, end in block.spans():
+            for minute in range(start, end):
+                owner[minute] = ("shape", index)
+    for index, (label, start, end) in enumerate(events):
+        for s, e in Block(label, start, end).spans():
+            for minute in range(s, e):
+                owner[minute] = ("today", index)
+    runs: list[tuple[tuple[str, int] | None, int, int]] = []
+    first = 0
+    for minute in range(1, MINUTES_IN_DAY + 1):
+        if minute == MINUTES_IN_DAY or owner[minute] != owner[first]:
+            runs.append((owner[first], first, minute))
+            first = minute
+    # A run that touches midnight on both sides is one block that wraps (Sleep 23:30–06:30).
+    if len(runs) > 1 and runs[0][0] is not None and runs[0][0] == runs[-1][0]:
+        last, head = runs.pop(), runs.pop(0)
+        runs.append((head[0], last[1], head[2]))
+    out = []
+    for who, start, end in runs:
+        if who is None:
+            continue
+        kind, index = who
+        label = blocks[index].label if kind == "shape" else events[index][0]
+        out.append(Block(label=label, start=start, end=end % MINUTES_IN_DAY))
+    return out
+
+
 def current_block(blocks: list[Block], minute: int) -> Block | None:
     """The block containing ``minute``. Start inclusive, end exclusive.
 

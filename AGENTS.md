@@ -144,6 +144,30 @@ guessing, without sudo, and without knowing how it was built.
 - Verify what the user will SEE, not just what the log says — a "passing" smoke test that
   never checked the screen is how a blank window shipped once already.
 
+## Branches — one branch per concern, named by its type
+
+Never work directly on `main`. Before changing anything, create a branch from the current
+base, named `type/short-kebab-description`:
+
+| Prefix | For | Example |
+|---|---|---|
+| `feature/` | New behaviour a user can notice | `feature/phone-day-snapshot` |
+| `fix/` | A bug | `fix/secretary-empty-answer-message` |
+| `docs/` | Docs only (`*.md`, specs, guides) | `docs/web-and-phone-plan` |
+| `chore/` | Renames, version bumps, housekeeping | `chore/rename-runner-module` |
+| `cleanup/` | Removing dead code or tidying without changing behaviour | `cleanup/old-plan-records` |
+| `ci/` | `.github/workflows` and checks | `ci/run-runner-tests` |
+| `devops/` | Packaging, signing, deploy, infrastructure | `devops/rebuild-dmg` |
+
+- **One concern per branch.** Three unrelated fixes are three `fix/` branches, not one.
+  Things that touch the same lines go together.
+- Lowercase, hyphens, a few words saying what it does: `fix/pg-idle-error`, not
+  `fix/stuff` or `ridwan-changes`.
+- Each branch ends in a pull request into its base; merge when tests, typecheck and build
+  pass (Working style: never mark it done otherwise). Delete the branch after the merge.
+- Existing branches (`beta-1`, `design-pass`, `e2e-fixes`, …) keep their names; the
+  convention applies to every new branch.
+
 ## Not in v1
 
 Billing · Windows · mobile · messaging bot · Gmail/Calendar connectors · the people lane ·

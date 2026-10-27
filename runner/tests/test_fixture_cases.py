@@ -161,6 +161,12 @@ class TheClockIsNamed(FolderCase):
         self.assertIn("var FROZEN = true;", html)
         self.assertNotIn("setInterval(tick, 30000);\n  }\n  window.setInterval", html)
 
+    def test_live_dial_uses_the_configured_timezone(self):
+        _, data, html, _ = self.produce()
+        if data.timezone:
+            self.assertIn("var TIME_ZONE =", html)
+            self.assertIn("timeZone: TIME_ZONE || undefined", html)
+
 
 class SelfContained(FolderCase):
     """No external requests at render time, and no browser storage."""

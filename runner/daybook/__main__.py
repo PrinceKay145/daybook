@@ -8,13 +8,16 @@
     python -m daybook plan     --folder <path> [--state-dir <dir>] [--propose] [--stdin]
     python -m daybook apply    --folder <path> [--state-dir <dir>]   (the proposal on stdin)
     python -m daybook evals    --cli claude|codex [--model ID] [--binary PATH]
+    python -m daybook handover   (JSON on stdin: {"text"} or {"fixed": [lines]})
 
 ``tick`` (launchd, every minute) writes today's brief once its time has passed; ``watchdog``
 (launchd, hourly) notices a stopped tick or a missing brief. ``plan`` asks the chosen model
 to plan the day — it proposes, Daybook writes after the checks — and prints the outcome as
 JSON; with ``--propose`` it writes nothing and ``apply`` writes it later. ``--stdin`` reads
 {"message", "secret"} as JSON on stdin: an API key never travels as an argument or in the
-environment, where other processes can see it. ``brief`` and ``serve`` both
+environment, where other processes can see it. ``handover`` reads a document another AI
+wrote about the person into the setup form's fields — or lines of fixed time into config
+non-negotiables — reading only stdin and writing nothing. ``brief`` and ``serve`` both
 build, verify and render. Nothing is written or served
 unless all eleven assertions pass — a brief that renders wrong is worse than no brief.
 """
@@ -119,7 +122,8 @@ def _record(args, outcome) -> None:
     if args.state_dir and outcome.status in ("planned", "failed", "refused"):
         from .tick import record_plan
 
-        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome)
+        record_plan(args.state_dir, open_folder(args.folder, clock_override=args.clock).today.isoformat(), outcome,
+                    args.folder)
 
 
 def cmd_plan(args) -> int:
@@ -128,9 +132,16 @@ def cmd_plan(args) -> int:
     from . import plan
 
     given = json.loads(sys.stdin.read() or "{}") if args.stdin else {}
-    run = plan.propose if args.propose else plan.run
-    outcome = run(args.folder, clock=args.clock, message=given.get("message") or None,
-                  secret=given.get("secret") or None)
+    message, secret = given.get("message") or None, given.get("secret") or None
+    if args.state_dir:
+        # The app's runs share app data with the launchd tick: one plan at a time.
+        from .tick import plan_for_app
+
+        outcome = plan_for_app(args.folder, args.state_dir, clock=args.clock, message=message,
+                               secret=secret, propose=args.propose)
+    else:
+        run = plan.propose if args.propose else plan.run
+        outcome = run(args.folder, clock=args.clock, message=message, secret=secret)
     _record(args, outcome)
     print(outcome.to_json(), flush=True)
     return 0
@@ -142,9 +153,29 @@ def cmd_apply(args) -> int:
     from . import plan
 
     proposal = plan.PlanOutcome(**json.loads(sys.stdin.read()))
-    outcome = plan.apply(args.folder, proposal, clock=args.clock)
+    if args.state_dir:
+        from .tick import apply_for_app
+
+        outcome = apply_for_app(args.folder, args.state_dir, proposal, clock=args.clock)
+    else:
+        outcome = plan.apply(args.folder, proposal, clock=args.clock)
     _record(args, outcome)
     print(outcome.to_json(), flush=True)
+    return 0
+
+
+def cmd_handover(args) -> int:
+    import json
+
+    from . import importer
+
+    given = json.loads(sys.stdin.read() or "{}")
+    if "fixed" in given:
+        lines = [str(line) for line in given.get("fixed") or []][:40]
+        out = {"non_negotiables": [item for item in map(importer.read_fixed, lines) if item]}
+    else:
+        out = importer.read_handover(str(given.get("text", ""))[:60_000])
+    print(json.dumps(out, ensure_ascii=False), flush=True)
     return 0
 
 
@@ -196,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     evals_cmd.add_argument("--model", help="a model id; the CLI's default if left out")
     evals_cmd.add_argument("--binary", help="where the CLI is, if not on PATH")
     evals_cmd.set_defaults(func=cmd_evals)
+    sub.add_parser("handover", help="read another AI's handover (JSON on stdin) into setup fields").set_defaults(
+        func=cmd_handover)
 
     def scheduled(p, func):
         p.add_argument("--state-dir", required=True, help="where the run keeps its bookkeeping (app data)")
