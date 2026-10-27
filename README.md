@@ -19,10 +19,11 @@ about their week.
 
 ## Where the build is
 
-Stage 1 — the onboarding flow from the owner's drawing — works: login (Supabase) →
-connect a folder → connect an AI provider (key into the keychain, or a detected local CLI)
-→ setup questions (written into the folder as plain files) → scoreboard. The scoreboard
-shows clearly-labelled sample data until the morning-brief pipeline is built.
+Beta 1 is built: sign-in → connect a folder → choose Claude Code or Codex → setup → a
+verified daily brief, planned by the chosen model and correctable with a message. The brief
+arrives on its own schedule, and Settings & status can stop the background jobs. The
+microphone feature is paused pending tester feedback. The next step is to put the current
+build in testers' hands; see [`TESTERS.md`](TESTERS.md).
 
 ```bash
 cd app && nvm use && npm install && npm run dev
