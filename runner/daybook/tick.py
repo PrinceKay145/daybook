@@ -310,12 +310,15 @@ def run_watchdog(
         return Outcome("quiet", "already said today")
 
     last_tick = state.get("last_tick")
+    parsed_tick = None
     try:
-        stale = not last_tick or now - datetime.fromisoformat(last_tick) > TICK_STALE_AFTER
+        parsed_tick = datetime.fromisoformat(last_tick) if last_tick else None
+        stale = parsed_tick is None or now - parsed_tick > TICK_STALE_AFTER
     except ValueError:
         stale = True
+        parsed_tick = None
     if stale:
-        since = f" since {datetime.fromisoformat(last_tick):%H:%M}" if last_tick else ""
+        since = f" since {parsed_tick:%H:%M}" if parsed_tick else ""
         notify(
             "Daybook's brief check has stopped",
             f"The minute check hasn't run{since}, so today's {due:%H:%M} brief was not "
