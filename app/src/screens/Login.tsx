@@ -77,7 +77,7 @@ export function LoginScreen({
           } catch {
             setMode("signin");
             setPassword("");
-            setNotice("You already have an account with this email. Sign in with its password — or, if you made it with Google, use Continue with Google.");
+            setNotice("You already have an account with this email. Sign in with its password, or if you made it with Google, use Continue with Google.");
             return;
           }
         }
@@ -159,7 +159,7 @@ export function LoginScreen({
           )}
           {!authConfigured && !authInitError && (
             <p className={`${note} border-[var(--color-warn)]/40 text-[var(--color-warn)]`}>
-              Developer mode — no Supabase credentials configured, so nothing is checked.
+              Developer mode: no Supabase credentials configured, so nothing is checked.
               Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> (see
               app/README.md) to enable real sign-in.
             </p>

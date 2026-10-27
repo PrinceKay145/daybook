@@ -38,7 +38,7 @@ export function dayShapeProblem(blocks: DayBlock[]): string | null {
     if (!block.start || !block.end) return `“${block.block}” needs a start and an end.`;
     if (block.start === block.end) return `“${block.block}” starts and ends at the same time.`;
     if (block.block.trim().toLowerCase() === UNPLANNED.toLowerCase()) {
-      return `“${UNPLANNED}” is what Daybook calls the time you leave out — name the block something else.`;
+      return `“${UNPLANNED}” is what Daybook calls the time you leave out. Name the block something else.`;
     }
   }
   for (let i = 0; i < blocks.length; i++) {

@@ -205,7 +205,7 @@ export async function signUpWithPassword(email: string, password: string): Promi
     options: { emailRedirectTo: authRedirect() },
   });
   const exists =
-    "An account with this email already exists. Sign in instead — or, if you created it with Google, use Continue with Google.";
+    "An account with this email already exists. Sign in instead, or if you created it with Google, use Continue with Google.";
   if (error) {
     // One human, one account: an email that already exists (by password or via a
     // linked Google identity) must never silently become a second identity.
@@ -221,8 +221,8 @@ export async function signUpWithPassword(email: string, password: string): Promi
   return data.session
     ? ""
     : isDesktop
-      ? "Check your inbox and open the confirmation link on this Mac — it brings you straight back to Daybook."
-      : "Check your inbox — your account needs confirming before the first sign-in.";
+      ? "Check your inbox and open the confirmation link on this Mac. It brings you straight back to Daybook."
+      : "Check your inbox: your account needs confirming before the first sign-in.";
 }
 
 /** Opens the system browser for Google consent. On the desktop the browser returns to a
@@ -230,7 +230,7 @@ export async function signUpWithPassword(email: string, password: string): Promi
     session to the app — a daybook:// redirect would leave the tab spinning, since a browser
     cannot show a page for a custom scheme. In a browser tab it returns to this page. */
 export async function signInWithGoogle(): Promise<void> {
-  if (!supabase) throw new Error("Google sign-in needs Supabase credentials — see app/README.md.");
+  if (!supabase) throw new Error("Google sign-in needs Supabase credentials (see app/README.md).");
   const redirectTo = isDesktop ? await daybook.startAuthLoopback() : window.location.origin;
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",

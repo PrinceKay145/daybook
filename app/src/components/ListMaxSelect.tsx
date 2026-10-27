@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 const CHOICES = Array.from({ length: LIST_MAX.highest - LIST_MAX.lowest + 1 }, (_, i) => LIST_MAX.lowest + i);
 
-export const LIST_MAX_HINT = "It never pads the list to reach this — a day with two real things shows two.";
+export const LIST_MAX_HINT = "It never pads the list to reach this. A day with two real things shows two.";
 
 export function things(count: number): string {
   return count === 1 ? "1 thing" : `${count} things`;
