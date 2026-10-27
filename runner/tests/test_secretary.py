@@ -42,7 +42,8 @@ class Asking(unittest.TestCase):
             return subprocess.CompletedProcess(args, returncode, stdout=stdout, stderr="")
         with mock.patch.object(secretary.subprocess, "run", side_effect=fake_run), \
              mock.patch.object(secretary.Path, "home", return_value=self.tmp), \
-             mock.patch.object(secretary.shutil, "which", return_value=None):
+             mock.patch.object(secretary.shutil, "which", return_value=None), \
+             mock.patch.object(secretary, "SYSTEM_BIN_DIRS", ()):
             return secretary.ask(provider, "SYSTEM TEXT", "FOLDER CONTENT")
 
     def claude(self, model: str = "claude-sonnet-5") -> Provider:

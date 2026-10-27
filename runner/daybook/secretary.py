@@ -110,6 +110,8 @@ def ask(provider: Provider, system: str, prompt: str, *, secret: str | None = No
 
 # -- local CLIs ---------------------------------------------------------------------
 
+SYSTEM_BIN_DIRS = ("/opt/homebrew/bin", "/usr/local/bin")  # Homebrew and npm's global prefix
+
 def _binary(provider: Provider) -> str:
     # config.json lives in a user-editable folder. Never execute binary_path from it:
     # an old backup or shared folder could point it at an arbitrary executable.
@@ -118,8 +120,7 @@ def _binary(provider: Provider) -> str:
     candidates = [
         shutil.which(name) if name else None,
         str(home / ".local/bin" / name) if name else None,
-        f"/opt/homebrew/bin/{name}" if name else None,
-        f"/usr/local/bin/{name}" if name else None,
+        *(f"{d}/{name}" for d in SYSTEM_BIN_DIRS if name),
         str(home / ".claude/local" / name) if name else None,
         str(home / ".npm-global/bin" / name) if name else None,
         str(home / ".volta/bin" / name) if name else None,
