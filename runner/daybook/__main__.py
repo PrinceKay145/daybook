@@ -55,7 +55,7 @@ def _report(results, verbose: bool) -> None:
 
 def cmd_check(args) -> int:
     _, _, _, results = _produce(args.folder, args.clock)
-    print(f"Verification — {sum(r.ok for r in results)}/{len(results)} passed", file=sys.stderr)
+    print(f"Verification: {sum(r.ok for r in results)}/{len(results)} passed", file=sys.stderr)
     _report(results, verbose=True)
     return 0 if all_passed(results) else 1
 
@@ -63,7 +63,7 @@ def cmd_check(args) -> int:
 def cmd_brief(args) -> int:
     folder, data, html, results = _produce(args.folder, args.clock)
     if not all_passed(results):
-        print("Brief NOT delivered — verification failed:", file=sys.stderr)
+        print("Brief NOT delivered. Verification failed:", file=sys.stderr)
         _report(results, verbose=args.verbose)
         return 1
 
@@ -71,7 +71,7 @@ def cmd_brief(args) -> int:
     if not args.write:
         sys.stdout.write(html)
         print(
-            "\n[not written — pass --write to write into the folder]", file=sys.stderr
+            "\n[not written: pass --write to write into the folder]", file=sys.stderr
         )
         return 0
 

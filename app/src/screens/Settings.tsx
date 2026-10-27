@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { daybook, LIST_MAX, type Appearance, type Connection, type SystemStatus } from "@/lib/daybook";
 import { LIST_MAX_HINT, ListMaxSelect, things } from "@/components/ListMaxSelect";
 import { describeChoice } from "@/lib/models";
+import { APP_VERSION } from "@/lib/updates";
 
 function clockTime(iso?: string): string {
   if (!iso) return "never";
@@ -60,6 +61,7 @@ export function SettingsScreen({
   const [briefTime, setBriefTime] = useState("");
   const [closeTime, setCloseTime] = useState("");
   const [listMax, setListMax] = useState<number>(LIST_MAX.default);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +86,11 @@ export function SettingsScreen({
         setListMax(s.listMax);
       })
       .catch((err: unknown) => setError((err as Error).message));
+    // The zone setup wrote to config.json; the brief names it only when it isn't this Mac's.
+    daybook
+      .inspectFolder(folder)
+      .then((setup) => setTimezone(setup?.timezone ?? ""))
+      .catch(() => {});
   }, [folder, refresh]);
 
   async function toggleJobs() {
@@ -159,6 +166,13 @@ export function SettingsScreen({
           </Button>
           {savedNote && <span className="text-[12.5px] text-[var(--color-ink-soft)]">{savedNote}</span>}
         </div>
+        {timezone !== null && (
+          <p className="text-[12.5px] text-[var(--color-ink-faint)]">
+            {timezone
+              ? `Times in your brief: ${timezone.replace(/_/g, " ")}, by this Mac's clock.`
+              : "Times in your brief: this Mac's own clock and time zone."}
+          </p>
+        )}
       </Section>
 
       <Section title="Your brief, on its own" description="Written at its time, even when this window is closed.">
@@ -225,8 +239,9 @@ export function SettingsScreen({
           </button>
         ) : (
           "Daybook's logs"
-        )}{" "}
-        — sending them to us helps find the problem.
+        )}.
+        Sending them to us helps find the problem. This is Daybook{" "}
+        <span className="tnum">{APP_VERSION}</span>.
       </p>
 
       {import.meta.env.DEV && (
@@ -234,7 +249,7 @@ export function SettingsScreen({
           <details className="group">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-[14px] font-semibold">
               <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
-              For developers — everything Daybook runs
+              For developers: everything Daybook runs
             </summary>
             <div className="mt-4 space-y-4 pl-6 text-[13px] text-[var(--color-ink-soft)]">
               <div className="flex items-center justify-between gap-3">
@@ -248,7 +263,7 @@ export function SettingsScreen({
                 {(status?.jobs ?? []).map((job) => (
                   <li key={job.label} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
                     <code className="font-mono text-[12px] text-[var(--color-ink)]">{job.label}</code>
-                    <span>{job.every} — {job.purpose}</span>
+                    <span>{job.every}: {job.purpose}</span>
                     <span className={cn("ml-auto", job.loaded ? "text-[var(--color-accent)]" : "text-[var(--color-ink-faint)]")}>
                       {job.loaded ? "on schedule" : job.installed ? "installed, not loaded" : "stopped"}
                       {job.lastExit && job.lastExit !== "0" && job.lastExit !== "(never exited)" ? ` · last exit ${job.lastExit}` : ""}
@@ -259,7 +274,7 @@ export function SettingsScreen({
                   <span className="text-[var(--color-ink)]">Daybook</span> (this window) · <span className="tnum">PID {status?.app.pid ?? "—"}</span>
                 </li>
                 <li className="py-2">
-                  <span className="text-[var(--color-ink)]">The runner</span> —{" "}
+                  <span className="text-[var(--color-ink)]">The runner</span>:{" "}
                   {status?.runner
                     ? <>builds the brief for this window · <span className="tnum">PID {status.runner.pid}</span> on 127.0.0.1:{status.runner.port} · stops when Daybook quits</>
                     : "not running (it starts with today's brief, and stops when Daybook quits)"}

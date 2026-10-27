@@ -38,8 +38,8 @@ function lines(value: string): string[] {
     .filter(Boolean);
 }
 
-/* Every time zone the system knows, labelled with its offset right now ("Europe/Lisbon —
-   GMT+1"). The Mac's own zone is the default and is always present, even on a system
+/* Every time zone the system knows, labelled with its offset right now ("Europe/Lisbon
+   (GMT+1)"). The Mac's own zone is the default and is always present, even on a system
    whose list leaves it out. No location is asked for: the Mac already knows its zone. */
 function timeZoneOptions(own: string): { id: string; label: string }[] {
   const offset = (zone: string) =>
@@ -49,7 +49,7 @@ function timeZoneOptions(own: string): { id: string; label: string }[] {
   const zones = Intl.supportedValuesOf("timeZone");
   return (zones.includes(own) ? zones : [own, ...zones]).map((zone) => ({
     id: zone,
-    label: `${zone.replace(/_/g, " ")} — ${offset(zone)}${zone === own ? " (this Mac)" : ""}`,
+    label: `${zone.replace(/_/g, " ")} (${offset(zone)}${zone === own ? ", this Mac" : ""})`,
   }));
 }
 
@@ -77,7 +77,9 @@ export function SetupQuestionsScreen({
   const [habitsText, setHabitsText] = useState("");
   // Where the answers come from: typed here, or a handover from another AI. `read` is what
   // the handover filled in, once it has been read; until then the form waits behind it.
-  const [source, setSource] = useState<"here" | "import">("here");
+  // Most people already have an AI that knows their life; letting it fill this in is the
+  // quickest way to a brief worth reading, so that comes first.
+  const [source, setSource] = useState<"here" | "import">("import");
   const [handover, setHandover] = useState("");
   const [read, setRead] = useState<HandoverDraft | null>(null);
   const [briefTime, setBriefTime] = useState("09:00");
@@ -154,7 +156,7 @@ export function SetupQuestionsScreen({
   async function save() {
     setError(null);
     if (!ownerName.trim()) {
-      setError("A name is needed — the secretary writes to you, and it needs to know whom.");
+      setError("A name is needed. The secretary writes to you, and it needs to know whom.");
       return;
     }
     const shapeProblem = dayShapeProblem(blocks);
@@ -291,10 +293,16 @@ export function SetupQuestionsScreen({
             setError(null);
           }}
           options={[
-            ["here", "Answer here"],
             ["import", "Bring it from another AI"],
+            ["here", "Answer here"],
           ]}
         />
+        {importing && (
+          <p className="mt-2 text-[13px] text-[var(--color-ink-soft)]">
+            Already use ChatGPT, Claude or Gemini? It can fill this in from what it knows, and you
+            check it before anything is written.
+          </p>
+        )}
       </div>
 
       {importing ? (
@@ -358,7 +366,7 @@ export function SetupQuestionsScreen({
           {answerMode === "words" ? (
             <Field
               label="Tell your secretary about your life"
-              hint="What you're working toward, what's fixed in your week, who you're waiting on — however it comes out. Saved as you wrote it. You can dictate: press the dictation key, or Fn twice."
+              hint="Write it however it comes out: what you're working toward, what's fixed in your week, who you're waiting on. Saved as you wrote it. You can dictate: press the dictation key, or Fn twice."
             >
               <textarea
                 id="setup-own-words"
@@ -394,7 +402,7 @@ export function SetupQuestionsScreen({
                   className={`${inputClass} min-h-16 resize-y field-sizing-content max-h-60`}
                   value={inFlight}
                   onChange={(event) => setInFlight(event.target.value)}
-                  placeholder={"Contract renewal — sent 4 March\nReference from a former manager"}
+                  placeholder={"Contract renewal, sent 4 March\nReference from a former manager"}
                 />
               </Field>
             </>
@@ -404,7 +412,7 @@ export function SetupQuestionsScreen({
         <Section title="What you track" description="Numbers for your scoreboard, and habits to tick. Both optional.">
           <Field
             label="Numbers to keep"
-            hint="One per line. Tell your secretary a number any time — “sent 3 applications today” — and it goes on your scoreboard."
+            hint="One per line. Tell your secretary a number any time, like “sent 3 applications today”, and it goes on your scoreboard."
             optional
           >
             <textarea
@@ -543,7 +551,7 @@ function HandoverSteps({
           <h2 className="text-[14px] font-semibold">Paste it into the AI that knows you</h2>
           <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">
             In the same app and account you've been using, so it can draw on your past
-            conversations. It writes a document back — copy all of it.
+            conversations. It writes a document back. Copy all of it.
           </p>
         </div>
       </div>
@@ -557,7 +565,14 @@ function HandoverSteps({
             className={`${inputClass} min-h-40 resize-y font-mono text-[12px]`}
             value={text}
             onChange={(event) => onText(event.target.value)}
-            placeholder={"Paste the whole document here — it starts with “# Daybook handover”"}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              const file = event.dataTransfer.files?.[0];
+              if (!file) return; // dropped text falls through to the textarea itself
+              event.preventDefault();
+              open(file);
+            }}
+            placeholder={"Paste the whole document here, or drop its file. It starts with “# Daybook handover”"}
             aria-label="The document your other AI wrote"
           />
           <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-[var(--color-ink-faint)]">
@@ -601,8 +616,8 @@ function HandoverRead({ draft, onAgain }: { draft: HandoverDraft; onAgain: () =>
         <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />
         <span>
           {found.length
-            ? <>Filled in from your other AI's document: {list}. Check each part below and change anything that's wrong — then write your folder.</>
-            : <>Nothing in that document matched what the prompt asks for, so nothing was filled in. It's still kept for your secretary — or try another.</>}
+            ? <>Filled in from your other AI's document: {list}. Check each part below and change anything that's wrong, then write your folder.</>
+            : <>Nothing in that document matched what the prompt asks for, so nothing was filled in. It's still kept for your secretary, or you can try another.</>}
         </span>
       </p>
       {draft.notes.length > 0 && (
@@ -636,7 +651,7 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
         <span className="ml-1.5 font-normal text-[var(--color-ink-faint)]">(optional)</span>
       </p>
       <p className="mt-0.5 text-[12.5px] text-[var(--color-ink-soft)]">
-        Add the blocks you know — the school run, deep work, the gym. Anything you leave out
+        Add the blocks you know: the school run, deep work, the gym. Anything you leave out
         shows as {UNPLANNED}. A block can run past midnight, like Sleep 23:00–07:00.
       </p>
       <div className="mt-2 space-y-2">
@@ -692,7 +707,7 @@ function DayShapeEditor({ blocks, onChange }: { blocks: DayBlock[]; onChange: (b
           {problem ??
             (blocks.length
               ? `Planned: ${describeMinutes(planned)} · ${UNPLANNED}: ${describeMinutes(1440 - planned)}`
-              : `No blocks yet — the whole day shows as ${UNPLANNED}.`)}
+              : `No blocks yet, so the whole day shows as ${UNPLANNED}.`)}
         </p>
       </div>
     </div>

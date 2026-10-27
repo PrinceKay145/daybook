@@ -9,12 +9,17 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import math
+import os
 import re
+import time
 import unittest
+from dataclasses import replace
 
 from support import FolderCase
 
 from daybook import dial
+from daybook.render import render
 
 
 class Case4_AtMostTheCapNeverManufacture(FolderCase):
@@ -148,13 +153,46 @@ class Case15_UnicodeAndAwkwardStrings(FolderCase):
 
 
 class TheClockIsNamed(FolderCase):
-    """Law 5 — verify before asserting, and say which source."""
+    """Law 5 — verify before asserting, and say which source. The brief names its clock
+    only where it could mislead: a frozen clock, or a zone that is not this Mac's own now.
+    Settings names it always."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # This Mac's zone for the comparison: Moscow keeps UTC+3 all year.
+        before = os.environ.get("TZ")
+
+        def restore() -> None:
+            if before is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = before
+            time.tzset()
+
+        os.environ["TZ"] = "Europe/Moscow"
+        time.tzset()
+        self.addCleanup(restore)
+
+    def live(self, zone: str) -> str:
+        _, data, _, _ = self.produce()
+        return render(replace(data, clock_frozen=False, timezone=zone))
 
     def test_the_frozen_clock_is_declared_in_the_brief(self):
         _, data, html, _ = self.produce()
         self.assertTrue(data.clock_frozen)
         self.assertIn("fixture_now in config.json", data.clock_description)
-        self.assertIn("frozen clock", html)
+        self.assertIn('<p class="clock">Times by a frozen clock: ', html)
+        self.assertNotIn(f"For {data.owner_name}", html)
+
+    def test_a_zone_other_than_this_macs_is_named(self):
+        self.assertIn('<p class="clock">Times in America/New York, not this Mac\'s zone</p>',
+                      self.live("America/New_York"))
+
+    def test_this_macs_own_zone_needs_no_line(self):
+        # Istanbul is another name for the same offset; an unknown zone falls back to
+        # this Mac's clock; no zone at all is this Mac's own.
+        for zone in ("Europe/Moscow", "Europe/Istanbul", "Mars/Olympus_Mons", ""):
+            self.assertNotIn('<p class="clock">', self.live(zone), zone)
 
     def test_the_hand_does_not_drift_when_the_clock_is_frozen(self):
         _, _, html, _ = self.produce()
@@ -213,6 +251,19 @@ class TheDial(FolderCase):
         self.assertIn("Call the bank", ys)
         self.assertGreaterEqual(abs(float(ys["School run"]) - float(ys["Call the bank"])), 12)
 
+    def test_the_centre_names_the_block_you_are_in(self):
+        _, _, html, _ = self.produce()
+        self.assertIn('class="dial-block" x="160.0" y="181.0">Morning / school run</text>', html)
+        self.assertIn(">until 09:00</text>", html)
+
+    def test_the_hand_runs_from_the_centre_and_its_dot_stays_inside_the_disc(self):
+        _, _, html, _ = self.produce()
+        x2, y2 = (float(v) for v in re.search(
+            r'id="hand" class="dial-hand" x1="160.0" y1="160.0" x2="([\d.]+)" y2="([\d.]+)"', html).groups())
+        tip = float(re.search(r'id="hand-tip"[^>]* r="([\d.]+)"', html).group(1))
+        disc = float(re.search(r'class="dial-disc" cx="160.0" cy="160.0" r="([\d.]+)"', html).group(1))
+        self.assertLess(math.hypot(x2 - 160, y2 - 160) + tip, disc)
+
     def test_no_block_name_can_close_the_script(self):
         self.edit_json("config.json", lambda c: c["day_shape"][2].__setitem__("block", "Deep </script> work"))
         _, _, html, results = self.produce()
@@ -227,6 +278,13 @@ class TheDial(FolderCase):
         self.assertEqual(sorted(m for _, m in data.ahead), [m for _, m in data.ahead])
         self.assertIn("var AHEAD = [", html)
         self.assertIn('id="next-line"', html)
+
+    def test_the_morning_moment_plays_only_when_the_framing_app_asks(self):
+        _, _, html, _ = self.produce()
+        self.assertIn('window.addEventListener("message"', html)
+        self.assertIn('data.type !== "daybook:morning"', html)
+        self.assertIn("event.source !== window.parent", html)
+        self.assertIn('matchMedia("(prefers-reduced-motion: reduce)")', html)
 
 
 if __name__ == "__main__":

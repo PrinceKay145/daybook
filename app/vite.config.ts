@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
+import { readFileSync } from "node:fs";
+
+const { version } = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
 
 // The frontend always talks to 127.0.0.1 and never to a bundle-specific API. That is what
 // keeps it runnable in a plain browser now and wrappable in another shell later with the
@@ -15,4 +18,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
   server: { host: "127.0.0.1", port: 5173, strictPort: true },
+  define: { __APP_VERSION__: JSON.stringify(version) },
 });

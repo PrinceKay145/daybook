@@ -48,8 +48,8 @@ exit code and the tick's last run, last brief and last error; the runner's PID; 
 directory. **Stop removes the job files, not only unloads them** — a file left in
 `~/Library/LaunchAgents` comes back at the next login, and `pkill` alone lets launchd restart
 the tick within 60 seconds — and the app never restarts jobs the user stopped
-(`backgroundJobs: "off"` in their record). A test copy of the app (`DAYBOOK_USER_DATA`) uses
-`app.daybook.mac.test.*` labels. ⏳ `uninstall` (jobs and app data, leaving the folder alone,
+(`backgroundJobs: "off"` in their record). A test copy of the app (`DAYBOOK_USER_DATA`) and a
+development run (`npm run dev`) use `app.daybook.mac.test.*` labels. ⏳ `uninstall` (jobs and app data, leaving the folder alone,
 said before it happens) comes with packaging.
 
 ## Storage tiers
@@ -346,6 +346,17 @@ to a path that changes every launch, so the packaged app offers to move itself t
 Applications and refuses to install launchd jobs until it has. ⏳ An in-app uninstall; until
 then `TESTERS.md` lists the steps (stop the jobs, remove the app, optionally its app data —
 never the folder).
+
+**Telling testers about a new build** (built 2026-10-27). On the scoreboard the app reads
+`releases/latest.json` from the Supabase project's Storage (a public bucket named
+`releases`; `VITE_UPDATE_URL` overrides the address) and, when it names a newer version
+than the running one, shows "Daybook <version> is out · Download", which opens its `url`
+(https only). Offline, or with no file, it shows nothing. Nothing installs itself: macOS
+lets only Developer ID–signed apps update themselves, so ⏳ electron-updater waits for that.
+To release: bump `version` in `app/package.json`, `npm run dist:mac`, upload the disk image
+somewhere testers can download it (the free Supabase plan caps a file at 50 MB, so a
+Drive or Dropbox link), then upload `latest.json`:
+`{"version": "0.1.1", "url": "https://…/Daybook-0.1.1-arm64.dmg", "notes": "What changed"}`.
 
 ## The three ship gates
 

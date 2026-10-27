@@ -61,8 +61,8 @@ function page(nonce) {
     body: JSON.stringify({ nonce: ${JSON.stringify(nonce)}, fragment: hash, error: error })
   }).then(function (response) {
     if (!response.ok) throw new Error();
-    if (error) say("Sign-in didn't finish", error + " — go back to Daybook and try again.", true);
-    else say("You're signed in to Daybook", "You can close this tab — Daybook has carried on.");
+    if (error) say("Sign-in didn't finish", error.replace(/[.]$/, "") + ". Go back to Daybook and try again.", true);
+    else say("You're signed in to Daybook", "You can close this tab. Daybook has carried on.");
   }).catch(function () {
     say("This sign-in link has already been used", "Go back to Daybook; if it isn't signed in, choose Continue with Google again.", true);
   });

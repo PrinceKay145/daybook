@@ -15,7 +15,6 @@ contextBridge.exposeInMainWorld("daybook", {
   recordConnection: (folder, connection) =>
     ipcRenderer.invoke("folder:recordConnection", { folder, connection }),
   storeSecret: (name, value) => ipcRenderer.invoke("secret:store", { name, value }),
-  loadSecret: (name) => ipcRenderer.invoke("secret:load", { name }),
   deleteSecret: (name) => ipcRenderer.invoke("secret:delete", { name }),
   brief: (folder) => ipcRenderer.invoke("brief:get", folder),
   scheduleStart: (folder) => ipcRenderer.invoke("schedule:start", folder),

@@ -23,7 +23,7 @@ import { SettingsScreen } from "@/screens/Settings";
 type Stage = "loading" | "login" | "folder" | "provider" | "setup" | "home" | "settings";
 
 const ACCOUNT_GONE_NOTICE =
-  "Your sign-in on this Mac has ended — the account was deleted or signed out elsewhere. Sign in, or create a new account.";
+  "Your sign-in on this Mac has ended: the account was deleted or signed out elsewhere. Sign in, or create a new account.";
 
 /* The one place that decides the screen. It sees only a verified account and that
    account's own record, so another account's progress — or a deleted account's, under
@@ -105,7 +105,7 @@ export default function App() {
           setAuthNotice(
             carriedTokens
               ? "The link arrived and carried tokens, but no session came of it. Check that Google and Supabase agree on the client credentials."
-              : "Good news, partly: the daybook:// handler works — the app received the link, but it carried no sign-in. So the browser step didn't complete (an 'Access blocked' page, usually).",
+              : "Good news, partly: the daybook:// handler works. The app received the link, but it carried no sign-in, so the browser step didn't complete (an 'Access blocked' page, usually).",
           );
         } catch (err) {
           setAuthNotice((err as Error).message);

@@ -9,6 +9,10 @@ without anyone's real life being involved.
 **The person in here does not exist.** Sam Whitfield, the clients, the recruiters, the
 newsletter and everything in the log are fabricated for testing.
 
+`sample-handover.md` is what another AI might write back for setup's **Bring it from another
+AI**: a complete handover for an invented person (Lena Hartwell), to paste or drop in when
+testing the import without asking a real AI about a real life.
+
 ---
 
 ## 🔴 The rule

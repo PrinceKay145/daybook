@@ -16,6 +16,7 @@ need this process, and making it resident costs crash resilience for nothing.
 from __future__ import annotations
 
 import json
+from html import escape
 import os
 import re
 import threading
@@ -115,7 +116,16 @@ def make_handler(folder_path: str, clock: str | None, state_dir: str | None = No
             self._cors()
             self.end_headers()
 
+        def _addressed_to_loopback(self) -> bool:
+            # DNS rebinding: a website whose name resolves to 127.0.0.1 reaches this port with
+            # its own name in Host. Answer only requests addressed to loopback itself.
+            port = self.server.server_address[1]
+            return self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}")
+
         def do_GET(self) -> None:              # noqa: N802
+            if not self._addressed_to_loopback():
+                self._send(403, b'{"error":"forbidden"}', "application/json")
+                return
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
             try:
                 if path == "/health":
@@ -132,7 +142,7 @@ def make_handler(folder_path: str, clock: str | None, state_dir: str | None = No
                         # Never serve an unverified brief. A brief that renders wrong is
                         # read quickly, trusted and acted on.
                         failures = "".join(
-                            f"<li><b>{r['id']}</b> {r['name']} — {r['detail']}</li>"
+                            f"<li><b>{escape(r['id'])}</b> {escape(r['name'])}: {escape(r['detail'])}</li>"
                             for r in payload["verification"]["results"]
                             if not r["ok"]
                         )
@@ -172,7 +182,7 @@ def _exit_with_parent(interval: float = 2.0) -> None:
         while True:
             time.sleep(interval)
             if os.getppid() != parent:
-                print("daybook runner: the app that started it is gone — exiting", flush=True)
+                print("daybook runner: the app that started it is gone, so it is exiting", flush=True)
                 os._exit(0)
 
     threading.Thread(target=watch, name="exit-with-parent", daemon=True).start()
