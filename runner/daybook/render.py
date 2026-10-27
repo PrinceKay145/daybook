@@ -170,6 +170,21 @@ def _mark_labels(marks: list[tuple[int, str, str]]) -> list[str]:
     return parts
 
 
+def _centre(data: BriefData) -> tuple[str, str]:
+    """The two lines under the time: the block you are in and until when. Unplanned time
+    is not a place to be, so there it is the next thing at a set time today instead (what
+    Next up reads), or a quiet "Nothing scheduled". The page's script says the same."""
+    current, now = data.dial.current, data.dial.now_minutes
+    if current is None:
+        return "no block", "day shape has a gap"
+    if current.label != UNPLANNED:
+        return current.label, f"until {dial.to_hhmm(current.end)}"
+    later = next(((title, at) for title, at in data.ahead if now <= at < dial.MINUTES_IN_DAY), None)
+    if later:
+        return later[0], f"at {dial.to_hhmm(later[1])} · {_until(later[1] - now)}"
+    return "Nothing scheduled", ""
+
+
 def _dial_svg(data: BriefData) -> str:
     blocks = data.dial.blocks
     colours = _label_colours(blocks)
@@ -240,15 +255,14 @@ def _dial_svg(data: BriefData) -> str:
         f'<circle class="dial-hub" cx="{CX}" cy="{CY}" r="{R_HUB}" />'
     )
 
-    current = data.dial.current
-    block_text = current.label if current else "no block"
-    until_text = f"until {dial.to_hhmm(current.end)}" if current else "day shape has a gap"
+    block_text, until_text = _centre(data)
+    quiet = "" if until_text else " quiet"
 
     return f"""<svg class="dial" viewBox="0 0 320 320" role="img"
      aria-label="The day as a 24-hour dial, midnight at the top">
   {''.join(parts)}
   <text id="dial-now" class="dial-now" x="{CX}" y="{CY + 1}">{esc(dial.to_hhmm(data.dial.now_minutes))}</text>
-  <text id="dial-block" class="dial-block" x="{CX}" y="{CY + 21}">{esc(block_text)}</text>
+  <text id="dial-block" class="dial-block{quiet}" x="{CX}" y="{CY + 21}">{esc(block_text)}</text>
   <text id="dial-until" class="dial-until" x="{CX}" y="{CY + 37}">{esc(until_text)}</text>
 </svg>"""
 
@@ -502,6 +516,7 @@ h1 {
   text-anchor: middle; font-variant-numeric: tabular-nums lining-nums;
 }
 .dial-block { fill: var(--accent); font: 700 13.5px var(--text); text-anchor: middle; }
+.dial-block.quiet { fill: var(--ink-faint); font-weight: 400; }
 .dial-until { fill: var(--ink-faint); font: 11.5px var(--text); text-anchor: middle; font-variant-numeric: tabular-nums; }
 .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; }
 .legend li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 9px; align-items: center; color: var(--ink-soft); }
@@ -653,6 +668,7 @@ def render(data: BriefData) -> str:
   var DAY = "{data.generated_for.isoformat()}";
   var TIME_ZONE = {_script_json(data.timezone or "")};
   var CX = {CX}, CY = {CY}, R_HAND = {R_HAND};
+  var UNPLANNED = {_script_json(UNPLANNED)};
   // Each block's spans as [start, end, block, the block's own end]; the reminders ahead as
   // [title, minutes from this day's midnight].
   var SPANS = {_script_json(_spans(data))};
@@ -708,21 +724,28 @@ def render(data: BriefData) -> str:
   }}
 
   function words(minutes) {{
-    var block = null, i;
+    var block = null, next = null, i;
     for (i = 0; i < SPANS.length; i++) {{
       if (SPANS[i][0] <= minutes && minutes < SPANS[i][1]) {{ block = SPANS[i]; break; }}
     }}
-    fit(setText("dial-block", block ? block[2] : "no block"), 124, 13.5, 9);
-    setText("dial-until", block ? "until " + hhmm(block[4]) : "day shape has a gap");
+    for (i = 0; i < AHEAD.length; i++) {{
+      if (AHEAD[i][1] >= minutes) {{ next = AHEAD[i]; break; }}
+    }}
+    // The same rule as _centre(): in unplanned time, the next thing at a set time today.
+    var name = "Nothing scheduled", sub = "";
+    if (!block) {{ name = "no block"; sub = "day shape has a gap"; }}
+    else if (block[2] !== UNPLANNED) {{ name = block[2]; sub = "until " + hhmm(block[4]); }}
+    else if (next && next[1] < 1440) {{ name = next[0]; sub = "at " + hhmm(next[1]) + " · " + until(next[1] - minutes); }}
+    var centre = setText("dial-block", name);
+    if (centre) {{ centre.setAttribute("class", sub ? "dial-block" : "dial-block quiet"); }}
+    fit(centre, 124, 13.5, 9);
+    fit(setText("dial-until", sub), 124, 11.5, 8.5);
     var rows = document.querySelectorAll(".legend li[data-block]");
     for (i = 0; i < rows.length; i++) {{
       rows[i].className = block && rows[i].getAttribute("data-block") === String(block[3]) ? "now" : "";
     }}
 
-    var line = document.getElementById("next-line"), next = null;
-    for (i = 0; i < AHEAD.length; i++) {{
-      if (AHEAD[i][1] >= minutes) {{ next = AHEAD[i]; break; }}
-    }}
+    var line = document.getElementById("next-line");
     if (!line) {{ return; }}
     if (!next) {{
       line.className = "next-line empty";

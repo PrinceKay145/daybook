@@ -66,6 +66,10 @@ if __name__ == "__main__":
     unittest.main()
 
 
+MOMENT = ("# Day state — 2026-03-10\n\n**True for:** Tuesday 10 March 2026\n\n"
+          "## Today's times\n\n| Time | What |\n|---|---|\n| 08:40 | Meeting with Sam |\n")
+
+
 class AWholeDayUnplanned(FolderCase):
     """A folder with no day shape is one Unplanned block from midnight to midnight. The
     disc is still drawn, bare — unplanned time takes no arc and never the accent, because
@@ -81,3 +85,31 @@ class AWholeDayUnplanned(FolderCase):
         self.assertIn("<time>all day</time>", html)
         self.assertNotIn("stroke:var(--accent)", html)
         self.assertEqual([], [r.line() for r in results if not r.ok])
+
+
+class TheCentreInUnplannedTime(FolderCase):
+    """Unplanned is not a place to be, so the centre says what is coming instead of
+    "Unplanned · until 00:00": the next thing at a set time today, or a quiet
+    "Nothing scheduled". The fresh folder's clock (08:00) is in Unplanned 07:00–09:00."""
+
+    fixture = FRESH_FIXTURE
+
+    def test_it_shows_the_next_timed_thing_today(self):
+        self.write("DAY-STATE.md", MOMENT)
+        _, _, html, results = self.produce()
+        self.assertIn('class="dial-block" x="160.0" y="181.0">Meeting with Sam</text>', html)
+        self.assertIn(">at 08:40 · in 40 minutes</text>", html)
+        self.assertNotIn(">until ", html)
+        self.assertEqual([], [r.line() for r in results if not r.ok])
+
+    def test_nothing_ahead_today_is_a_quiet_line_not_unplanned_until(self):
+        _, _, html, _ = self.produce()
+        self.assertIn('class="dial-block quiet" x="160.0" y="181.0">Nothing scheduled</text>', html)
+        self.assertIn('id="dial-until" class="dial-until" x="160.0" y="197.0"></text>', html)
+
+    def test_the_page_script_follows_the_same_rule(self):
+        _, _, html, _ = self.produce()
+        self.assertIn('var UNPLANNED = "Unplanned";', html)
+        self.assertIn('var name = "Nothing scheduled"', html)
+        self.assertIn("next[1] < 1440", html)
+
