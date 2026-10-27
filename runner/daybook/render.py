@@ -20,9 +20,10 @@ import base64
 import html
 import json
 import math
-from datetime import date
+from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import dial
 from .brief import BriefData
@@ -441,11 +442,17 @@ def _script_json(value) -> str:
 
 
 def _clock_note(data: BriefData) -> str:
-    """Which clock the times come from (law 5), said plainly."""
+    """Which clock the times come from (law 5), said only when it could mislead: a frozen
+    clock, or a time zone that is not this Mac's own right now. Settings names it always."""
     if data.clock_frozen:
         return f"Times by a frozen clock: {esc(data.clock_description)}"
-    zone = f", {esc(data.timezone)}" if data.timezone else ""
-    return f"Times by this Mac's clock{zone}"
+    try:
+        theirs = datetime.now(ZoneInfo(data.timezone)).utcoffset() if data.timezone else None
+    except (ZoneInfoNotFoundError, ValueError):
+        theirs = None  # an unknown zone falls back to this Mac's own clock (Clock.system)
+    if theirs is not None and theirs != datetime.now().astimezone().utcoffset():
+        return f"Times in {esc(data.timezone.replace('_', ' '))}, not this Mac's zone"
+    return ""
 
 
 STYLE = """
@@ -611,7 +618,7 @@ def render(data: BriefData) -> str:
         "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
     headline = rest if has_weekday else true_for
     weekday_label = weekday.rstrip(",") if has_weekday else ""
-    owner = f"For {esc(data.owner_name)} · " if data.owner_name else ""
+    clock_note = _clock_note(data)
     delivery = ("" if data.closing.text == data.delivery.sentence()
                 else f'<p class="delivery">{esc(data.delivery.sentence())}</p>')
 
@@ -634,7 +641,7 @@ def render(data: BriefData) -> str:
     {f'<p class="label">{esc(weekday_label)}</p>' if weekday_label else ''}
     <h1>{esc(headline)}</h1>
   </div>
-  <p class="clock">{owner}{_clock_note(data)}</p>
+  {f'<p class="clock">{clock_note}</p>' if clock_note else ''}
 </header>
 
 <div class="grid">

@@ -61,6 +61,7 @@ export function SettingsScreen({
   const [briefTime, setBriefTime] = useState("");
   const [closeTime, setCloseTime] = useState("");
   const [listMax, setListMax] = useState<number>(LIST_MAX.default);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +86,11 @@ export function SettingsScreen({
         setListMax(s.listMax);
       })
       .catch((err: unknown) => setError((err as Error).message));
+    // The zone setup wrote to config.json; the brief names it only when it isn't this Mac's.
+    daybook
+      .inspectFolder(folder)
+      .then((setup) => setTimezone(setup?.timezone ?? ""))
+      .catch(() => {});
   }, [folder, refresh]);
 
   async function toggleJobs() {
@@ -160,6 +166,13 @@ export function SettingsScreen({
           </Button>
           {savedNote && <span className="text-[12.5px] text-[var(--color-ink-soft)]">{savedNote}</span>}
         </div>
+        {timezone !== null && (
+          <p className="text-[12.5px] text-[var(--color-ink-faint)]">
+            {timezone
+              ? `Times in your brief: ${timezone.replace(/_/g, " ")}, by this Mac's clock.`
+              : "Times in your brief: this Mac's own clock and time zone."}
+          </p>
+        )}
       </Section>
 
       <Section title="Your brief, on its own" description="Written at its time, even when this window is closed.">

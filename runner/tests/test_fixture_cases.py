@@ -10,12 +10,16 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 import math
+import os
 import re
+import time
 import unittest
+from dataclasses import replace
 
 from support import FolderCase
 
 from daybook import dial
+from daybook.render import render
 
 
 class Case4_AtMostTheCapNeverManufacture(FolderCase):
@@ -149,13 +153,46 @@ class Case15_UnicodeAndAwkwardStrings(FolderCase):
 
 
 class TheClockIsNamed(FolderCase):
-    """Law 5 — verify before asserting, and say which source."""
+    """Law 5 — verify before asserting, and say which source. The brief names its clock
+    only where it could mislead: a frozen clock, or a zone that is not this Mac's own now.
+    Settings names it always."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # This Mac's zone for the comparison: Moscow keeps UTC+3 all year.
+        before = os.environ.get("TZ")
+
+        def restore() -> None:
+            if before is None:
+                os.environ.pop("TZ", None)
+            else:
+                os.environ["TZ"] = before
+            time.tzset()
+
+        os.environ["TZ"] = "Europe/Moscow"
+        time.tzset()
+        self.addCleanup(restore)
+
+    def live(self, zone: str) -> str:
+        _, data, _, _ = self.produce()
+        return render(replace(data, clock_frozen=False, timezone=zone))
 
     def test_the_frozen_clock_is_declared_in_the_brief(self):
         _, data, html, _ = self.produce()
         self.assertTrue(data.clock_frozen)
         self.assertIn("fixture_now in config.json", data.clock_description)
-        self.assertIn("frozen clock", html)
+        self.assertIn('<p class="clock">Times by a frozen clock: ', html)
+        self.assertNotIn(f"For {data.owner_name}", html)
+
+    def test_a_zone_other_than_this_macs_is_named(self):
+        self.assertIn('<p class="clock">Times in America/New York, not this Mac\'s zone</p>',
+                      self.live("America/New_York"))
+
+    def test_this_macs_own_zone_needs_no_line(self):
+        # Istanbul is another name for the same offset; an unknown zone falls back to
+        # this Mac's clock; no zone at all is this Mac's own.
+        for zone in ("Europe/Moscow", "Europe/Istanbul", "Mars/Olympus_Mons", ""):
+            self.assertNotIn('<p class="clock">', self.live(zone), zone)
 
     def test_the_hand_does_not_drift_when_the_clock_is_frozen(self):
         _, _, html, _ = self.produce()
