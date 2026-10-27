@@ -539,7 +539,7 @@ function BriefFrames({ html }: { html: string }) {
       sandbox="allow-scripts"
       className={cn("absolute inset-0 size-full border-0", frame.loaded ? "fade-in" : "opacity-0")}
       onLoad={(event) => {
-        if (frame.id === 0 && morningDue()) event.currentTarget.contentWindow?.postMessage({ type: "daybook:morning" }, "*");
+        if (morningDue()) event.currentTarget.contentWindow?.postMessage({ type: "daybook:morning" }, "*");
         setFrames((all) => all.map((f) => (f.id === frame.id ? { ...f, loaded: true } : f)));
       }}
       onAnimationEnd={() => setFrames((all) => all.slice(all.findIndex((f) => f.id === frame.id)))}
@@ -548,9 +548,10 @@ function BriefFrames({ html }: { html: string }) {
 }
 
 /* The morning moment (the brief's hand sweeps round to now and its list writes itself in)
-   plays in the first brief frame shown each local day on this device, never with Reduce
-   Motion on, and never for a later frame (Apply, Plan again, a refresh). The frame is a
-   sandboxed srcDoc with an opaque origin, so the message goes to "*"; it carries nothing. */
+   plays in the first brief shown each local day on this device, even when the app stayed
+   open overnight, and never with Reduce Motion on. The stored date alone decides, so later
+   briefs that day (Apply, Plan again, a refresh) skip it. The frame is a sandboxed srcDoc
+   with an opaque origin, so the message goes to "*"; it carries nothing. */
 function morningDue(): boolean {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
   const today = new Date().toLocaleDateString("en-CA");
