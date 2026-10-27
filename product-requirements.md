@@ -30,8 +30,8 @@ interview writing plain files into the folder, the brief built from that folder 
 runner, verified by the eleven assertions and shown only when they pass, written at the
 user's brief time by launchd, and Settings & status — and **the chosen model plans the
 day** (Beta 1, items 1–6 below), with the message box, the tester install, the import
-from another AI and numbers by message all built. Still to build before Beta 1 ships: item 7,
-talking to Daybook.
+from another AI and numbers by message all built. The microphone feature in item 7 is paused
+pending tester feedback; the next step is to get the current Beta 1 build into testers' hands.
 
 ---
 
@@ -101,7 +101,8 @@ the verified brief on the scoreboard · the brief arriving on its own · Setting
    applied, and "n of 7" is counted from that file. Accept: no number when none was told; a
    repeated value is not re-dated; no tick without a message; a tracked metric with no number
    yet shows a dash and why.
-7. ⬜ **Talk to Daybook** (owner, 2026-10-09; to build before Beta 1 ships). A microphone
+7. ⏸ **Talk to Daybook** (owner, 2026-10-09; paused 2026-10-22 pending tester feedback).
+   A microphone
    button so testers can record what they'd otherwise type: into "Tell your secretary", and
    into setup's "in your own words". What they said becomes text they can read and correct
    before sending; it then goes through the same proposal and Apply as a typed message.
