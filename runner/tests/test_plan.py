@@ -218,6 +218,17 @@ class WhenAskingFails(PlanCase):
         self.assertIn("Edited by hand.", self.day_state())
 
 
+    def test_a_proposal_applied_after_midnight_is_refused(self):
+        before = self.day_state()
+        proposed = plan.propose(str(self.folder), message="Did my walk.", ask=Model(answer()),
+                                clock="2026-03-10T23:58:00")
+        self.assertEqual("proposed", proposed.status, proposed.detail)
+        applied = plan.apply(str(self.folder), proposed, clock="2026-03-11T00:03:00")
+        self.assertEqual("refused", applied.status)
+        self.assertIn("new day", applied.detail)
+        self.assertEqual(before, self.day_state())
+
+
 class DayOne(PlanCase):
     fixture = FRESH_FIXTURE
 

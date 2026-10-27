@@ -120,6 +120,22 @@ class Tick(ScheduledCase):
         self.assertEqual(1, len(self.notes.sent))
         self.assertEqual("Today's brief is withheld", self.notes.sent[0][0])
 
+    def test_an_impossible_brief_time_falls_back_instead_of_crashing(self):
+        for value in ("24:00", "09:75", "nine"):
+            self.edit_json("config.json", lambda c, v=value: c["schedule"].__setitem__("brief_time", v))
+            self.assertEqual("waiting", self.tick("08:00").status)
+            self.assertEqual("ok", self.watchdog("08:00").status)
+
+    def test_a_missing_schedule_falls_back_instead_of_crashing(self):
+        self.edit_json("config.json", lambda c: c.__setitem__("schedule", None))
+        self.assertEqual("waiting", self.tick("08:00").status)
+
+    def test_an_impossible_date_in_the_log_does_not_stop_the_brief(self):
+        log = self.folder / "LOG.md"
+        log.write_text(log.read_text(encoding="utf-8") + "\n## 2026-02-30 — typed by hand\n\nA note.\n",
+                       encoding="utf-8")
+        self.assertEqual("delivered", self.tick("08:31").status)
+
     def test_an_unreadable_folder_is_logged_not_raised(self):
         (self.folder / "config.json").unlink()
         outcome = self.tick("08:31")
@@ -138,6 +154,13 @@ class Watchdog(ScheduledCase):
         outcome = self.watchdog("10:00")
         self.assertEqual("alerted", outcome.status)
         self.assertIn("hasn't run", self.notes.sent[0][1])
+
+    def test_a_folder_neither_job_can_read_is_said_once_a_day(self):
+        (self.folder / "config.json").write_text("{ not json", encoding="utf-8")
+        self.assertEqual("error", self.tick("10:00").status)
+        self.assertEqual("error", self.watchdog("10:00").status)
+        self.assertEqual("error", self.watchdog("11:00").status)
+        self.assertEqual(["Daybook can't read your folder"], [title for title, _ in self.notes.sent])
 
     def test_quiet_until_half_an_hour_after_the_brief_time(self):
         self.assertEqual("ok", self.watchdog("08:55").status)
@@ -234,6 +257,32 @@ class TickPlansTheDay(ScheduledCase):
         self.planner = lambda path, clock=None: plan.run(path, clock=clock, ask=lambda *a, **k: reply)
         self.assertEqual("delivered", self.tick("08:31").status)
         self.assertIn("Draft the Lumen proposal outline", self.brief().read_text(encoding="utf-8"))
+
+    def test_a_refused_plan_is_not_asked_for_again_every_minute(self):
+        self.planner.outcome = plan.PlanOutcome("refused", "it failed V2", model="Sonnet 5 · Claude Code")
+        for at in ("08:20", "08:21", "08:25", "08:29"):
+            self.tick(at)
+        self.assertEqual("delivered", self.tick("08:30").status)
+        self.assertEqual(1, len(self.planner.calls))
+        self.assertIn("wasn&#x27;t refreshed", self.brief().read_text(encoding="utf-8"))
+
+    def test_a_withheld_brief_does_not_send_the_model_round_again_all_day(self):
+        self.planner.outcome = plan.PlanOutcome("refused", "it failed V2", model="Sonnet 5 · Claude Code")
+        self.edit_json(
+            "config.json",
+            lambda c: c["day_shape"].append({"block": "Gym", "start": "08:00", "end": "10:00"}),
+        )
+        for at in ("08:31", "08:32", "11:00", "16:45"):
+            self.assertEqual("withheld", self.tick(at).status)
+        self.assertEqual(1, len(self.planner.calls))
+
+    def test_a_failed_plan_by_the_app_still_leaves_the_tick_its_own_try(self):
+        from daybook.tick import record_plan
+
+        record_plan(str(self.state), DAY, plan.PlanOutcome("failed", "not signed in", model="Sonnet 5"),
+                    str(self.folder))
+        self.tick("08:20")
+        self.assertEqual(1, len(self.planner.calls))
 
     def test_a_failed_retry_does_not_unsay_a_plan_that_was_written(self):
         from daybook.tick import record_plan

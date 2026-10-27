@@ -81,12 +81,16 @@ class Outcome:
 
 
 def _brief_moment(today, config: dict) -> datetime:
-    hhmm = str(config.get("schedule", {}).get("brief_time") or DEFAULT_BRIEF_TIME)
+    # config.json is edited by hand: a time like "24:00", or no schedule at all, falls back
+    # to the default rather than crashing every tick and the watchdog with it.
+    schedule = config.get("schedule")
+    hhmm = str((schedule if isinstance(schedule, dict) else {}).get("brief_time") or DEFAULT_BRIEF_TIME)
     try:
         hour, minute = (int(part) for part in hhmm.split(":"))
+        return datetime(today.year, today.month, today.day, hour, minute)
     except ValueError:
         hour, minute = (int(part) for part in DEFAULT_BRIEF_TIME.split(":"))
-    return datetime(today.year, today.month, today.day, hour, minute)
+        return datetime(today.year, today.month, today.day, hour, minute)
 
 
 def _load_state(state_dir: Path) -> dict:
@@ -187,7 +191,10 @@ def run_tick(
             return Outcome("done", f"today's brief already exists ({dated.name})")
 
         planned = planned_today(state, today.isoformat(), folder_path)
-        if plan_day is not None and not planned:
+        # The tick asks the model once a day. A plan that failed or was refused is said in the
+        # brief; asking again every minute would spend the user's plan on the same answer.
+        tried = _for(state.get("tick_plan") or {}, today.isoformat(), folder_path)
+        if plan_day is not None and not planned and not tried:
             _save_state(states, state)  # the planning call can take minutes; keep the tick seen
             try:
                 with planlock.holding(state_dir, "the morning tick"):
@@ -202,6 +209,7 @@ def run_tick(
                 state = {**_load_state(states), "last_tick": state["last_tick"]}
                 return Outcome("waiting", "Daybook is planning today right now; the brief waits for it")
             state = _load_state(states)
+            state["tick_plan"] = {"day": today.isoformat(), "folder": _where(folder_path)}
             folder = open_folder(folder_path, clock_override=clock)
             planned_detail = f"planned ({outcome.status}: {outcome.detail})" if not planned else "already planned"
         else:
@@ -295,6 +303,16 @@ def run_watchdog(
     try:
         folder = open_folder(folder_path, clock_override=clock)
     except Exception as exc:  # noqa: BLE001
+        # Said once a day, and only when the tick can't read it either (its last_error), so a
+        # file caught mid-sync doesn't raise an alarm.
+        day = (datetime.fromisoformat(clock) if clock else datetime.now()).date().isoformat()
+        if state.get("last_error") and state.get("unreadable_notified") != day:
+            notify(
+                "Daybook can't read your folder",
+                "Today's brief can't be written until it can. Open Daybook to see why.",
+            )
+            state["unreadable_notified"] = day
+            _save_state(states, state)
         return Outcome("error", f"the folder could not be read — {type(exc).__name__}: {exc}")
     now = folder.clock.now
     today = folder.today

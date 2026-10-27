@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { daybook, LIST_MAX, type Appearance, type Connection, type SystemStatus } from "@/lib/daybook";
 import { LIST_MAX_HINT, ListMaxSelect, things } from "@/components/ListMaxSelect";
 import { describeChoice } from "@/lib/models";
+import { APP_VERSION } from "@/lib/updates";
 
 function clockTime(iso?: string): string {
   if (!iso) return "never";
@@ -226,7 +227,8 @@ export function SettingsScreen({
         ) : (
           "Daybook's logs"
         )}{" "}
-        — sending them to us helps find the problem.
+        — sending them to us helps find the problem. This is Daybook{" "}
+        <span className="tnum">{APP_VERSION}</span>.
       </p>
 
       {import.meta.env.DEV && (

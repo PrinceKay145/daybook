@@ -785,8 +785,6 @@ async function secretValue(name) {
   return safeStorage.decryptString(Buffer.from(blob, "base64"));
 }
 
-ipcMain.handle("secret:load", async (_event, { name }) => secretValue(name));
-
 ipcMain.handle("secret:delete", async (_event, { name }) => {
   const secrets = await readSecrets();
   delete secrets[name];

@@ -213,7 +213,6 @@ interface DaybookBridge {
   /** Records a switched model in the folder's config.json. */
   recordConnection(folder: string, connection: Connection): Promise<string[]>;
   storeSecret(name: string, value: string): Promise<boolean>;
-  loadSecret(name: string): Promise<string | null>;
   deleteSecret(name: string): Promise<boolean>;
   /** Today's brief for this folder — built, verified and rendered by the runner. */
   brief(folder: string): Promise<BriefResult>;
@@ -300,7 +299,6 @@ export const daybook: DaybookBridge = bridge ?? {
   adoptSetup: () => refuse("Writing the setup files"),
   recordConnection: () => refuse("Writing config.json"),
   storeSecret: () => refuse("Storing a key in the keychain"),
-  loadSecret: async () => null,
   deleteSecret: async () => true,
   // A browser tab cannot start the runner; it reads one started by hand (runner/README.md).
   brief: () => fetchBriefFromRunner(),

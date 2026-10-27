@@ -21,7 +21,10 @@ plain to look at, and your feedback decides what comes next.
    software, because this beta isn't registered with Apple yet. Click **Done**.
 3. Open **System Settings → Privacy & Security**, scroll down to **Security**, and click
    **Open Anyway** next to "Daybook was blocked". Confirm with your password or Touch ID.
-4. Open **Daybook** again and click **Open**. You only do this once.
+   The button only shows for about an hour after macOS blocked Daybook; if it isn't there,
+   open Daybook again first.
+4. Open **Daybook** again and click **Open** (on some versions of macOS, **Open Anyway**).
+   You only do this once.
 
 If Daybook asks to **move itself to Applications**, say yes: your morning brief is written
 from wherever the app lives, even when it's closed.
@@ -34,11 +37,11 @@ from wherever the app lives, even when it's closed.
    `Secretary` in your home folder). Everything Daybook knows about your life lives there as
    plain files you can open and edit.
 3. **Choose a model** — Daybook finds Claude Code or Codex on your Mac.
-4. **Answer the setup questions**, or tell it about your life in your own words (you can
-   dictate: press the dictation key, or Fn twice). If ChatGPT, Claude or another AI already
-   knows your life, choose **Bring it from another AI**: copy the prompt into it, paste back
-   what it writes, and check what Daybook filled in. Add any numbers you want to keep and
-   habits you want to tick.
+4. **Tell it about your life.** The quickest way is the first option, **Bring it from another
+   AI**: copy the prompt into ChatGPT, Claude or whichever AI already knows you, paste back
+   (or drop in) the document it writes, and check what Daybook filled in. Or choose
+   **Answer here** and fill in the questions yourself (you can dictate: press the dictation
+   key, or Fn twice). Add any numbers you want to keep and habits you want to tick.
 5. Your secretary **plans your first day** straight away. After that, it plans each morning
    shortly before your brief time and writes the brief on its own.
 
@@ -51,6 +54,11 @@ what it proposes, and click **Apply**. It takes a minute or two to answer.
 Two small background jobs: one checks once a minute whether today's brief is due, one
 checks hourly that the first is still running. Each runs for a moment and exits. In
 **Settings**, turning off **Write my brief even when Daybook is closed** removes both.
+
+When Daybook first sets them up, macOS shows two **App Background Activity** notices saying
+"python3" can run in the background. That's Daybook's two jobs (they run on the Python
+bundled inside Daybook). Leave them allowed in **System Settings → General → Login Items &
+Extensions**, or your brief stops arriving on its own.
 
 ## Uninstall
 

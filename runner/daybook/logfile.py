@@ -63,9 +63,13 @@ def parse(source: str) -> Log:
         match = _ENTRY.match(section.heading.strip())
         if not match:
             continue
+        try:
+            day = date.fromisoformat(match.group(1))
+        except ValueError:
+            continue  # a hand-typed heading like 2026-02-30 is not a day
         log.entries.append(
             LogEntry(
-                day=date.fromisoformat(match.group(1)),
+                day=day,
                 label=(match.group(2) or "").strip(),
                 lines=section.lines,
             )

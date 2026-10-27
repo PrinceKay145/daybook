@@ -73,7 +73,11 @@ holds data about third parties who never consented.
 sync story and the privacy policy all change, and changing it in month three means rewriting all
 three.
 
-**ANSWER:** ⬜ confirm local-first / ⬜ something else: ______________________
+**ANSWER:** ✅ Local-first, with one exception (2026-10-27): the server may hold an
+end-to-end encrypted snapshot of the day and a queue of updates from the phone, so the day
+can be seen and changed while the Mac is off. Ciphertext only; the key is made on the Mac and
+never leaves the user's own devices. Built after Beta 1 testing (`docs/WEB-AND-PHONE-PLAN.md`);
+until then the server holds identity only (S9).
 
 ---
 
@@ -150,7 +154,9 @@ Sets the week 8 scope. Two is enough to learn from and few enough to support pro
 Spec §11 risk 2: the alpha's real job is finding out which laws are universal and which are
 personal to one life.
 
-**ANSWER:** ⬜ number: ____ · names: ______________________
+**ANSWER:** ✅ A friends alpha, number open (2026-10-27): testers join as they're ready, each on
+an Apple-silicon Mac with Claude Code or Codex signed in. Their names stay out of the repo
+(rule 1).
 
 ### D8. Free for friends, or priced from the start?
 Pricing at zero is hard to reverse. Free for the named alpha is normal and does not set a
