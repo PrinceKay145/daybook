@@ -297,12 +297,6 @@ export function SetupQuestionsScreen({
             ["here", "Answer here"],
           ]}
         />
-        {importing && (
-          <p className="mt-2 text-[13px] text-[var(--color-ink-soft)]">
-            Already use ChatGPT, Claude or Gemini? It can fill this in from what it knows, and you
-            check it before anything is written.
-          </p>
-        )}
       </div>
 
       {importing ? (
