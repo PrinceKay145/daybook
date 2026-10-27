@@ -77,6 +77,7 @@ export function ScoreboardScreen({
   const [message, setMessage] = useState("");
   const [proposal, setProposal] = useState<PlanOutcome | null>(null);
   const [applying, setApplying] = useState(false);
+  const [leaving, setLeaving] = useState(false); // the proposal fades out, then goes
   const busy = planning !== null || applying;
 
   const planToday = useCallback(async () => {
@@ -114,12 +115,13 @@ export function ScoreboardScreen({
     setApplying(true);
     try {
       const outcome = await daybook.applyPlan(proposal.proposalId);
-      setProposal(null);
       setPlan(outcome);
       if (outcome.status === "planned") {
         setMessage("");
         await load(true);
       }
+      // The card holds "Applying…" until the new brief is under it, then fades away.
+      setLeaving(true);
     } catch (err) {
       setPlan({ status: "failed", detail: (err as Error).message, summary: "", flags: [], model: "" });
     } finally {
@@ -129,7 +131,7 @@ export function ScoreboardScreen({
 
   function discardProposal() {
     if (proposal?.proposalId) void daybook.discardPlan(proposal.proposalId);
-    setProposal(null);
+    setLeaving(true);
   }
 
   useEffect(() => {
@@ -190,14 +192,26 @@ export function ScoreboardScreen({
         {/* The proposal floats over today's brief, which steps back behind a wash of the
             page's own colour: the brief is what is true now, the card is what would be. */}
         {proposal?.proposal && (
-          <div className="fade-in absolute inset-0 flex flex-col justify-end bg-[color-mix(in_srgb,var(--color-canvas)_72%,transparent)] px-5 pb-3 pt-6">
-            <ProposalCard outcome={proposal} applying={applying} onApply={() => void applyProposal()} onDiscard={discardProposal} />
+          <div
+            className={cn(
+              leaving ? "fade-out" : "fade-in",
+              "absolute inset-0 flex flex-col justify-end bg-[color-mix(in_srgb,var(--color-canvas)_72%,transparent)] px-5 pb-3 pt-6",
+            )}
+            onAnimationEnd={(event) => {
+              if (leaving && event.target === event.currentTarget) {
+                setProposal(null);
+                setLeaving(false);
+              }
+            }}
+          >
+            <ProposalCard outcome={proposal} applying={applying || leaving} onApply={() => void applyProposal()} onDiscard={discardProposal} />
           </div>
         )}
       </main>
 
       <footer className="shrink-0 border-t border-[var(--color-line)] px-5 pb-3 pt-2">
         <StatusLine
+          key={planning ?? (plan ? `${plan.status}:${plan.detail}` : "idle")}
           planning={planning}
           plan={plan}
           connection={connection}
@@ -258,8 +272,19 @@ function StatusLine({
   onOpenSettings: () => void;
 }) {
   const who = connection ? describeChoice(connection) : "Your model";
+  // Keyed by what it says, so each new line mounts afresh: it fades in, and a busy line
+  // counts from when the model was asked.
+  const [since] = useState(() => Date.now());
+  const [now, setNow] = useState(since);
+  useEffect(() => {
+    if (!planning) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [planning]);
+  const seconds = Math.floor((now - since) / 1000);
+  const elapsed = <span className="tnum text-[var(--color-ink-soft)]"> · {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, "0")}</span>;
   const line = (tone: "quiet" | "busy" | "warn", children: ReactNode) => (
-    <p className={cn("flex items-start gap-2 text-[12.5px]", tone === "warn" ? "text-[var(--color-warn)]" : "text-[var(--color-ink-faint)]")}>
+    <p className={cn("fade-in flex items-start gap-2 text-[12.5px]", tone === "warn" ? "text-[var(--color-warn)]" : "text-[var(--color-ink-faint)]")}>
       {tone === "busy" ? (
         <Loader2 className="mt-[2px] size-3.5 shrink-0 animate-spin" />
       ) : (
@@ -269,8 +294,9 @@ function StatusLine({
     </p>
   );
 
-  if (planning === "message") return line("busy", `${who} is reading your message and your folder. This takes a minute or two.`);
-  if (planning === "day") return line("busy", `${who} is reading your folder and planning today. This takes a minute or two.`);
+  if (planning && seconds >= 150) return line("busy", <>{who} is still working. This one is taking longer than usual.{elapsed}</>);
+  if (planning === "message") return line("busy", <>{who} is reading your message and your folder. This takes a minute or two.{elapsed}</>);
+  if (planning === "day") return line("busy", <>{who} is reading your folder and planning today. This takes a minute or two.{elapsed}</>);
   if (plan) {
     const flags = plan.flags.length > 0 && (
       <> Text in your folder read like instructions to the AI, and was ignored: {plan.flags.join(" · ")}</>
@@ -475,7 +501,31 @@ function BriefView({ brief }: { brief: BriefResult | null }) {
   }
 
   // The checks run before every brief; a brief that passes them is simply shown.
-  return <iframe title="Today's brief" srcDoc={brief.html} sandbox="allow-scripts" className="absolute inset-0 size-full border-0" />;
+  return <BriefFrames html={brief.html} />;
+}
+
+/* A new brief fades in over the one before it once it has loaded, rather than the frame
+   blanking while it reloads; then the older frame goes. Keys keep the newest frame's
+   document alive when the ones under it are dropped. */
+function BriefFrames({ html }: { html: string }) {
+  const [frames, setFrames] = useState([{ id: 0, html, loaded: false }]);
+  useEffect(() => {
+    setFrames((all) => {
+      const last = all[all.length - 1];
+      return last.html === html ? all : [...all, { id: last.id + 1, html, loaded: false }];
+    });
+  }, [html]);
+  return frames.map((frame) => (
+    <iframe
+      key={frame.id}
+      title="Today's brief"
+      srcDoc={frame.html}
+      sandbox="allow-scripts"
+      className={cn("absolute inset-0 size-full border-0", frame.loaded ? "fade-in" : "opacity-0")}
+      onLoad={() => setFrames((all) => all.map((f) => (f.id === frame.id ? { ...f, loaded: true } : f)))}
+      onAnimationEnd={() => setFrames((all) => all.slice(all.findIndex((f) => f.id === frame.id)))}
+    />
+  ));
 }
 
 function Notice({ title, children }: { title: string; children: ReactNode }) {
