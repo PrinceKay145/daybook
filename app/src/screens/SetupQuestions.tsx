@@ -250,8 +250,9 @@ export function SetupQuestionsScreen({
             <div>
               <h2 className="text-[15px] font-semibold">Start over</h2>
               <p className="mt-0.5 text-[13px] text-[var(--color-ink-soft)]">
-                The questions again. The current SETUP-CONTEXT.md and MASTER-PLAN.md move to
-                archive/setup/ first, and nothing is deleted. Your log, day state and corrections stay.
+                The questions again, and a fresh day from your answers. The current setup files and
+                day state move to archive/setup/ first, and nothing is deleted. Your log and
+                corrections stay.
               </p>
             </div>
             <Button variant="secondary" size="lg" disabled={busy} onClick={() => beginStartOver(existing)}>Start over</Button>

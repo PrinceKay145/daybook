@@ -198,9 +198,11 @@ Every write is atomic (temp file + rename). Nothing is sent anywhere.
 the questions, and the choice is the user's. **Use this setup** is the default: every file
 stays as it is and only the AI choice is recorded in `config.json`. **Start over** asks the
 questions again, prefilled from the old setup; the previous `SETUP-CONTEXT.md` and
-`MASTER-PLAN.md` move to `archive/setup/<time>/` first, `LOG.md` records the redo, and
-`DAY-STATE.md`, `LOG.md` and `CORRECTIONS.md` are otherwise untouched — they are what
-happened, not what was set up. Nothing is deleted either way.
+`MASTER-PLAN.md` move to `archive/setup/<time>/` first, together with `DAY-STATE.md` (owner,
+2026-10-27: a day state left behind outranks the new answers and carried the old day into
+the new start), so the new day state is seeded from the new answers; `LOG.md` records the
+redo, and `LOG.md` and `CORRECTIONS.md` are otherwise untouched — they are what happened.
+Nothing is deleted either way.
 
 **Scoreboard (home).** Today's brief, built from the folder by the runner and shown only
 when all eleven assertions pass — the runner's own self-contained page, in a sandboxed
