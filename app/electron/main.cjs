@@ -671,10 +671,11 @@ mistake waiting to be repeated.
   ];
 }
 
-/* Starting over replaces what the interview wrote, never what the days wrote: the previous
-   SETUP-CONTEXT.md and MASTER-PLAN.md move to archive/setup/<stamp>/ first, and
-   DAY-STATE.md, LOG.md and CORRECTIONS.md stay exactly as they are. */
-const REDONE_BY_START_OVER = ["SETUP-CONTEXT.md", "MASTER-PLAN.md", "HANDOVER.md"];
+/* Starting over replaces the setup and what is true now, never the history: the previous
+   SETUP-CONTEXT.md, MASTER-PLAN.md, HANDOVER.md and DAY-STATE.md move to
+   archive/setup/<stamp>/ first (a day state left behind outranks the new answers and
+   carries the old day into the new start), and LOG.md and CORRECTIONS.md stay as they are. */
+const REDONE_BY_START_OVER = ["SETUP-CONTEXT.md", "MASTER-PLAN.md", "HANDOVER.md", "DAY-STATE.md"];
 
 async function archivePreviousSetup(folder) {
   const present = REDONE_BY_START_OVER.filter((file) => fs.existsSync(path.join(folder, file)));
