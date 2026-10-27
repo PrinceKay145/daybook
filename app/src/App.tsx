@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   handleAuthRedirect,
   onSignedOut,
+  savedAccount,
   signOut,
   verifyAccount,
   type Account,
@@ -86,8 +87,42 @@ export default function App() {
     return verified;
   }, []);
 
+  /* Launch opens straight from what this Mac knows (the saved session and this account's
+     record), then confirms with Supabase in the background, as most desktop apps do.
+     Waiting on the network first held every launch on a blank "Opening…". If the check
+     finds the account gone, verifyAccount signs out and onSignedOut routes to sign-in. */
   useEffect(() => {
-    void route("launch");
+    const saved = savedAccount();
+    if (!saved) {
+      void route("launch");
+      return;
+    }
+    const mine = ++ticket.current;
+    void (async () => {
+      let record: UserSettings = {};
+      try {
+        record = await daybook.loadSettings(saved.id);
+      } catch (err) {
+        console.warn("[daybook] route (launch): settings failed:", err);
+      }
+      if (mine !== ticket.current) return;
+      const next = decideStage(saved, record);
+      console.log(`[daybook] route (launch): opened from the saved session → ${next}`);
+      setAccount(saved);
+      setSettings(record);
+      setStage(next);
+      try {
+        const result = await verifyAccount();
+        if (result.reason === "account-gone") setAuthNotice(ACCOUNT_GONE_NOTICE);
+        if (result.account?.id !== saved.id) void route("launch check");
+        else if (result.account.email !== record.email) {
+          setSettings(await daybook.saveSettings(saved.id, { email: result.account.email }));
+        }
+      } catch (err) {
+        console.warn("[daybook] route (launch check): account check failed:", err);
+        void route("launch check");
+      }
+    })();
   }, [route]);
 
   // Google's browser round-trip and the confirmation email both arrive here via the
@@ -168,9 +203,7 @@ export default function App() {
     settings.connections?.[0] ??
     null;
 
-  if (stage === "loading") {
-    return <p className="px-8 py-16 text-[13px] text-[var(--color-ink-faint)]">Opening…</p>;
-  }
+  if (stage === "loading") return <Opening />;
 
   if (stage === "login" || !account) {
     return (
@@ -249,4 +282,16 @@ export default function App() {
     default:
       return null;
   }
+}
+
+/* The account check on launch is usually done in a blink; saying "Opening…" for that blink
+   only flashes a word. It appears only if the check is still running after 0.8 s (a slow
+   network), so a quick launch goes straight to its screen. */
+function Opening() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 800);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return slow ? <p className="fade-in px-8 py-16 text-[13px] text-[var(--color-ink-faint)]">Opening…</p> : null;
 }
