@@ -10,15 +10,16 @@
 
    Stopping removes them, not just unloads them: a job left in ~/Library/LaunchAgents
    comes back at the next login, and `pkill` alone lets launchd restart the tick within a
-   minute. Starting writes them again. A test copy of the app (DAYBOOK_USER_DATA set) uses
-   …test… labels, so testing never touches the real jobs. */
+   minute. Starting writes them again. A test copy of the app (DAYBOOK_USER_DATA set) and a
+   development run (`electron .`) use …test… labels, so neither touches the installed app's
+   jobs. */
 
 const { execFile } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const PREFIX = process.env.DAYBOOK_USER_DATA ? "app.daybook.mac.test" : "app.daybook.mac";
+const PREFIX = process.env.DAYBOOK_USER_DATA || process.defaultApp ? "app.daybook.mac.test" : "app.daybook.mac";
 const JOBS = [
   { name: "tick", interval: 60, purpose: "writes today's brief once its time has passed" },
   { name: "watchdog", interval: 3600, purpose: "notices a stopped tick or a missing brief" },
