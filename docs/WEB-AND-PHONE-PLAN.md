@@ -49,9 +49,9 @@ Nothing below should wait for this; it is the fastest real feedback you can get.
   snapshot's schedule, no AI needed).
 
 ## Decisions only you can make (D-items)
-1. **D3 amendment:** allow an end-to-end encrypted day snapshot and update queue on the
-   server (ciphertext only). Without this, the phone cannot see anything while the Mac sleeps.
-2. **D7:** who the 2-3 testers are.
+1. **D3 amendment:** ✅ decided 27 Oct: an end-to-end encrypted day snapshot and update
+   queue on the server (ciphertext only), built after Beta 1 testing.
+2. **D7:** ✅ decided 27 Oct: a friends alpha, number open.
 3. **D8:** free alpha (framed as alpha) or priced.
 4. Before any public release: agree to Anthropic's Commercial Terms (D4 note).
 
