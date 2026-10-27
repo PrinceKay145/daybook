@@ -21,7 +21,10 @@ plain to look at, and your feedback decides what comes next.
    software, because this beta isn't registered with Apple yet. Click **Done**.
 3. Open **System Settings → Privacy & Security**, scroll down to **Security**, and click
    **Open Anyway** next to "Daybook was blocked". Confirm with your password or Touch ID.
-4. Open **Daybook** again and click **Open**. You only do this once.
+   The button only shows for about an hour after macOS blocked Daybook; if it isn't there,
+   open Daybook again first.
+4. Open **Daybook** again and click **Open** (on some versions of macOS, **Open Anyway**).
+   You only do this once.
 
 If Daybook asks to **move itself to Applications**, say yes: your morning brief is written
 from wherever the app lives, even when it's closed.
@@ -51,6 +54,10 @@ what it proposes, and click **Apply**. It takes a minute or two to answer.
 Two small background jobs: one checks once a minute whether today's brief is due, one
 checks hourly that the first is still running. Each runs for a moment and exits. In
 **Settings**, turning off **Write my brief even when Daybook is closed** removes both.
+
+When Daybook first sets them up, macOS may show a **Background Items Added** notice. That's
+expected: leave them allowed in **System Settings → General → Login Items**, or your brief
+stops arriving on its own.
 
 ## Uninstall
 
