@@ -73,18 +73,23 @@ MOMENT = ("# Day state — 2026-03-10\n\n**True for:** Tuesday 10 March 2026\n\n
 class AWholeDayUnplanned(FolderCase):
     """A folder with no day shape is one Unplanned block from midnight to midnight. The
     disc is still drawn, bare — unplanned time takes no arc and never the accent, because
-    it is not a plan."""
+    it is not a plan — and the legend does not spend a row saying so."""
 
     fixture = FRESH_FIXTURE
 
-    def test_the_disc_is_drawn_bare(self):
+    def test_the_disc_is_drawn_bare_and_the_legend_has_no_all_day_row(self):
         self.edit_json("config.json", lambda c: c.pop("day_shape", None))
         _, _, html, results = self.produce()
         self.assertIn('class="dial-disc"', html)
         self.assertNotIn('class="dial-arc"', html)
-        self.assertIn("<time>all day</time>", html)
+        self.assertNotIn("<time>all day</time>", html)
+        self.assertNotIn("<span>Unplanned</span>", html)
         self.assertNotIn("stroke:var(--accent)", html)
         self.assertEqual([], [r.line() for r in results if not r.ok])
+
+    def test_unplanned_gaps_between_blocks_keep_their_rows(self):
+        _, _, html, _ = self.produce()
+        self.assertIn("<span>Unplanned</span><time>07:00–09:00</time>", html)
 
 
 class TheCentreInUnplannedTime(FolderCase):

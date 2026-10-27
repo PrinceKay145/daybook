@@ -275,10 +275,13 @@ def _hours(block) -> str:
 
 def _legend(data: BriefData) -> str:
     """Each block of the day with its hours, in the order the day shape lists them; then
-    today's moments by name, since the rim marks them only with a dot."""
+    today's moments by name, since the rim marks them only with a dot. A day with no
+    blocks set is one Unplanned block, and a row saying so tells nobody anything."""
     colours = _label_colours(data.dial.blocks)
     rows = []
     for index, block in enumerate(data.dial.blocks):
+        if block.label == UNPLANNED and block.length >= dial.MINUTES_IN_DAY:
+            continue
         now = block is data.dial.current
         rows.append(
             f'<li data-block="{index}" class="{"now" if now else ""}">'
